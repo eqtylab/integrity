@@ -1,0 +1,7 @@
+{
+    "@context": {
+        "foo": "http://foo.com"
+    },
+    "@id": "urn:foo",
+    "foo": "bar"
+}

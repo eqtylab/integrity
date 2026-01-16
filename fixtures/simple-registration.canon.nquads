@@ -1,0 +1,4 @@
+<urn:cid:TODO> <http://eqtylab.io/terms/data> <urn:cid:DATA> .
+<urn:cid:TODO> <http://eqtylab.io/terms/registrar> <did:key:REGISTRAR> .
+<urn:cid:TODO> <http://eqtylab.io/terms/registrarContext> <urn:cid:REGISTRATION_CONTEXT> .
+<urn:cid:TODO> <http://eqtylab.io/terms/timestamp> "2023-09-10T14:09:09Z" .

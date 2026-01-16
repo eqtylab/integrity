@@ -1,0 +1,19 @@
+{
+    "@context": {
+        "data": "http://eqtylab.io/terms/data",
+        "registrationContext": "http://eqtylab.io/terms/registrarContext",
+        "registrar": "http://eqtylab.io/terms/registrar",
+        "timestamp": "http://eqtylab.io/terms/timestamp"
+    },
+    "@id": "urn:cid:TODO",
+    "data": {
+        "@id": "urn:cid:DATA"
+    },
+    "registrationContext": {
+        "@id": "urn:cid:REGISTRATION_CONTEXT"
+    },
+    "registrar": {
+        "@id": "did:key:REGISTRAR"
+    },
+    "timestamp": "2023-09-10T14:09:09Z"
+}

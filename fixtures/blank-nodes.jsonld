@@ -1,0 +1,32 @@
+{
+    "@context": {
+        "foo": "http://foo.com"
+    },
+    "foo": [
+        {
+            "foo": "bar"
+        },
+        {
+            "foo": {
+                "foo": "bar"
+            }
+        },
+        {
+            "foo": {
+                "foo": {
+                    "foo": {
+                        "foo": {
+                            "foo": {
+                                "foo": {
+                                    "foo": {
+                                        "foo": "bar"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    ]
+}

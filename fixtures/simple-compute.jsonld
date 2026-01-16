@@ -1,0 +1,23 @@
+{
+    "@context": {
+        "input": "http://eqtylab.io/terms/input",
+        "output": "http://eqtylab.io/terms/output",
+        "executionContext": "http://eqtylab.io/terms/executionContext",
+        "executedBy": "http://eqtylab.io/terms/executedBy",
+        "timestamp": "http://eqtylab.io/terms/timestamp"
+    },
+    "@id": "urn:cid:TODO",
+    "input": {
+        "@id": "urn:cid:INPUT"
+    },
+    "output": {
+        "@id": "urn:cid:OUTPUT"
+    },
+    "executionContext": {
+        "@id": "urn:cid:EXECUTION_CONTEXT"
+    },
+    "executedBy": {
+        "@id": "did:key:EXECUTED_BY"
+    },
+    "timestamp": "2023-09-10T14:09:09Z"
+}

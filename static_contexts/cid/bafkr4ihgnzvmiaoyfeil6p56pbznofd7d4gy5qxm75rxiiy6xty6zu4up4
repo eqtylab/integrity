@@ -1,0 +1,364 @@
+{
+    "@context": {
+        "@protected": true,
+
+        "vcomp": {
+            "@id": "https://eqtylab.io/terms/vcomp"
+        },
+
+        "EqtyVCompAmdSevV1": {
+            "@id": "https://eqtylab.io/terms/EqtyVCompAmdSevV1",
+            "@context": {
+                "measurement": {
+                    "@id": "https://eqtylab.io/terms/measurement",
+                    "@type": "xsd:string"
+                },
+                "measurementInfo": {
+                    "@id": "https://eqtylab.io/terms/measurementInfo",
+                    "@context": {
+                        "sevMode": {
+                            "@id": "https://eqtylab.io/terms/sevMode",
+                            "@type": "xsd:string"
+                        },
+                        "numCpuCores": {
+                            "@id": "https://eqtylab.io/terms/numCpuCores",
+                            "@type": "xsd:integer"
+                        },
+                        "cpuType": {
+                            "@id": "https://eqtylab.io/terms/cpuType",
+                            "@type": "xsd:string"
+                        },
+                        "ovmf": {
+                            "@id": "https://eqtylab.io/terms/ovmf",
+                            "@type": "@id",
+                            "@context": {
+                                "sha256": {
+                                    "@id": "https://eqtylab.io/terms/sha256",
+                                    "@type": "xsd:string"
+                                }
+                            }
+                        },
+                        "kernel": {
+                            "@id": "https://eqtylab.io/terms/kernel",
+                            "@type": "@id",
+                            "@context": {
+                                "sha256": {
+                                    "@id": "https://eqtylab.io/terms/sha256",
+                                    "@type": "xsd:string"
+                                }
+                            }
+                        },
+                        "initrd": {
+                            "@id": "https://eqtylab.io/terms/initrd",
+                            "@type": "@id",
+                            "@context": {
+                                "sha256": {
+                                    "@id": "https://eqtylab.io/terms/sha256",
+                                    "@type": "xsd:string"
+                                }
+                            }
+                        },
+                        "append": {
+                            "@id": "https://eqtylab.io/terms/append",
+                            "@type": "@id",
+                            "@context": {
+                                "sha256": {
+                                    "@id": "https://eqtylab.io/terms/sha256",
+                                    "@type": "xsd:string"
+                                },
+                                "value": {
+                                    "@id": "https://eqtylab.io/terms/value",
+                                    "@type": "xsd:string"
+                                }
+                            }
+                        },
+                        "rootfs": {
+                            "@id": "https://eqtylab.io/terms/rootfs",
+                            "@type": "@id",
+                            "@context": {
+                                "sha256": {
+                                    "@id": "https://eqtylab.io/terms/sha256",
+                                    "@type": "xsd:string"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+
+        "EqtyVCompAmdSevV1Evidence": {
+            "@id": "https://eqtylab.io/terms/EqtyVCompAmdSevV1Evidence",
+            "@context": {
+                "report": {
+                    "@id": "https://eqtylab.io/terms/report",
+                    "@type": "@id"
+                },
+                "certificateChain": {
+                    "@id": "https://eqtylab.io/terms/certificateChain",
+                    "@type": "@id"
+                }
+            }
+        },
+
+        "EqtyVCompIntelTdxV0": {
+            "@id": "https://eqtylab.io/terms/EqtyVCompIntelTdxV0",
+            "@context": {
+                "measurement": {
+                    "@id": "https://eqtylab.io/terms/measurements",
+                    "@type": "xsd:string"
+                },
+                "measurementInfo": {
+                    "@id": "https://eqtylab.io/terms/measurementInfo",
+                    "@context": {
+                        "ovmf": {
+                            "@id": "https://eqtylab.io/terms/ovmf",
+                            "@type": "@id",
+                            "@context": {
+                                "sha384": {
+                                    "@id": "https://eqtylab.io/terms/sha384",
+                                    "@type": "xsd:string"
+                                }
+                            }
+                        },
+                        "kernel": {
+                            "@id": "https://eqtylab.io/terms/kernel",
+                            "@type": "@id",
+                            "@context": {
+                                "sha384": {
+                                    "@id": "https://eqtylab.io/terms/sha384",
+                                    "@type": "xsd:string"
+                                }
+                            }
+                        },
+                        "initrd": {
+                            "@id": "https://eqtylab.io/terms/initrd",
+                            "@type": "@id",
+                            "@context": {
+                                "sha384": {
+                                    "@id": "https://eqtylab.io/terms/sha384",
+                                    "@type": "xsd:string"
+                                }
+                            }
+                        },
+                        "append": {
+                            "@id": "https://eqtylab.io/terms/append",
+                            "@type": "@id",
+                            "@context": {
+                                "sha384": {
+                                    "@id": "https://eqtylab.io/terms/sha384",
+                                    "@type": "xsd:string"
+                                },
+                                "value": {
+                                    "@id": "https://eqtylab.io/terms/value",
+                                    "@type": "xsd:string"
+                                }
+                            }
+                        },
+                        "rootfs": {
+                            "@id": "https://eqtylab.io/terms/rootfs",
+                            "@type": "@id",
+                            "@context": {
+                                "sha256": {
+                                    "@id": "https://eqtylab.io/terms/sha256",
+                                    "@type": "xsd:string"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+
+        "EqtyVCompIntelTdxV0Evidence": {
+            "@id": "https://eqtylab.io/terms/EqtyVCompIntelTdxV0Evidence",
+            "@context": {
+                "report": {
+                    "@id": "https://eqtylab.io/terms/report",
+                    "@type": "@id"
+                },
+                "certificateChain": {
+                    "@id": "https://eqtylab.io/terms/certificateChain",
+                    "@type": "@id"
+                }
+            }
+        },
+
+        "EqtyVCompAzureV1": {
+            "@id": "https://eqtylab.io/terms/EqtyVCompAzureV1",
+            "@context": {
+                "measurement": {
+                    "@id": "https://eqtylab.io/terms/measurement",
+                    "@context": {
+                        "pcr11": {
+                            "@id": "https://eqtylab.io/terms/pcr11",
+                            "@type": "xsd:string"
+                        },
+                        "firmware": {
+                            "@id": "https://eqtylab.io/terms/firmware",
+                            "@type": "xsd:string"
+                        }
+                    }
+                },
+                "measurementInfo": {
+                    "@id": "https://eqtylab.io/terms/measurementInfo",
+                    "@context": {
+                        "uki": {
+                            "@id": "https://eqtylab.io/terms/uki",
+                            "@type": "@id"
+                        },
+                        "kernel": {
+                            "@id": "https://eqtylab.io/terms/kernel",
+                            "@type": "@id",
+                            "@context": {
+                                "sha384": {
+                                    "@id": "https://eqtylab.io/terms/sha384",
+                                    "@type": "xsd:string"
+                                }
+                            }
+                        },
+                        "initrd": {
+                            "@id": "https://eqtylab.io/terms/initrd",
+                            "@type": "@id",
+                            "@context": {
+                                "sha384": {
+                                    "@id": "https://eqtylab.io/terms/sha384",
+                                    "@type": "xsd:string"
+                                },
+                                "parts": {
+                                    "@id": "https://eqtylab.io/terms/parts",
+                                    "@type": "@id"
+                                }
+                            }
+                        },
+                        "append": {
+                            "@id": "https://eqtylab.io/terms/append",
+                            "@type": "@id",
+                            "@context": {
+                                "sha384": {
+                                    "@id": "https://eqtylab.io/terms/sha384",
+                                    "@type": "xsd:string"
+                                },
+                                "value": {
+                                    "@id": "https://eqtylab.io/terms/value",
+                                    "@type": "xsd:string"
+                                }
+                            }
+                        },
+                        "rootfs": {
+                            "@id": "https://eqtylab.io/terms/rootfs",
+                            "@type": "@id",
+                            "@context": {
+                                "sha256": {
+                                    "@id": "https://eqtylab.io/terms/sha256",
+                                    "@type": "xsd:string"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+
+        "EqtyVCompAzureV1Evidence": {
+            "@id": "https://eqtylab.io/terms/EqtyVCompAzureV1Evidence",
+            "@context": {
+                "reportType": {
+                    "@id": "https://eqtylab.io/terms/reportType",
+                    "@type": "xsd:string"
+                },
+                "report": {
+                    "@id": "https://eqtylab.io/terms/report",
+                    "@type": "@id"
+                },
+                "reportCertificateChain": {
+                    "@id": "https://eqtylab.io/terms/reportCertificateChain",
+                    "@type": "@id"
+                },
+                "tpmQuote": {
+                    "@id": "https://eqtylab.io/terms/tpmQuote",
+                    "@type": "@id"
+                },
+                "tpmQuoteSignature": {
+                    "@id": "https://eqtylab.io/terms/tpmQuoteSignature",
+                    "@type": "@id"
+                },
+                "tpmAKCertificate": {
+                    "@id": "https://eqtylab.io/terms/tpmAKCertificate",
+                    "@type": "@id"
+                },
+                "tpmLog": {
+                    "@id": "https://eqtylab.io/terms/tpmLog",
+                    "@type": "@id"
+                },
+                "azureBootLog": {
+                    "@id": "https://eqtylab.io/terms/azureBootLog",
+                    "@type": "@id"
+                }
+            }
+        },
+
+        "EqtyVCompNvidiaCcV0Evidence": {
+            "@id": "https://eqtylab.io/terms/EqtyVCompNvidiaCcV0Evidence",
+            "@context": {
+                "report": {
+                    "@id": "https://eqtylab.io/terms/report",
+                    "@type": "@id"
+                },
+                "certificateChain": {
+                    "@id": "https://eqtylab.io/terms/certificateChain",
+                    "@type": "@id"
+                }
+            }
+        },
+
+        "EqtyVCompDockerV1": {
+            "@id": "https://eqtylab.io/terms/EqtyVCompDockerV1",
+            "@context": {
+                "image": {
+                    "@id": "https://eqtylab.io/terms/image",
+                    "@context": {
+                        "name": {
+                            "@id": "https://eqtylab.io/terms/name",
+                            "@type": "xsd:string"
+                        },
+                        "sha256": {
+                            "@id": "https://eqtylab.io/terms/sha256",
+                            "@type": "xsd:string"
+                        }
+                    }
+                },
+                "compose": {
+                    "@id": "https://eqtylab.io/terms/compose",
+                    "@type": "@id"
+                },
+                "executedOn": {
+                    "@id": "https://eqtylab.io/terms/executedOn"
+                },
+                "operatedBy": {
+                    "@id": "https://eqtylab.io/terms/operatedBy"
+                }
+            }
+        },
+
+        "EqtyVCompCustomV1": {
+            "@id": "https://eqtylab.io/terms/EqtyVCompCustomV1",
+            "@context": {
+                "value": {
+                    "@id": "https://eqtylab.io/terms/image",
+                    "@type": "@json"
+                }
+            }
+        },
+
+        "EqtyVCompCustomV1Evidence": {
+            "@id": "https://eqtylab.io/terms/EqtyVCompCustomV1Evidence",
+            "@context": {
+                "value": {
+                    "@id": "https://eqtylab.io/terms/value",
+                    "@type": "@json"
+                }
+            }
+        }
+    }
+}

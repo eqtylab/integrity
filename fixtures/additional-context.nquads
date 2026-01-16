@@ -1,0 +1,2 @@
+<urn:test:subject> <http://example.com/name> "Test Subject" .
+<urn:test:subject> <http://example.com/value> "42"^^<http://www.w3.org/2001/XMLSchema#integer> .
