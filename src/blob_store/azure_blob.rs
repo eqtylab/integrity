@@ -6,6 +6,9 @@ use log::trace;
 
 use crate::blob_store::{calc_and_validate_cid, BlobStore};
 
+/// Azure Blob Storage implementation of BlobStore
+///
+/// Stores blobs in Azure Blob Storage containers, indexed by CID.
 pub struct AzureBlob {
     account: String,
     key: String,
@@ -15,6 +18,12 @@ pub struct AzureBlob {
 }
 
 impl AzureBlob {
+    /// Creates a new Azure Blob Storage client
+    ///
+    /// # Arguments
+    /// * `account` - Azure storage account name
+    /// * `key` - Azure storage account key
+    /// * `container` - Container name to store blobs in
     pub fn new(account: String, key: String, container: String) -> Self {
         Self {
             account,

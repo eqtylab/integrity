@@ -4,16 +4,43 @@ use cid::{multihash::MultihashGeneric, Cid};
 use crate::cid::multicodec;
 type Multihash = MultihashGeneric<64>;
 
+/// Creates a CID v1 from a codec identifier and multihash
+///
+/// # Arguments
+/// * `codec` - The multicodec identifier
+/// * `multihash` - The multihash value
+///
+/// # Returns
+/// The CID as a string
 pub fn cid(codec: u64, multihash: Multihash) -> String {
     Cid::new_v1(codec, multihash).to_string()
 }
 
+/// Creates a CID from a BLAKE3 hash and codec identifier
+///
+/// # Arguments
+/// * `codec` - The multicodec identifier
+/// * `hash` - The BLAKE3 hash bytes
+///
+/// # Returns
+/// The CID as a string
 pub fn cid_from_blake3_hash(codec: u64, hash: &[u8]) -> Result<String> {
     let multihash = Multihash::wrap(0x1e, hash)?;
 
     Ok(cid(codec, multihash))
 }
 
+/// Computes BLAKE3 hash of data and creates a CID
+///
+/// Uses `iroh_blake3` on native platforms to avoid C library conflicts.
+/// Uses regular `blake3` crate on WASM where there are no linking concerns.
+///
+/// # Arguments
+/// * `codec` - The multicodec identifier
+/// * `data` - The data to hash
+///
+/// # Returns
+/// The CID as a string
 pub fn blake3_cid(codec: u64, data: &[u8]) -> Result<String> {
     #[cfg(not(target_arch = "wasm32"))]
     {
@@ -35,6 +62,13 @@ pub fn blake3_cid(codec: u64, data: &[u8]) -> Result<String> {
     }
 }
 
+/// Computes BLAKE3 CID for raw binary data
+///
+/// # Arguments
+/// * `data` - The raw binary data
+///
+/// # Returns
+/// The CID as a string with raw binary multicodec
 pub fn blake3_cid_raw_binary(data: &[u8]) -> Result<String> {
     blake3_cid(multicodec::RAW_BINARY, data)
 }

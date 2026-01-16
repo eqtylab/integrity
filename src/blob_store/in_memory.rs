@@ -5,8 +5,12 @@ use async_trait::async_trait;
 
 use crate::blob_store::BlobStore;
 
+/// In-memory blob storage for testing
+///
+/// Stores blobs in a HashMap. Not persistent. Used for testing and development.
 #[cfg(not(target_arch = "wasm32"))]
 pub struct InMemoryStore {
+    /// Map of CIDs to blob data
     pub blobs: HashMap<String, Vec<u8>>,
 }
 

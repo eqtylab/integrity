@@ -15,6 +15,14 @@ repos:
         types: [rust]
         pass_filenames: false
 
+      - id: doc-check
+        name: Rust Docs (cargo doc)
+        description: Run `cargo doc` to ensure documentation builds without errors.
+        entry: cargo rustdoc --lib -- -W missing_docs -D rustdoc::broken_intra_doc_links
+        language: system
+        pass_filenames: false
+        types: [rust]
+
   - repo: builtin
     hooks:
       - id: trailing-whitespace

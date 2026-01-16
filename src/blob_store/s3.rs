@@ -6,6 +6,9 @@ use log::{debug, trace};
 
 use crate::blob_store::{calc_and_validate_cid, BlobStore};
 
+/// AWS S3 blob storage backend
+///
+/// Stores blobs in an S3 bucket under a specified folder prefix.
 pub struct S3 {
     region: String,
     bucket: String,
@@ -14,6 +17,12 @@ pub struct S3 {
 }
 
 impl S3 {
+    /// Creates a new S3 blob store
+    ///
+    /// # Arguments
+    /// * `region` - AWS region (e.g., "us-east-1")
+    /// * `bucket` - S3 bucket name
+    /// * `folder` - Folder prefix within the bucket
     pub fn new(region: String, bucket: String, folder: String) -> Self {
         let folder = match folder.ends_with('/') {
             true => folder,

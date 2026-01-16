@@ -3,9 +3,13 @@ use async_trait::async_trait;
 
 use crate::cid::blake3::blake3_cid;
 
+/// Azure Blob Storage backend
 pub mod azure_blob;
+/// In-memory blob storage for testing
 pub mod in_memory;
+/// Local filesystem blob storage
 pub mod local_fs;
+/// AWS S3 blob storage backend
 pub mod s3;
 
 pub use azure_blob::AzureBlob;
@@ -13,6 +17,10 @@ pub use in_memory::InMemoryStore;
 pub use local_fs::LocalFs;
 pub use s3::S3;
 
+/// Trait for content-addressable blob storage backends
+///
+/// Stores binary data indexed by CID (Content Identifier).
+/// All data is content-addressed using BLAKE3 hashes.
 #[async_trait]
 pub trait BlobStore {
     /// Initialize the store

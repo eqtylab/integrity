@@ -12,6 +12,9 @@ pub struct P256Signer {
 }
 
 impl P256Signer {
+    /// Creates a new P256Signer instance.
+    /// This function generates a new P256Signer key pair and constructs a signer with the DID document derived from this key pair.
+    /// @return {`Result<P256Signer>`} - The created P256Signer instance or an error if creation fails.
     pub fn create() -> Result<Self> {
         let key_pair = P256KeyPair::new();
         let did_doc = key_pair.get_did_document(did_key::Config {
@@ -25,6 +28,10 @@ impl P256Signer {
         Ok(signer)
     }
 
+    /// Imports a P256Signer instance from a given secret key.
+    /// This function constructs a signer with the DID document derived from the provided secret key.
+    /// @param {&[u8]} secret_key - The byte slice representing the secret key of the imported key pair.
+    /// @return {`Result<P256Signer>`} - The created P256Signer instance or an error if import fails.
     pub fn import(secret_key: &[u8]) -> Result<Self> {
         let key_pair = P256KeyPair::from_secret_key(secret_key);
         let did_doc = key_pair.get_did_document(did_key::Config {

@@ -3,6 +3,19 @@ use locspan::Meta;
 use nquads_syntax::parsing::Parse;
 use rdf_types::Quad;
 
+/// Canonicalizes N-Quads RDF data using URDNA2015 algorithm
+///
+/// Parses N-Quads format RDF statements and normalizes them to canonical form
+/// using the Universal RDF Dataset Normalization Algorithm 2015 (URDNA2015).
+///
+/// # Arguments
+/// * `nquads` - N-Quads format RDF data as a string
+///
+/// # Returns
+/// Canonicalized N-Quads string
+///
+/// # Errors
+/// Returns error if the input cannot be parsed as valid N-Quads
 pub fn canonicalize_nquads(nquads: String) -> Result<String> {
     let dataset = nquads_syntax::Document::parse_str(&nquads, |span| span)?;
 

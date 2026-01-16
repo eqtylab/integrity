@@ -26,22 +26,39 @@ use ssi::{
 #[cfg(not(target_arch = "wasm32"))]
 use crate::signer::SignerType;
 
-/// Simplified version of a real Credential
+/// Simplified verifiable credential
+///
+/// A lightweight W3C Verifiable Credential implementation for issuing
+/// and signing credentials with DIDs and linked data proofs.
 #[derive(Debug, Default)]
 #[cfg(not(target_arch = "wasm32"))]
 pub struct VerifiableCredential {
+    /// Unique identifier for this credential
     pub id: Option<String>,
-    // DID Key
+    /// DID of the credential issuer
     pub issuer: String,
+    /// When the credential was issued (ISO 8601 format)
     pub issuance_date: Option<String>,
+    /// When the credential becomes valid (ISO 8601 format)
     pub valid_from: Option<String>,
+    /// DID or identifier of the credential subject
     pub subject: String,
+    /// Additional evidence supporting the credential claims
     pub evidence: Option<Value>,
+    /// When the credential expires
     pub expiration_date: Option<VCDateTime>,
 }
 
 #[cfg(not(target_arch = "wasm32"))]
 impl VerifiableCredential {
+    /// Creates a verifiable credential from a DID document
+    ///
+    /// # Arguments
+    /// * `subject` - The credential subject identifier
+    /// * `did_doc` - DID document of the issuer
+    ///
+    /// # Returns
+    /// A new verifiable credential with the issuer set from the DID document
     pub fn from_did_doc(subject: &str, did_doc: &did_key::Document) -> Self {
         VerifiableCredential {
             issuer: did_doc.id.clone(),

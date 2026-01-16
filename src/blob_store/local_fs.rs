@@ -6,11 +6,18 @@ use log::{debug, trace};
 
 use crate::blob_store::{calc_and_validate_cid, BlobStore};
 
+/// Local filesystem blob storage
+///
+/// Stores blobs as files in a directory, with CIDs as filenames.
 pub struct LocalFs {
     path: PathBuf,
 }
 
 impl LocalFs {
+    /// Creates a new local filesystem blob store
+    ///
+    /// # Arguments
+    /// * `path` - Directory path where blobs will be stored
     pub fn new(path: PathBuf) -> Self {
         Self { path }
     }

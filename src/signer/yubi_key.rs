@@ -15,6 +15,9 @@ pub struct YubiHsmSigner {
 }
 
 impl YubiHsmSigner {
+    /// Creates a new YubiHsmSigner instance.
+    /// This function generates a new YubiHsmSigner key pair and constructs a signer with the DID document derived from this key pair.
+    /// @return {`Result<YubiHsmSigner>`} - The created YubiHsmSigner instance or an error if creation fails.
     pub fn create(auth_key_id: u16, signing_key_id: u16, password: String) -> Result<Self> {
         let connector = yubihsm::Connector::usb(&UsbConfig::default());
         let credentials = yubihsm::Credentials::from_password(auth_key_id, password.as_bytes());

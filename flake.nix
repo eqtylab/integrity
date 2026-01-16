@@ -43,6 +43,7 @@
             geckodriver
             just
             openssl
+            present-cli
             prek
             pkg-config
             rustfmt-nightly

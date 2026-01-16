@@ -11,6 +11,7 @@ use crate::{blob_store::BlobStore, cid::multicodec};
 
 type Multihash = MultihashGeneric<64>;
 
+/// Creates a Hashmap of <Item Name, Item CID> from the provided Iroh collection cid
 pub async fn hashmap_for_iroh_collection(
     cid: &str,
     blob_store: Arc<dyn BlobStore + Send + Sync>,
@@ -20,6 +21,7 @@ pub async fn hashmap_for_iroh_collection(
     hashmap_from_iroh_collection_blobs(collection_blob, meta_blob)
 }
 
+/// Creates a Json object of key=Item Name and value=Item CID from the provided Iroh collection cid
 pub async fn json_for_iroh_collection(
     cid: &str,
     blob_store: Arc<dyn BlobStore + Send + Sync>,
@@ -29,6 +31,7 @@ pub async fn json_for_iroh_collection(
     json_from_iroh_collection_blobs(collection_blob, meta_blob)
 }
 
+/// Pretty prints the content information of the iroh collection
 pub async fn pretty_print_for_iroh_collection(
     cid: &str,
     blob_store: Arc<dyn BlobStore + Send + Sync>,
@@ -56,7 +59,8 @@ async fn get_iroh_collection_blobs(
         ));
     }
     let meta_cid = {
-        let multihash = Multihash::wrap(0x1e, &collection_blob[0..32]).expect("TODO");
+        let multihash = Multihash::wrap(0x1e, &collection_blob[0..32])
+            .expect("Iroh collection '{cid}' has an invalid multihash");
         Cid::new_v1(multicodec::RAW_BINARY, multihash).to_string()
     };
 
@@ -70,7 +74,8 @@ async fn get_iroh_collection_blobs(
     Ok((collection_blob, meta_blob))
 }
 
-pub fn hashmap_from_iroh_collection_blobs(
+/// Creates a HashMap of <Item Name, Item CID> from the provided blobs
+fn hashmap_from_iroh_collection_blobs(
     collection_blob: impl Into<Bytes>,
     meta_blob: impl Into<Bytes>,
 ) -> Result<HashMap<String, String>> {
@@ -98,7 +103,8 @@ pub fn hashmap_from_iroh_collection_blobs(
             .collect::<HashMap<String, Hash>>()
             .into_iter()
             .map(|(k, v)| {
-                let multihash = Multihash::wrap(0x1e, v.as_bytes()).expect("TODO");
+                let multihash = Multihash::wrap(0x1e, v.as_bytes())
+                    .expect("Failed to wrap the collection hash {v:?}");
                 (
                     k,
                     Cid::new_v1(multicodec::RAW_BINARY, multihash).to_string(),
@@ -112,7 +118,9 @@ pub fn hashmap_from_iroh_collection_blobs(
     Ok(collection_map)
 }
 
-pub fn json_from_iroh_collection_blobs(
+/// Creates a JSON object from the Iroh Collection where the key is the item name, and the value is
+/// the item CID
+fn json_from_iroh_collection_blobs(
     collection_blob: impl Into<Bytes>,
     meta_blob: impl Into<Bytes>,
 ) -> Result<Value> {
@@ -125,7 +133,7 @@ pub fn json_from_iroh_collection_blobs(
     Ok(json)
 }
 
-pub fn pretty_print_from_iroh_collection_blobs(
+fn pretty_print_from_iroh_collection_blobs(
     collection_blob: impl Into<Bytes>,
     meta_blob: impl Into<Bytes>,
 ) -> Result<String> {

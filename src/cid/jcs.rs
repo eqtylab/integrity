@@ -13,7 +13,7 @@ pub fn compute_jcs_cid(json: &serde_json::Value) -> Result<(String, Vec<u8>)> {
     Ok((jcs_cid, jcs_json.as_bytes().to_vec()))
 }
 
-/// Serializes, then Canonicalizes the [`obj`] to JCS and calculates the blake3 cid
+/// Serializes, then Canonicalizes the object to JCS and calculates the blake3 cid
 /// Returns the cid string (with 'urn:cid:') and the bytes of the JCS canonicalization
 pub fn compute_jcs_cid_with_prefix<T: Serialize>(obj: &T) -> Result<(String, Vec<u8>)> {
     let value = serde_json::to_value(obj)?;

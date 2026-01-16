@@ -26,6 +26,9 @@ pub struct VCompNotarySigner {
 }
 
 impl VCompNotarySigner {
+    /// Creates a new VCompNotarySigner instance.
+    /// This function generates a new VCompNotarySigner key pair and constructs a signer with the DID document derived from this key pair.
+    /// @return {`Result<VCompNotarySigner>`} - The created VCompNotarySigner instance or an error if creation fails.
     pub async fn create(url: &str, pub_key: Option<String>) -> Result<Self> {
         let client = reqwest::Client::new();
 
