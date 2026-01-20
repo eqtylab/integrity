@@ -14,21 +14,36 @@ use tokio::net::TcpStream;
 
 use crate::{cid::strip_urn_cid, signer::Signer};
 
+/// Signer implementation for verified computing notary services.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct VCompNotarySigner {
+    /// Protocol version
     pub version: String,
+    /// URL of the notary service endpoint
     pub url: String,
+    /// DID document from the notary service
     pub did_doc: Document,
+    /// DID of the entity operating the notary
     pub operated_by: Option<String>,
+    /// DID of the execution environment
     pub executed_on: Option<String>,
+    /// DID registration statements from the notary
     pub did_statements: Option<HashMap<String, serde_json::Value>>,
+    /// Binary blobs associated with DID registration
     pub did_blobs: Option<HashMap<String, Vec<u8>>>,
 }
 
 impl VCompNotarySigner {
-    /// Creates a new VCompNotarySigner instance.
-    /// This function generates a new VCompNotarySigner key pair and constructs a signer with the DID document derived from this key pair.
-    /// @return {`Result<VCompNotarySigner>`} - The created VCompNotarySigner instance or an error if creation fails.
+    /// Creates a new VCompNotarySigner by connecting to a verified computing notary service.
+    ///
+    /// # Arguments
+    ///
+    /// * `url` - URL of the notary service endpoint.
+    /// * `pub_key` - Optional hex-encoded public key; if not provided, fetches from the service.
+    ///
+    /// # Returns
+    ///
+    /// A new `VCompNotarySigner` with the DID document and registration data from the service.
     pub async fn create(url: &str, pub_key: Option<String>) -> Result<Self> {
         let client = reqwest::Client::new();
 
@@ -108,7 +123,16 @@ impl VCompNotarySigner {
         Ok(signer)
     }
 
-    /// Copies the signers DID Statements and Blobs to the specified directories
+    /// Copies the signer's DID statements and blobs to the specified directories.
+    ///
+    /// # Arguments
+    ///
+    /// * `statement_dir` - Directory to write DID statement JSON-LD files.
+    /// * `blob_dir` - Directory to write binary blob files.
+    ///
+    /// # Returns
+    ///
+    /// `Ok(())` on success, or an error if writing fails.
     pub fn copy_data(&self, statement_dir: PathBuf, blob_dir: PathBuf) -> Result<()> {
         if let Some(statements) = self.did_statements.clone() {
             fs::create_dir_all(&statement_dir).ok();

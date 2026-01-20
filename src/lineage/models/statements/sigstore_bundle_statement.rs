@@ -47,6 +47,18 @@ impl StatementTrait for SigstoreBundleStatement {
 }
 
 impl SigstoreBundleStatement {
+    /// Creates a new Sigstore bundle statement for the given subject.
+    ///
+    /// # Arguments
+    ///
+    /// * `subject` - The subject that the bundle is about.
+    /// * `sigstore_bundle` - Reference to the Sigstore bundle to include.
+    /// * `registered_by` - DID of the entity registering this statement.
+    /// * `timestamp` - Optional ISO 8601 timestamp; uses current time if not provided.
+    ///
+    /// # Returns
+    ///
+    /// A new `SigstoreBundleStatement` with a computed CID as its identifier.
     pub async fn create(
         subject: String,
         sigstore_bundle: &SigstoreBundle,

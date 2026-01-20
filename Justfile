@@ -28,9 +28,9 @@ fix:
 lint:
   cargo clippy --workspace --all-targets -- -Dwarnings --no-deps
 
-# Check that all public items have documentation (warnings only for now)
+# Check that all public items have documentation
 lint-docs:
-    cargo rustdoc --lib -- -W missing_docs -D rustdoc::broken_intra_doc_links
+    cargo rustdoc --lib -- -D missing_docs -D rustdoc::broken_intra_doc_links
 
 # Run all prek pre-commit hooks on all files
 pre-commit:

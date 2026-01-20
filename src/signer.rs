@@ -1,9 +1,16 @@
+/// Azure Key Vault signer implementation
 pub mod akv_signer;
+/// Auth service signer for remote signing operations
 pub mod auth_service_signer;
+/// Ed25519 elliptic curve signer
 pub mod ed25519_signer;
+/// P-256 (secp256r1) elliptic curve signer
 pub mod p256_signer;
+/// secp256k1 elliptic curve signer
 pub mod secp256k1_signer;
+/// Verified computing notary signer
 pub mod vcomp_notary;
+/// YubiHSM2 hardware security module signer
 pub mod yubi_key;
 
 use std::{fs, path::PathBuf};
@@ -22,6 +29,7 @@ use strum::Display;
 pub use vcomp_notary::*;
 pub use yubi_key::*;
 
+/// Supported cryptographic key types for signing operations.
 #[derive(
     Clone,
     Copy,
@@ -34,36 +42,56 @@ pub use yubi_key::*;
     strum::VariantNames,
 )]
 pub enum KeyType {
+    /// secp256k1 elliptic curve (used in Bitcoin/Ethereum)
     #[serde(alias = "secp256k1")]
     #[strum(serialize = "secp256k1")]
     SECP256K1,
+    /// secp256r1/P-256 elliptic curve (NIST standard)
     #[serde(alias = "secp256r1")]
     #[strum(serialize = "secp256r1")]
     SECP256R1,
+    /// Ed25519 elliptic curve (EdDSA)
     #[serde(alias = "ed25519")]
     #[strum(serialize = "ed25519")]
     ED25519,
 }
 
+/// Enum representing all supported signer implementations.
 #[derive(Debug, Clone, Serialize, Deserialize, Display)]
 pub enum SignerType {
+    /// secp256k1 local signer
     #[strum(serialize = "secp256k1")]
     SECP256K1(Secp256k1Signer),
+    /// Ed25519 local signer
     #[strum(serialize = "ed25519")]
     ED25519(Ed25519Signer),
+    /// P-256 local signer
     #[strum(serialize = "p256")]
     P256(P256Signer),
+    /// Verified computing notary remote signer
     #[strum(serialize = "vcomp_notary")]
     VCompNotarySigner(VCompNotarySigner),
+    /// YubiHSM2 hardware signer
     #[strum(serialize = "yubihsm2")]
     YubiHsm2Signer(YubiHsmSigner),
+    /// Auth service remote signer
     #[strum(serialize = "auth_service")]
     AuthService(AuthServiceSigner),
+    /// Azure Key Vault signer
     #[strum(serialize = "azure key vault")]
     AKV(AkvSigner),
 }
 
 impl SignerType {
+    /// Signs the provided data and returns a 64-byte signature.
+    ///
+    /// # Arguments
+    ///
+    /// * `data` - The data to sign.
+    ///
+    /// # Returns
+    ///
+    /// A 64-byte signature array.
     pub async fn sign(&self, data: &[u8]) -> Result<[u8; 64]> {
         match self {
             SignerType::SECP256K1(signer) => signer.sign(data).await,
@@ -76,6 +104,7 @@ impl SignerType {
         }
     }
 
+    /// Returns the DID document associated with this signer.
     pub fn get_did_doc(&self) -> Document {
         match self {
             SignerType::SECP256K1(signer) => signer.did_doc.clone(),
@@ -89,10 +118,25 @@ impl SignerType {
     }
 }
 
+/// Trait for cryptographic signing operations.
 #[async_trait]
 pub trait Signer {
+    /// Signs the provided data and returns a 64-byte signature.
+    ///
+    /// # Arguments
+    ///
+    /// * `data` - The data to sign.
+    ///
+    /// # Returns
+    ///
+    /// A 64-byte signature array.
     async fn sign(&self, data: &[u8]) -> Result<[u8; 64]>;
 
+    /// Returns the DID document associated with this signer, if available.
+    ///
+    /// # Returns
+    ///
+    /// `Some(Document)` if the signer has an associated DID document, `None` otherwise.
     async fn get_did_doc(&self) -> Result<Option<Document>>;
 }
 
@@ -107,6 +151,19 @@ impl Signer for SignerType {
     }
 }
 
+/// Saves a signer to a file in the specified folder.
+///
+/// The signer is serialized to JSON and base64-encoded before writing.
+///
+/// # Arguments
+///
+/// * `signer` - The signer to save.
+/// * `folder` - The directory to save the signer file in.
+/// * `name` - The filename for the signer file.
+///
+/// # Returns
+///
+/// `Ok(())` on success, or an error if the file could not be written.
 pub fn save_signer(signer: &SignerType, folder: PathBuf, name: &str) -> Result<()> {
     let signer_file = folder.join(name);
 
@@ -117,6 +174,17 @@ pub fn save_signer(signer: &SignerType, folder: PathBuf, name: &str) -> Result<(
     Ok(())
 }
 
+/// Loads a signer from a file.
+///
+/// The file is expected to contain a base64-encoded JSON representation of a signer.
+///
+/// # Arguments
+///
+/// * `signer_file` - Path to the signer file.
+///
+/// # Returns
+///
+/// The deserialized `SignerType`.
 pub fn load_signer(signer_file: PathBuf) -> Result<SignerType> {
     let signer_base64 = fs::read_to_string(&signer_file)?;
     let signer_bytes = BASE64.decode(signer_base64)?;

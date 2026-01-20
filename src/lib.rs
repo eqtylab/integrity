@@ -3,7 +3,7 @@
 //! This crate provides tools for data integrity, signing, verifiable credentials,
 //! and content-addressable storage using CIDs (Content Identifiers).
 
-/// Alternative signer implementations
+/// Alternative signer implementations for post-quantum and advanced cryptography.
 #[cfg(not(target_arch = "wasm32"))]
 pub mod alt_signer;
 

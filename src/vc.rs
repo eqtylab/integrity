@@ -153,7 +153,16 @@ impl Serialize for VerifiableCredential {
     }
 }
 
-/// Creates and Signs a Verifiable Credential.
+/// Creates and signs a Verifiable Credential.
+///
+/// # Arguments
+///
+/// * `subject` - The credential subject identifier (DID or other identifier).
+/// * `signer` - The signer to use for signing the credential.
+///
+/// # Returns
+///
+/// A signed `Credential` with a linked data proof.
 #[cfg(not(target_arch = "wasm32"))]
 pub async fn issue_vc(subject: &str, signer: SignerType) -> Result<Credential> {
     log::debug!("Issuing VC for '{subject}'");
@@ -163,7 +172,16 @@ pub async fn issue_vc(subject: &str, signer: SignerType) -> Result<Credential> {
     sign_vc(&vc.try_into()?, signer).await
 }
 
-/// Creates a VC Proof and then signs the provided Credential with the proof
+/// Creates a VC proof and signs the provided credential.
+///
+/// # Arguments
+///
+/// * `unsigned_vc` - The unsigned credential to sign.
+/// * `signer` - The signer to use for creating the proof signature.
+///
+/// # Returns
+///
+/// A signed `Credential` with the proof attached.
 #[cfg(not(target_arch = "wasm32"))]
 pub async fn sign_vc(unsigned_vc: &Credential, signer: SignerType) -> Result<Credential> {
     log::debug!("Signing VC with {signer:?}");
@@ -206,7 +224,15 @@ pub async fn sign_vc(unsigned_vc: &Credential, signer: SignerType) -> Result<Cre
     Ok(signed_vc)
 }
 
-/// Verify a Verifiable Credential.
+/// Verifies a Verifiable Credential.
+///
+/// # Arguments
+///
+/// * `vc` - JSON string representation of the credential to verify.
+///
+/// # Returns
+///
+/// A formatted string containing the verification result on success.
 pub async fn verify_vc(vc: &str) -> Result<String> {
     let vc = Credential::from_json_unsigned(vc)?;
 

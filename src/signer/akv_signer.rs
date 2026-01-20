@@ -16,18 +16,25 @@ use sha2::{Digest, Sha256};
 
 use crate::signer::Signer;
 
+/// Configuration for Azure Key Vault authentication.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub struct AkvConfig {
+    /// Client secret for Azure AD authentication
     pub client_secret: String,
+    /// Azure AD tenant ID
     pub tenant_id: String,
+    /// Azure AD client/application ID
     pub client_id: String,
+    /// URL of the Azure Key Vault instance
     pub vault_url: String,
 }
 
+/// Signer implementation using Azure Key Vault for cryptographic operations.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct AkvSigner {
     key_name: String,
+    /// DID document derived from the Azure Key Vault key
     pub did_doc: Document,
     config: AkvConfig,
 }
@@ -54,6 +61,16 @@ impl AkvSigner {
         Ok(KeyClient::new(vault_url, credential)?)
     }
 
+    /// Creates a new Azure Key Vault signer with the specified key.
+    ///
+    /// # Arguments
+    ///
+    /// * `config` - Azure Key Vault configuration containing credentials and vault URL.
+    /// * `key_name` - Name of the key in Azure Key Vault to use for signing.
+    ///
+    /// # Returns
+    ///
+    /// A new `AkvSigner` instance with the DID document derived from the Azure key.
     pub async fn create(config: &AkvConfig, key_name: String) -> Result<Self> {
         let client = Arc::new(Client::new());
 

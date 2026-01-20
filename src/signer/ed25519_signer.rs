@@ -9,13 +9,16 @@ use crate::signer::Signer;
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
 pub struct Ed25519Signer {
     secret_key: Vec<u8>,
+    /// DID document derived from the Ed25519 public key
     pub did_doc: Document,
 }
 
 impl Ed25519Signer {
-    /// Creates a new Ed25519Signer instance.
-    /// This function generates a new Ed25519Signer key pair and constructs a signer with the DID document derived from this key pair.
-    /// @return {`Result<Ed25519Signer>`} - The created Ed25519Signer instance or an error if creation fails.
+    /// Creates a new Ed25519Signer instance with a randomly generated key pair.
+    ///
+    /// # Returns
+    ///
+    /// A new `Ed25519Signer` with the DID document derived from the generated key pair.
     pub fn create() -> Result<Self> {
         let key_pair = Ed25519KeyPair::new();
         let did_doc = key_pair.get_did_document(did_key::Config {
@@ -29,10 +32,15 @@ impl Ed25519Signer {
         Ok(signer)
     }
 
-    /// Imports a Ed25519Signer instance from a given secret key.
-    /// This function constructs a signer with the DID document derived from the provided secret key.
-    /// @param {&[u8]} secret_key - The byte slice representing the secret key of the imported key pair.
-    /// @return {`Result<Ed25519Signer>`} - The created Ed25519Signer instance or an error if import fails.
+    /// Imports an Ed25519Signer instance from a given secret key.
+    ///
+    /// # Arguments
+    ///
+    /// * `secret_key` - The 32-byte secret key to import.
+    ///
+    /// # Returns
+    ///
+    /// A new `Ed25519Signer` with the DID document derived from the provided secret key.
     pub fn import(secret_key: &[u8]) -> Result<Self> {
         let key_pair = Ed25519KeyPair::from_secret_key(secret_key);
         let did_doc = key_pair.get_did_document(did_key::Config {

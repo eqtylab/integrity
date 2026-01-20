@@ -11,32 +11,59 @@ use crate::{
     sigstore_bundle::SigstoreBundle,
 };
 
+/// Manifest containing model signing information for integrity verification.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ModelSigningManifest {
+    /// Serialization configuration used to create the manifest
     pub serialization: ModelSigningManifestSerialization,
+    /// List of resources (files) with their digests
     pub resources: Vec<ModelSigningManifestResource>,
 }
 
+/// Configuration for how the model manifest was serialized.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ModelSigningManifestSerialization {
+    /// The serialization method (e.g., "files")
     pub method: String,
+    /// The hash algorithm used (e.g., "blake3")
     pub hash_type: String,
+    /// Whether symlinks are allowed in the model directory
     pub allow_symlinks: bool,
+    /// Paths to ignore when computing the manifest
     pub ignore_paths: Vec<String>,
 }
 
+/// A single resource entry in the model signing manifest.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ModelSigningManifestResource {
+    /// The hash algorithm used for this resource
     pub algorithm: String,
+    /// The hex-encoded digest of the resource
     pub digest: String,
+    /// The relative path/name of the resource
     pub name: String,
 }
 
+/// Information about a directory for model signing.
 pub enum DirectoryInfo {
+    /// A map of file paths to their 32-byte hashes
     PathHashMap(HashMap<String, [u8; 32]>),
+    /// An Iroh collection CID with its associated blob store
     IrohCollectionCidAndBlobStore(String, Arc<dyn BlobStore + Send + Sync>),
 }
 
+/// Creates an in-toto attestation statement for model signing.
+///
+/// # Arguments
+///
+/// * `name` - The name of the model being signed.
+/// * `directory_info` - Information about the directory containing model files.
+/// * `allow_symlinks` - Whether symlinks are allowed in the model directory.
+/// * `ignore_paths` - Paths to ignore when computing the manifest.
+///
+/// # Returns
+///
+/// An in-toto `Statement` containing the model signing manifest as the predicate.
 pub async fn create_model_signing_intoto_statement(
     name: String,
     directory_info: DirectoryInfo,
@@ -113,6 +140,16 @@ pub async fn create_model_signing_intoto_statement(
     Ok(intoto_attestation_statement)
 }
 
+/// Creates a Sigstore bundle for model signing from a DSSE envelope.
+///
+/// # Arguments
+///
+/// * `dsse` - The DSSE envelope as a JSON value.
+/// * `signer_did_key` - The DID key of the signer (must be a `did:key:` URI).
+///
+/// # Returns
+///
+/// A `SigstoreBundle` containing verification material and the DSSE envelope.
 pub fn create_model_signing_sigstore_bundle(
     dsse: Value,
     signer_did_key: &str,

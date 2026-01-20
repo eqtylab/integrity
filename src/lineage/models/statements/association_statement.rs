@@ -45,6 +45,18 @@ impl StatementTrait for AssociationStatement {
 }
 
 impl AssociationStatement {
+    /// Creates a new association statement linking a subject to an associated entity.
+    ///
+    /// # Arguments
+    ///
+    /// * `subject` - The subject of the association (CID or DID). If not prefixed, assumed to be a CID.
+    /// * `association` - The associated entity (CID or DID). If not prefixed, assumed to be a CID.
+    /// * `registered_by` - DID of the entity registering this statement.
+    /// * `timestamp` - Optional ISO 8601 timestamp; uses current time if not provided.
+    ///
+    /// # Returns
+    ///
+    /// A new `AssociationStatement` with a computed CID as its identifier.
     pub async fn create(
         subject: String,
         association: String,

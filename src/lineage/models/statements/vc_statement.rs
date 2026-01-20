@@ -81,6 +81,17 @@ impl StatementTrait for VcStatement {
 }
 
 impl VcStatement {
+    /// Creates a new verifiable credential statement.
+    ///
+    /// # Arguments
+    ///
+    /// * `credential` - The W3C Verifiable Credential to register.
+    /// * `registered_by` - DID of the entity registering this statement.
+    /// * `timestamp` - Optional ISO 8601 timestamp; uses current time if not provided.
+    ///
+    /// # Returns
+    ///
+    /// A new `VcStatement` with a computed CID as its identifier.
     pub async fn create(
         credential: Credential,
         registered_by: String,

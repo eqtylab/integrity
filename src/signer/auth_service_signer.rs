@@ -9,16 +9,28 @@ use serde_json::Value;
 
 use crate::signer::Signer;
 
+/// Signer implementation that delegates signing to a remote auth service.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct AuthServiceSigner {
+    /// API key for authenticating with the service
     pub api_key: String,
+    /// URL of the auth service endpoint
     pub url: String,
+    /// DID document retrieved from the auth service
     pub did_doc: Document,
 }
 
 impl AuthServiceSigner {
-    // Creates a new Auth Service signer by connecting to the platform to ensure connection and
-    // retrieving the DID key
+    /// Creates a new Auth Service signer by connecting to the platform and retrieving the DID key.
+    ///
+    /// # Arguments
+    ///
+    /// * `api_key` - API key for authenticating with the auth service.
+    /// * `url` - Base URL of the auth service endpoint.
+    ///
+    /// # Returns
+    ///
+    /// A new `AuthServiceSigner` instance with the DID document from the service.
     pub async fn create(api_key: String, url: String) -> Result<Self> {
         log::info!("Creating AuthServiceSigner from {url}");
         let response = reqwest::Client::new()
@@ -55,7 +67,15 @@ impl AuthServiceSigner {
         })
     }
 
-    // Creates a Auth Service signer from the signer info file
+    /// Loads an Auth Service signer from a configuration file.
+    ///
+    /// # Arguments
+    ///
+    /// * `signer_info_file` - Path to the JSON configuration file.
+    ///
+    /// # Returns
+    ///
+    /// `Some(AuthServiceSigner)` if the file exists and is valid, `None` if the file doesn't exist.
     pub fn load(signer_info_file: &Path) -> Result<Option<Self>> {
         if signer_info_file.exists() {
             let contents = fs::read_to_string(signer_info_file)?;

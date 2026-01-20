@@ -5,16 +5,20 @@ use serde::{Deserialize, Serialize};
 
 use crate::signer::Signer;
 
+/// Signer implementation using P-256 (secp256r1) elliptic curve.
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
 pub struct P256Signer {
     secret_key: Vec<u8>,
+    /// DID document derived from the P-256 public key
     pub did_doc: Document,
 }
 
 impl P256Signer {
-    /// Creates a new P256Signer instance.
-    /// This function generates a new P256Signer key pair and constructs a signer with the DID document derived from this key pair.
-    /// @return {`Result<P256Signer>`} - The created P256Signer instance or an error if creation fails.
+    /// Creates a new P256Signer instance with a randomly generated key pair.
+    ///
+    /// # Returns
+    ///
+    /// A new `P256Signer` with the DID document derived from the generated key pair.
     pub fn create() -> Result<Self> {
         let key_pair = P256KeyPair::new();
         let did_doc = key_pair.get_did_document(did_key::Config {
@@ -29,9 +33,14 @@ impl P256Signer {
     }
 
     /// Imports a P256Signer instance from a given secret key.
-    /// This function constructs a signer with the DID document derived from the provided secret key.
-    /// @param {&[u8]} secret_key - The byte slice representing the secret key of the imported key pair.
-    /// @return {`Result<P256Signer>`} - The created P256Signer instance or an error if import fails.
+    ///
+    /// # Arguments
+    ///
+    /// * `secret_key` - The secret key bytes to import.
+    ///
+    /// # Returns
+    ///
+    /// A new `P256Signer` with the DID document derived from the provided secret key.
     pub fn import(secret_key: &[u8]) -> Result<Self> {
         let key_pair = P256KeyPair::from_secret_key(secret_key);
         let did_doc = key_pair.get_did_document(did_key::Config {

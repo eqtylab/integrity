@@ -3,11 +3,14 @@
 //! This module contains all statement types used to record lineage events,
 //! along with common utilities for statement creation and manipulation.
 
+/// Association statement for linking entities
 pub mod association_statement;
 pub use association_statement::AssociationStatement;
+/// Computation statement for recording computational processes
 pub mod computation_statement;
 pub use computation_statement::ComputationStatement;
 pub mod common;
+/// Data statement for recording data artifacts
 pub mod data_statement;
 pub use data_statement::DataStatement;
 pub mod did_statement;
@@ -16,19 +19,26 @@ pub use did_statement::{
     DidStatementEqtyVCompCustomV1, DidStatementEqtyVCompDockerV1, DidStatementEqtyVCompIntelTdxV0,
     DidStatementRegular,
 };
+/// DSSE (Dead Simple Signing Envelope) statement for signed credentials
 pub mod dsse_statement;
 pub use dsse_statement::DsseStatement;
+/// Entity statement for recording entity registrations
 pub mod entity_statement;
 pub use entity_statement::EntityStatement;
+/// Governance statement for recording governance information
 pub mod governance_statement;
 pub use governance_statement::GovernanceStatement;
+/// Metadata statement for linking metadata to subjects
 pub mod metadata_statement;
 pub use metadata_statement::MetadataStatement;
+/// Sigstore bundle statement for Sigstore attestations
 pub mod sigstore_bundle_statement;
 pub use sigstore_bundle_statement::SigstoreBundleStatement;
+/// Storage statement for recording data storage events
 pub mod storage_statement;
 pub use storage_statement::StorageStatement;
 pub use vc_statement::VcStatement;
+/// Verifiable credential statement for W3C VCs
 pub mod vc_statement;
 
 use anyhow::{anyhow, bail, Result};
@@ -53,7 +63,7 @@ pub enum ValueOrArray<T> {
 }
 
 impl<T: ToString> ValueOrArray<T> {
-    /// Converts a ValueOrArray to a Vec<String>
+    /// Converts a ValueOrArray to a `Vec<String>`
     pub fn to_vec_string(&self) -> Vec<String> {
         match self {
             ValueOrArray::Value(v) => vec![v.to_string()],

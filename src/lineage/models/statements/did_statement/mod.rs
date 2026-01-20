@@ -3,11 +3,17 @@
 //! This module contains statement types for registering DIDs with various
 //! verified computing (vcomp) attestations.
 
+/// DID statement with AMD SEV verified computing attestation
 pub mod eqty_vcomp_amdsev_v1;
+/// DID statement with Azure verified computing attestation
 pub mod eqty_vcomp_azure_v1;
+/// DID statement with custom verified computing attestation
 pub mod eqty_vcomp_custom_v1;
+/// DID statement with Docker container verified computing attestation
 pub mod eqty_vcomp_docker_v1;
+/// DID statement with Intel TDX verified computing attestation
 pub mod eqty_vcomp_inteltdx_v0;
+/// Regular DID statement without attestation
 pub mod regular;
 
 pub use eqty_vcomp_amdsev_v1::DidStatementEqtyVCompAmdSevV1;

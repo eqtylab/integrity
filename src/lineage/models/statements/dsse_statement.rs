@@ -53,6 +53,17 @@ impl StatementTrait for DsseStatement {
 }
 
 impl DsseStatement {
+    /// Creates a new DSSE statement from a signed envelope.
+    ///
+    /// # Arguments
+    ///
+    /// * `envelope` - The DSSE envelope containing the signed credential.
+    /// * `registered_by` - DID of the entity registering this statement.
+    /// * `timestamp` - Optional ISO 8601 timestamp; uses current time if not provided.
+    ///
+    /// # Returns
+    ///
+    /// A new `DsseStatement` with a computed CID as its identifier.
     pub async fn create(
         envelope: Envelope,
         registered_by: String,

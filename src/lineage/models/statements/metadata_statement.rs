@@ -49,6 +49,18 @@ impl StatementTrait for MetadataStatement {
 }
 
 impl MetadataStatement {
+    /// Creates a new metadata statement linking metadata to a subject.
+    ///
+    /// # Arguments
+    ///
+    /// * `subject` - The subject the metadata describes (CID or DID). If not prefixed, assumed to be a CID.
+    /// * `metadata` - CID of the metadata JSON document.
+    /// * `registered_by` - DID of the entity registering this statement.
+    /// * `timestamp` - Optional ISO 8601 timestamp; uses current time if not provided.
+    ///
+    /// # Returns
+    ///
+    /// A new `MetadataStatement` with a computed CID as its identifier.
     pub async fn create(
         subject: String,
         metadata: String,
