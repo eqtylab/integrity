@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::Arc};
+use std::collections::HashMap;
 
 use anyhow::Result;
 use async_trait::async_trait;
@@ -7,6 +7,10 @@ use serde_json::Value;
 
 use crate::lineage::models::statements::Statement;
 
+/// Trait for SQL-based statement indexing with filtering capabilities.
+///
+/// Provides methods for storing and querying statements with flexible
+/// filtering using a query DSL.
 #[async_trait]
 pub trait IStatementIdx {
     /// Adds the statement to sql
@@ -16,18 +20,29 @@ pub trait IStatementIdx {
         &self,
         filter_query: Option<&str>,
     ) -> Result<(Vec<Statement>, HashMap<String, Value>)>;
+    /// Gets all unique attribute names and their filter metadata
     async fn get_unique_attributes(&self) -> Result<HashMap<String, Filter>>;
+    /// Retrieves a statement by its ID
     async fn get_statement_by_id(&self, id: &str) -> Result<Option<Statement>>;
 }
 
+/// Metadata about filterable attributes in the statement index.
+///
+/// Tracks the number of distinct values and optionally enumerates them
+/// for building query interfaces.
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Filter {
     /// (Future Use)-Number of distinct values.
     pub n: usize,
+    /// Optional enumeration of all distinct values for this attribute
     pub values: Option<Vec<Value>>,
 }
 
+/// Test suite for statement indexer implementations
+#[cfg(test)]
 pub mod tests {
+    use std::sync::Arc;
+
     use serde_json::json;
 
     use super::*;
@@ -35,6 +50,7 @@ pub mod tests {
         data_statement::DataStatement, entity_statement::EntityStatement,
     };
 
+    /// Tests filtering statements by exact type match
     pub async fn test_statement_filter_type_equals(db: Arc<dyn IStatementIdx + Send + Sync>) {
         let statement_1 = Statement::DataRegistration(
             DataStatement::create(
@@ -100,6 +116,7 @@ pub mod tests {
         );
     }
 
+    /// Tests filtering statements by exact attribute value match
     pub async fn test_statement_filter_attribute_equals(db: Arc<dyn IStatementIdx + Send + Sync>) {
         let statement_1 = Statement::DataRegistration(
             DataStatement::create(
@@ -162,6 +179,7 @@ pub mod tests {
         assert!(statements_session_001.contains(&statement_1));
     }
 
+    /// Tests filtering statements by attribute values less than a threshold
     pub async fn test_statement_filter_attribute_less_than(
         db: Arc<dyn IStatementIdx + Send + Sync>,
     ) {
@@ -236,6 +254,7 @@ pub mod tests {
         assert!(statements_size_lt_550.contains(&statement_2));
     }
 
+    /// Tests filtering statements by attribute values greater than a threshold
     pub async fn test_statement_filter_attribute_greater_than(
         db: Arc<dyn IStatementIdx + Send + Sync>,
     ) {
@@ -310,6 +329,7 @@ pub mod tests {
         );
     }
 
+    /// Tests filtering statements using AND logic for combining filters
     pub async fn test_statement_filter_and(db: Arc<dyn IStatementIdx + Send + Sync>) {
         let statement_1 = Statement::DataRegistration(
             DataStatement::create(
@@ -378,6 +398,7 @@ pub mod tests {
         assert!(statements_project_alpha_and_session_001.contains(&statement_1));
     }
 
+    /// Tests filtering statements using OR logic for combining filters
     pub async fn test_statement_filter_or(db: Arc<dyn IStatementIdx + Send + Sync>) {
         let statement_1 = Statement::DataRegistration(
             DataStatement::create(
@@ -506,6 +527,7 @@ pub mod tests {
         );
     }
 
+    /// Tests filtering statements using NOT logic for negating filters
     pub async fn test_statement_filter_not(db: Arc<dyn IStatementIdx + Send + Sync>) {
         let statement_1 = Statement::DataRegistration(
             DataStatement::create(
@@ -580,6 +602,7 @@ pub mod tests {
         }
     }
 
+    /// Tests that string values are not compared as numbers in filters
     pub async fn test_statement_filter_dont_treat_strings_as_numbers(
         db: Arc<dyn IStatementIdx + Send + Sync>,
     ) {
@@ -663,6 +686,7 @@ pub mod tests {
         );
     }
 
+    /// Tests that numeric values are not compared as strings in filters
     pub async fn test_statement_filter_dont_treat_numbers_as_strings(
         db: Arc<dyn IStatementIdx + Send + Sync>,
     ) {

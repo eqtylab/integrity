@@ -4,38 +4,59 @@ use serde::{Deserialize, Serialize};
 use super::super::{compute_cid, format_timestamp, get_jsonld_filename, StatementTrait};
 use crate::{cid::prepend_urn_cid, json_ld::ig_common_context_link};
 
+/// Type identifier for Docker verified computing statements
 pub const VCOMP_TYPE_VALUE: &str = "EqtyVCompDockerV1";
 
+/// DID registration with Docker container attestation
+///
+/// This statement type registers a DID with proof of execution in a
+/// specific Docker container environment.
 #[derive(Clone, Debug, Serialize, Deserialize, utoipa::ToSchema, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct DidStatementEqtyVCompDockerV1 {
+    /// JSON-LD context URL
     #[serde(rename = "@context")]
     pub context: String,
+    /// Unique identifier for this statement
     #[serde(rename = "@id")]
     id: String,
+    /// Statement type identifier
     #[serde(rename = "@type")]
     pub type_: String,
+    /// The DID being registered
     pub did: String,
+    /// Verified computing attestation data
     pub vcomp: DidStatementEqtyVCompDockerV1VComp,
+    /// DID of the entity that registered this statement
     pub registered_by: String,
+    /// ISO 8601 timestamp of when the statement was created
     pub timestamp: String,
 }
 
+/// Docker container attestation data
 #[derive(Clone, Debug, Serialize, Deserialize, utoipa::ToSchema, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct DidStatementEqtyVCompDockerV1VComp {
+    /// Verified computing type identifier
     #[serde(rename = "@type")]
     pub type_: String,
+    /// List of Docker images in the composition
     pub image: Vec<DidStatementEqtyVCompDockerV1VCompImage>,
+    /// CID of the docker-compose file
     pub compose: String,
+    /// DID of the entity operating the Docker environment
     pub operated_by: String,
+    /// Identifier of the system where Docker is executed
     pub executed_on: String,
 }
 
+/// Docker image information with hash verification
 #[derive(Clone, Debug, Serialize, Deserialize, utoipa::ToSchema, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct DidStatementEqtyVCompDockerV1VCompImage {
+    /// Docker image name (e.g., "nginx:latest")
     pub name: String,
+    /// SHA-256 hash of the image
     pub sha256: String,
 }
 

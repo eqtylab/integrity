@@ -1,18 +1,33 @@
 use serde_json::Value;
 use sqlx::{FromRow, Row};
 
+/// Database row representing an association between statements.
+///
+/// Links statements through subject-association relationships,
+/// enabling graph-based queries and traversal.
 #[derive(Debug, sqlx::FromRow)]
 pub struct AssociationRow {
+    /// Unique identifier for this association
     pub id: String,
+    /// The subject statement ID
     pub subject: String,
+    /// The associated statement ID
     pub association: String,
 }
 
+/// Database row representing a statement with optional metadata and credentials.
+///
+/// Contains the core statement data along with optional metadata,
+/// verifiable credentials, and DID documents.
 #[derive(Debug)]
 pub struct StatementRow {
+    /// The statement content as JSON
     pub statement: Value,
+    /// Optional metadata associated with the statement
     pub metadata: Option<Value>,
+    /// Optional verifiable credential for the statement
     pub vc: Option<Value>,
+    /// Optional DID document for the statement
     pub did: Option<Value>,
 }
 

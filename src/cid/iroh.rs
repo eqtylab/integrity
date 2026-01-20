@@ -15,8 +15,10 @@ use crate::cid::{multicodec, multihash};
 /// and memory mapping optimizations for large files.
 #[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
 pub struct HashingConfig {
+    /// Enable multi-threaded hashing for improved performance on large files
     #[serde(default)]
     pub multithread: bool,
+    /// Use memory mapping for file I/O operations
     #[serde(default)]
     pub memory_map: bool,
 }
@@ -27,10 +29,13 @@ pub struct HashingConfig {
 /// directory CIDs, similar to .gitignore functionality.
 #[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
 pub struct CidIgnoreConfig {
+    /// Include hidden files (those starting with `.`) in CID computation
     #[serde(default)]
     pub include_hidden_files: bool,
+    /// Respect `.gitignore` files when filtering files
     #[serde(default)]
     pub gitignore: bool,
+    /// Follow and include symbolic links
     #[serde(default)]
     pub include_symlinks: bool,
 }
@@ -38,16 +43,23 @@ pub struct CidIgnoreConfig {
 /// Type alias for 64-byte multihash used in CID operations.
 type Multihash = MultihashGeneric<64>;
 
+/// Result of computing a CID for a directory, including collection and metadata.
 #[derive(Debug, Clone)]
 pub struct DirCidResult {
+    /// The collection blob containing all file hashes and their CID
     pub collection: CidResult,
+    /// The metadata blob and its CID
     pub meta: CidResult,
+    /// List of (filename, CID) tuples for each file in the directory
     pub file_hashes: Vec<(String, String)>,
 }
 
+/// Result of computing a CID, containing both the CID string and the hashed blob.
 #[derive(Debug, Clone)]
 pub struct CidResult {
+    /// The computed CID as a string
     pub cid: String,
+    /// The hashed data blob
     pub blob: Bytes,
 }
 
@@ -177,6 +189,14 @@ pub async fn compute_file_cid(
     })
 }
 
+/// Computes a CID for a binary blob using the specified multicodec.
+///
+/// # Arguments
+/// * `blob` - The binary data to compute a CID for
+/// * `multicodec` - The multicodec identifier to use for the CID
+///
+/// # Returns
+/// * `Result<String>` - The computed CID as a string, or error if computation fails
 pub async fn compute_blob_cid(blob: impl Into<&Bytes>, multicodec: u64) -> Result<String> {
     let blob = blob.into();
 

@@ -1,3 +1,5 @@
+//! Common types and utilities for statement serialization
+
 use std::fmt;
 
 use serde::{
@@ -5,11 +7,14 @@ use serde::{
     Deserialize, Deserializer, Serialize, Serializer,
 };
 
+/// A CID reference with its SHA-256 hash for verification
 #[derive(Clone, Debug, Serialize, Deserialize, utoipa::ToSchema, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct UrnCidWithSha256 {
+    /// Content identifier in URN format
     #[serde(rename = "@id")]
     pub cid: String,
+    /// SHA-256 hash of the content
     #[serde(
         serialize_with = "serialize_u8_arr_as_hex",
         deserialize_with = "deserialize_u8_arr_32_from_hex"
@@ -17,11 +22,14 @@ pub struct UrnCidWithSha256 {
     pub sha256: [u8; 32],
 }
 
+/// A CID reference with its SHA-384 hash for verification
 #[derive(Clone, Debug, Serialize, Deserialize, utoipa::ToSchema, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct UrnCidWithSha384 {
+    /// Content identifier in URN format
     #[serde(rename = "@id")]
     pub cid: String,
+    /// SHA-384 hash of the content
     #[serde(
         serialize_with = "serialize_u8_arr_as_hex",
         deserialize_with = "deserialize_u8_arr_48_from_hex"
@@ -29,7 +37,7 @@ pub struct UrnCidWithSha384 {
     pub sha384: [u8; 48],
 }
 
-/// Serialize `[u8]` as a hex string
+/// Serializes a byte array as a hex string
 pub fn serialize_u8_arr_as_hex<S>(bytes: &[u8], serializer: S) -> Result<S::Ok, S::Error>
 where
     S: Serializer,
@@ -37,7 +45,7 @@ where
     serializer.serialize_str(&hex::encode(bytes))
 }
 
-/// Serialize `Option<Vec<u8>>` as a hex string
+/// Serializes an optional byte vector as a hex string
 pub fn serialize_option_u8_vec_as_hex<S>(
     bytes: &Option<Vec<u8>>,
     serializer: S,
@@ -51,7 +59,7 @@ where
     }
 }
 
-/// Serialize `Option<[u8; 32]>` as a hex string
+/// Serializes an optional 32-byte array as a hex string
 pub fn serialize_option_u8_arr_as_hex<S>(
     bytes: &Option<[u8; 32]>,
     serializer: S,
@@ -65,7 +73,7 @@ where
     }
 }
 
-/// Serialize `Vec<[u8; 48]>` as a list of hex strings
+/// Serializes a vector of 48-byte arrays as a list of hex strings
 pub fn serialize_vec_u8_arr_48_as_hex<S>(vec: &[[u8; 48]], serializer: S) -> Result<S::Ok, S::Error>
 where
     S: Serializer,
@@ -74,7 +82,7 @@ where
     serializer.serialize_some(&hex_strings)
 }
 
-/// Deserialize a hex string into `Option<Vec<u8>>`
+/// Deserializes a hex string into an optional byte vector
 pub fn deserialize_option_u8_vec_from_hex<'de, D>(
     deserializer: D,
 ) -> Result<Option<Vec<u8>>, D::Error>
@@ -90,7 +98,7 @@ where
     Ok(Some(bytes))
 }
 
-/// Deserialize a hex string into `[u8; 32]`
+/// Deserializes a hex string into a 32-byte array
 pub fn deserialize_u8_arr_32_from_hex<'de, D>(deserializer: D) -> Result<[u8; 32], D::Error>
 where
     D: Deserializer<'de>,
@@ -103,7 +111,7 @@ where
     Ok(array)
 }
 
-/// Deserialize a hex string into `[u8; 48]`
+/// Deserializes a hex string into a 48-byte array
 pub fn deserialize_u8_arr_48_from_hex<'de, D>(deserializer: D) -> Result<[u8; 48], D::Error>
 where
     D: Deserializer<'de>,
@@ -116,7 +124,7 @@ where
     Ok(array)
 }
 
-/// Deserialize a hex string into `Option<[u8; 32]>`
+/// Deserializes a hex string into an optional 32-byte array
 pub fn deserialize_option_u8_arr_from_hex<'de, D>(
     deserializer: D,
 ) -> Result<Option<[u8; 32]>, D::Error>
@@ -136,7 +144,7 @@ where
     }
 }
 
-/// Deserialize a list of hex strings into `Vec<[u8; 48]>`
+/// Deserializes a list of hex strings into a vector of 48-byte arrays
 pub fn deserialize_vec_u8_arr_48_from_hex<'de, D>(
     deserializer: D,
 ) -> Result<Vec<[u8; 48]>, D::Error>

@@ -6,18 +6,28 @@ use ssi::vc::{Credential, StringOrURI};
 use super::{compute_cid, format_timestamp, get_jsonld_filename, StatementTrait};
 use crate::json_ld::ig_common_context_link;
 
+/// Records a W3C Verifiable Credential
+///
+/// This statement type stores verifiable credentials in W3C VC format,
+/// providing cryptographically verifiable claims about subjects.
 #[derive(Clone, Debug, Serialize, Deserialize, utoipa::ToSchema, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct VcStatement {
+    /// JSON-LD context URL
     #[serde(rename = "@context")]
     pub context: String,
+    /// Unique identifier for this statement
     #[serde(rename = "@id")]
     id: String,
+    /// Statement type identifier
     #[serde(rename = "@type")]
     pub type_: String,
+    /// The W3C Verifiable Credential
     #[schema(value_type = Value)]
     pub credential: Credential,
+    /// DID of the entity that registered this statement
     pub registered_by: String,
+    /// ISO 8601 timestamp of when the statement was created
     pub timestamp: String,
 }
 

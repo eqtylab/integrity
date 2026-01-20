@@ -5,17 +5,27 @@ use serde::{Deserialize, Serialize};
 use super::{compute_cid, format_timestamp, get_jsonld_filename, StatementTrait};
 use crate::{json_ld::ig_common_context_link, lineage::models::dsse::Envelope};
 
+/// Records a credential in DSSE (Dead Simple Signing Envelope) format
+///
+/// This statement type stores verifiable credentials that have been signed
+/// using the DSSE specification, providing cryptographic proof of authenticity.
 #[derive(Clone, Debug, Serialize, Deserialize, utoipa::ToSchema, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct DsseStatement {
+    /// JSON-LD context URL
     #[serde(rename = "@context")]
     pub context: String,
+    /// Unique identifier for this statement
     #[serde(rename = "@id")]
     id: String,
+    /// Statement type identifier
     #[serde(rename = "@type")]
     pub type_: String,
+    /// DSSE envelope containing the signed credential
     pub credential_dsse: Envelope,
+    /// DID of the entity that registered this statement
     pub registered_by: String,
+    /// ISO 8601 timestamp of when the statement was created
     pub timestamp: String,
 }
 

@@ -5,18 +5,29 @@ use utoipa::ToSchema;
 use super::{compute_cid, format_timestamp, get_jsonld_filename, StatementTrait};
 use crate::json_ld::ig_common_context_link;
 
+/// Records governance information for a subject
+///
+/// This statement type associates governance documents (policies, procedures,
+/// compliance documents) with subjects in the lineage system.
 #[derive(Clone, Debug, Serialize, Deserialize, ToSchema, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct GovernanceStatement {
+    /// JSON-LD context URL
     #[serde(rename = "@context")]
     pub context: String,
+    /// Unique identifier for this statement
     #[serde(rename = "@id")]
     id: String,
+    /// Statement type identifier
     #[serde(rename = "@type")]
     pub type_: String,
+    /// DID of the entity that registered this statement
     pub registered_by: String,
+    /// ISO 8601 timestamp of when the statement was created
     pub timestamp: String,
+    /// The subject to which governance applies
     pub subject: String,
+    /// CID of the governance document
     pub document: String,
 }
 

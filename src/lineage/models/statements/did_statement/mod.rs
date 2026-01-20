@@ -1,3 +1,8 @@
+//! DID (Decentralized Identifier) statement types
+//!
+//! This module contains statement types for registering DIDs with various
+//! verified computing (vcomp) attestations.
+
 pub mod eqty_vcomp_amdsev_v1;
 pub mod eqty_vcomp_azure_v1;
 pub mod eqty_vcomp_custom_v1;
@@ -14,18 +19,29 @@ pub use regular::DidStatementRegular;
 
 use super::StatementTrait;
 
+/// Enum representing different types of DID registration statements
+///
+/// Each variant corresponds to a specific attestation format for verified
+/// computing environments or a regular DID registration.
 #[derive(Debug, Clone, utoipa::ToSchema, serde::Serialize, PartialEq)]
 #[serde(untagged)]
 pub enum DidStatement {
+    /// DID with AMD SEV verified computing attestation
     AmdSevV1(DidStatementEqtyVCompAmdSevV1),
+    /// DID with Docker container verified computing attestation
     DockerV1(DidStatementEqtyVCompDockerV1),
+    /// DID with custom verified computing attestation
     CustomV1(DidStatementEqtyVCompCustomV1),
+    /// DID with Intel TDX verified computing attestation
     IntelTdxV0(DidStatementEqtyVCompIntelTdxV0),
+    /// DID with Azure verified computing attestation
     AzureV1(DidStatementEqtyVCompAzureV1),
+    /// Regular DID registration without attestation
     Regular(DidStatementRegular),
 }
 
 impl DidStatement {
+    /// Returns the DID of the entity that registered this statement
     pub fn get_registered_by(&self) -> &str {
         match self {
             DidStatement::AmdSevV1(s) => &s.registered_by,
@@ -37,6 +53,7 @@ impl DidStatement {
         }
     }
 
+    /// Returns the verified computing type or statement type
     pub fn get_type(&self) -> &str {
         match self {
             DidStatement::AmdSevV1(s) => &s.vcomp.type_,
@@ -48,6 +65,7 @@ impl DidStatement {
         }
     }
 
+    /// Returns the DID being registered
     pub fn get_did(&self) -> &str {
         match self {
             DidStatement::AmdSevV1(s) => &s.did,

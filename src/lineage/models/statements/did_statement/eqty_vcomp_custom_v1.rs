@@ -5,28 +5,43 @@ use serde_json::Value;
 use super::super::{compute_cid, format_timestamp, get_jsonld_filename, StatementTrait};
 use crate::json_ld::ig_common_context_link;
 
+/// Type identifier for custom verified computing statements
 pub const VCOMP_TYPE_VALUE: &str = "EqtyVCompCustomV1";
 
+/// DID registration with custom verified computing attestation
+///
+/// This statement type registers a DID with a custom attestation format,
+/// allowing for flexible verification data that doesn't fit other categories.
 #[derive(Clone, Debug, Serialize, Deserialize, utoipa::ToSchema, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct DidStatementEqtyVCompCustomV1 {
+    /// JSON-LD context URL
     #[serde(rename = "@context")]
     pub context: String,
+    /// Unique identifier for this statement
     #[serde(rename = "@id")]
     id: String,
+    /// Statement type identifier
     #[serde(rename = "@type")]
     pub type_: String,
+    /// The DID being registered
     pub did: String,
+    /// Verified computing attestation data
     pub vcomp: DidStatementEqtyVCompCustomV1VComp,
+    /// DID of the entity that registered this statement
     pub registered_by: String,
+    /// ISO 8601 timestamp of when the statement was created
     pub timestamp: String,
 }
 
+/// Custom verified computing attestation data
 #[derive(Clone, Debug, Serialize, Deserialize, utoipa::ToSchema, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct DidStatementEqtyVCompCustomV1VComp {
+    /// Verified computing type identifier
     #[serde(rename = "@type")]
     pub type_: String,
+    /// Arbitrary JSON value containing custom attestation data
     pub value: Value,
 }
 

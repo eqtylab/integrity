@@ -4,20 +4,31 @@ use serde::{Deserialize, Serialize};
 use super::{compute_cid, format_timestamp, get_jsonld_filename, StatementTrait};
 use crate::{cid::prepend_urn_cid, json_ld::ig_common_context_link};
 
+/// Records the storage of data on a specific system
+///
+/// This statement type captures where data is stored and who operated
+/// the storage system, creating an audit trail for data location.
 #[derive(Clone, Debug, Serialize, Deserialize, utoipa::ToSchema, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct StorageStatement {
+    /// JSON-LD context URL
     #[serde(rename = "@context")]
     pub context: String,
+    /// Unique identifier for this statement
     #[serde(rename = "@id")]
     id: String,
+    /// Statement type identifier
     #[serde(rename = "@type")]
     pub type_: String,
+    /// DID of the entity that registered this statement
     pub registered_by: String,
+    /// ISO 8601 timestamp of when the statement was created
     pub timestamp: String,
-
+    /// CID of the data being stored
     pub data: String,
+    /// CID of the storage system description
     pub stored_on: String,
+    /// DID of the entity operating the storage system
     pub operated_by: String,
 }
 

@@ -4,7 +4,12 @@ use anyhow::Result;
 use json_ld::syntax::Parse;
 use ssi_json_ld::rdf::IntoNQuads;
 
+/// Trait for types that can be converted to JSON-LD input strings.
+///
+/// Enables flexible input types for JSON-LD processing, supporting both
+/// string and JSON value representations.
 pub trait Input {
+    /// Converts the input type to a JSON-LD string representation.
     fn convert_input(self) -> Result<String>;
 }
 

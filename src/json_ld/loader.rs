@@ -11,6 +11,10 @@ use rdf_types::vocabulary::IriVocabularyMut;
 
 type ContextMap = HashMap<String, &'static str>;
 
+/// JSON-LD context loader for resolving context URIs to their definitions.
+///
+/// Loads contexts from static embedded definitions or additional runtime contexts,
+/// enabling JSON-LD document expansion without network requests.
 #[derive(Clone)]
 pub struct ContextLoader {
     static_context_map: &'static ContextMap,

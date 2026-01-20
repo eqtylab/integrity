@@ -14,7 +14,9 @@ const MODEL_SIGNING_SIGNATURE_PREDICATE_URI: &str = "https://model_signing/signa
 /// with strongly-typed predicate types and flexible JSON data.
 #[derive(Debug, Clone)]
 pub struct Predicate {
+    /// The type of predicate being made
     pub predicate_type: PredicateType,
+    /// The predicate data as arbitrary JSON
     pub predicate: Value,
 }
 
@@ -24,8 +26,11 @@ pub struct Predicate {
 /// with built-in support for SPDX and extensibility for custom types.
 #[derive(Debug, Clone)]
 pub enum PredicateType {
+    /// SPDX document predicate
     Spdx,
+    /// Model signing signature predicate
     ModelSigningSignature,
+    /// Any other custom predicate type
     Other(String),
 }
 

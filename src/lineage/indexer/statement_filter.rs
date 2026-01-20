@@ -10,12 +10,19 @@ use serde_json::{Number, Value};
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub enum StatementFilter {
+    /// Filter by exact statement type match
     StatementTypeEquals(String),
+    /// Filter by exact attribute value match
     AttributeEquals((String, Value)),
+    /// Filter by attribute value less than threshold
     AttributeLessThan((String, Number)),
+    /// Filter by attribute value greater than threshold
     AttributeGreaterThan((String, Number)),
+    /// Combine filters with AND logic
     And(Vec<Self>),
+    /// Combine filters with OR logic
     Or(Vec<Self>),
+    /// Negate a filter with NOT logic
     Not(Box<Self>),
 }
 
@@ -23,6 +30,13 @@ static SUPPORTED_IDENTIFIERS_MSG: &str = "Supported identifiers: 'statementType'
 static SUPPORTED_SELECT_EXPRESSION_MSG: &str = "Supported select expressions: 'attributes.<key>'";
 
 impl StatementFilter {
+    /// Parses a CEL (Common Expression Language) query string into a StatementFilter.
+    ///
+    /// # Arguments
+    /// * `expr` - CEL expression string (e.g., "statementType == 'DataRegistration'")
+    ///
+    /// # Returns
+    /// * `Result<Self>` - Parsed filter, or error if the expression is invalid
     pub fn parse_query(expr: &str) -> Result<Self> {
         let IdedExpr { expr, .. } = cel::parser::Parser::new().parse(expr)?;
 

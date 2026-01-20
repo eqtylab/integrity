@@ -9,44 +9,65 @@ use super::super::{
 };
 use crate::json_ld::ig_common_context_link;
 
+/// Type identifier for Intel TDX verified computing statements
 pub const VCOMP_TYPE_VALUE: &str = "EqtyVCompIntelTdxV0";
 
+/// DID registration with Intel TDX (Trust Domain Extensions) attestation
+///
+/// This statement type registers a DID with proof of execution in an
+/// Intel TDX-protected trusted execution environment.
 #[derive(Clone, Debug, Serialize, Deserialize, utoipa::ToSchema, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct DidStatementEqtyVCompIntelTdxV0 {
+    /// JSON-LD context URL
     #[serde(rename = "@context")]
     pub context: String,
+    /// Unique identifier for this statement
     #[serde(rename = "@id")]
     id: String,
+    /// Statement type identifier
     #[serde(rename = "@type")]
     pub type_: String,
+    /// The DID being registered
     pub did: String,
+    /// Verified computing attestation data
     pub vcomp: DidStatementEqtyVCompIntelTdxV0VComp,
+    /// DID of the entity that registered this statement
     pub registered_by: String,
+    /// ISO 8601 timestamp of when the statement was created
     pub timestamp: String,
 }
 
+/// Intel TDX verified computing attestation data
 #[derive(Clone, Debug, Serialize, Deserialize, utoipa::ToSchema, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct DidStatementEqtyVCompIntelTdxV0VComp {
+    /// Verified computing type identifier
     #[serde(rename = "@type")]
     pub type_: String,
+    /// TDX measurement register values (RTMR)
     #[serde(
         serialize_with = "serialize_vec_u8_arr_48_as_hex",
         deserialize_with = "deserialize_vec_u8_arr_48_from_hex"
     )]
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub measurement: Vec<[u8; 48]>,
+    /// Optional information about measured components
     #[serde(skip_serializing_if = "Option::is_none")]
     pub measurement_info: Option<DidStatementEqtyVCompIntelTdxV0VCompMeasurementInfo>,
 }
 
+/// Details about components measured in Intel TDX attestation
 #[derive(Clone, Debug, Serialize, Deserialize, utoipa::ToSchema, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct DidStatementEqtyVCompIntelTdxV0VCompMeasurementInfo {
+    /// Optional OVMF (UEFI firmware) with hash
     ovmf: Option<UrnCidWithSha384>,
+    /// Optional kernel with hash
     kernel: Option<UrnCidWithSha384>,
+    /// Optional initial RAM disk with hash
     initrd: Option<UrnCidWithSha384>,
+    /// Optional kernel command-line arguments with hash
     append: Option<UrnCidWithSha384>,
 }
 

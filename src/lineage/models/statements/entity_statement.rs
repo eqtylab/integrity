@@ -6,18 +6,28 @@ use super::{
 };
 use crate::json_ld::ig_common_context_link;
 
+/// Records the registration of entities in the lineage system
+///
+/// This statement type registers entities (organizations, systems, or agents)
+/// that participate in lineage events, identified by UUIDs.
 #[derive(Clone, Debug, Serialize, Deserialize, utoipa::ToSchema, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct EntityStatement {
+    /// JSON-LD context URL
     #[serde(rename = "@context")]
     pub context: String,
+    /// Unique identifier for this statement
     #[serde(rename = "@id")]
     id: String,
+    /// Statement type identifier
     #[serde(rename = "@type")]
     pub type_: String,
+    /// Entity UUID(s) being registered
     #[schema(value_type = String)]
     pub entity: ValueOrArray<String>,
+    /// DID of the entity that registered this statement
     pub registered_by: String,
+    /// ISO 8601 timestamp of when the statement was created
     pub timestamp: String,
 }
 

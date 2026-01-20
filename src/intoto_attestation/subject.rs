@@ -10,7 +10,9 @@ use super::models;
 /// with their names and cryptographic digests for integrity verification.
 #[derive(Debug, Clone)]
 pub struct Subject {
+    /// Name or identifier of the artifact
     pub name: String,
+    /// Map of digest algorithm names to their digest values
     pub digest: HashMap<String, String>,
 }
 

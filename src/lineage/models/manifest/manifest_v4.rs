@@ -9,16 +9,23 @@ use crate::lineage::models::{
     graph::Graph, manifest::get_contexts_for_manifest, statements::Statement,
 };
 
+/// Version 4 of the lineage manifest format
 #[derive(Debug, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct ManifestV4 {
+    /// Version string identifying this manifest format
     pub version: String,
+    /// JSON-LD contexts mapping context URLs to their definitions
     pub contexts: HashMap<String, Value>,
+    /// Collection of lineage graphs contained in this manifest
     pub graphs: Vec<Graph>,
+    /// Binary data blobs referenced by statements, keyed by CID
     pub blobs: HashMap<String, String>,
+    /// Optional anchor points for statements on external systems
     #[serde(skip_serializing_if = "Option::is_none")]
     pub anchors: Option<Vec<Anchor>>,
 }
 
+/// Generates a version 4 manifest from graphs and blobs
 pub async fn generate_manifest_v4(
     include_context: bool,
     graphs: Vec<Graph>,

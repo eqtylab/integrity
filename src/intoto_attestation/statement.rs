@@ -2,9 +2,15 @@ use anyhow::Result;
 
 use super::{models, predicate::Predicate, subject::Subject};
 
+/// An in-toto statement representing an attestation about software artifacts.
+///
+/// Contains one or more subjects (artifacts) and a predicate (claim) about them,
+/// forming the core structure for supply chain attestations.
 #[derive(Debug, Clone)]
 pub struct Statement {
+    /// List of subjects (artifacts) this statement refers to
     pub subject: Vec<Subject>,
+    /// The predicate (claim) being made about the subjects
     pub predicate: Predicate,
 }
 

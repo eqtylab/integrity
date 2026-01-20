@@ -11,6 +11,10 @@ use crate::lineage::models::{
     statements::{Statement, StatementTrait},
 };
 
+/// Trait for SQL-based statement indexing with graph support.
+///
+/// Provides methods for storing, retrieving, and querying statements
+/// organized into graphs with hierarchical relationships.
 #[async_trait]
 pub trait IStatementIdx {
     /// Adds the statement to sql. If graph_id is provided, the link is created
@@ -35,7 +39,9 @@ pub trait IStatementIdx {
         parent_id: Option<&Uuid>,
     ) -> Result<()>;
 
+    /// Gets all statement IDs associated with the given subject
     async fn get_associations_for_subject(&self, subject: &str) -> Result<Vec<String>>;
+    /// Gets all subject IDs for the given association
     async fn get_subjects_for_association(&self, association: &str) -> Result<Vec<String>>;
 
     /// Returns all the Graph information (UUIDs, Names, etc) from the database
@@ -44,6 +50,7 @@ pub trait IStatementIdx {
     /// Returns all the Graph information for the child graphs
     async fn get_child_graph_info(&self, parent_id: &Uuid) -> Result<Vec<Graph>>;
 
+    /// Retrieves a statement by its ID
     async fn get_statement_by_id(&self, id: &str) -> Result<Option<Statement>>;
 }
 

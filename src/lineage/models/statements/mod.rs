@@ -1,3 +1,8 @@
+//! Lineage statement types and utilities
+//!
+//! This module contains all statement types used to record lineage events,
+//! along with common utilities for statement creation and manipulation.
+
 pub mod association_statement;
 pub use association_statement::AssociationStatement;
 pub mod computation_statement;
@@ -37,15 +42,18 @@ use crate::{
     nquads::canonicalize_nquads,
 };
 
+/// Represents a value that can be either a single item or an array of items
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, utoipa::ToSchema)]
 #[serde(untagged)]
 pub enum ValueOrArray<T> {
+    /// A single value
     Value(T),
+    /// An array of values
     Array(Vec<T>),
 }
 
 impl<T: ToString> ValueOrArray<T> {
-    // converts a ValueOrArray Enum to a Vec<String>
+    /// Converts a ValueOrArray to a Vec<String>
     pub fn to_vec_string(&self) -> Vec<String> {
         match self {
             ValueOrArray::Value(v) => vec![v.to_string()],
@@ -53,6 +61,7 @@ impl<T: ToString> ValueOrArray<T> {
         }
     }
 
+    /// Converts a ValueOrArray to a comma-separated string
     pub fn to_csv_string(&self) -> String {
         match self {
             ValueOrArray::Value(v) => v.to_string(),
@@ -65,9 +74,12 @@ impl<T: ToString> ValueOrArray<T> {
     }
 }
 
+/// Trait defining common operations for all lineage statement types
 pub trait StatementTrait: Serialize {
+    /// Returns the statement's unique identifier
     fn get_id(&self) -> String;
 
+    /// Returns the statement's type as a string
     fn get_type_string(&self) -> Result<String> {
         let json = serde_json::to_value(self)?;
         let type_str = json
@@ -80,13 +92,16 @@ pub trait StatementTrait: Serialize {
         Ok(type_str)
     }
 
+    /// Returns the statement ID without the 'urn:cid:' prefix
     fn get_id_no_prefix(&self) -> String {
         let cid = self.get_id();
         strip_urn_cid(&cid).to_string()
     }
 
+    /// Returns the filename for the JSON-LD representation of this statement
     fn jsonld_filename(&self) -> String;
 
+    /// Returns a list of CIDs referenced by this statement
     fn referenced_cids(&self) -> Vec<String>;
 }
 
@@ -114,6 +129,7 @@ where
     Ok(id)
 }
 
+/// Generates a JSON-LD filename from a statement's CID
 fn get_jsonld_filename<S>(statement: &S) -> String
 where
     S: StatementTrait,
@@ -122,11 +138,12 @@ where
     format!("{}.jsonld", cid)
 }
 
+/// Formats a timestamp, using current time if none provided
 fn format_timestamp(timestamp: Option<String>) -> String {
     timestamp.unwrap_or(Utc::now().to_rfc3339_opts(SecondsFormat::Secs, true))
 }
 
-/// Removes any empty cids (trailing commas), and prepends 'urn:cid:' if needed
+/// Removes any empty CIDs (trailing commas), and prepends 'urn:cid:' if needed
 fn format_cids(cids: Vec<String>) -> Result<ValueOrArray<String>> {
     let cids: Vec<String> = cids
         .into_iter()
@@ -146,7 +163,7 @@ fn format_cids(cids: Vec<String>) -> Result<ValueOrArray<String>> {
     }
 }
 
-/// Removes any empty uuids (trailing commas), and prepends 'urn:uuid:' if needed
+/// Removes any empty UUIDs (trailing commas), and prepends 'urn:uuid:' if needed
 fn format_uuids(uuids: Vec<String>) -> Result<ValueOrArray<String>> {
     let uuids: Vec<String> = uuids
         .into_iter()
@@ -166,24 +183,37 @@ fn format_uuids(uuids: Vec<String>) -> Result<ValueOrArray<String>> {
     }
 }
 
+/// Enum representing all possible lineage statement types
 #[derive(Debug, Clone, utoipa::ToSchema, Serialize, Deserialize, PartialEq)]
 #[serde(untagged)]
 #[allow(clippy::large_enum_variant)]
 pub enum Statement {
+    /// Records an association between two entities or artifacts
     AssociationRegistration(AssociationStatement),
+    /// Records the storage of data on a specific system
     StorageRegistration(StorageStatement),
+    /// Records metadata about an artifact or entity
     MetadataRegistration(MetadataStatement),
+    /// Records a computational process with inputs and outputs
     ComputationRegistration(ComputationStatement),
+    /// Records a verifiable credential
     CredentialRegistration(VcStatement),
+    /// Records a DSSE-signed credential
     CredentialDsseRegistration(DsseStatement),
+    /// Records a Sigstore bundle credential
     CredentialSigstoreBundleRegistration(SigstoreBundleStatement),
+    /// Records a decentralized identifier (DID)
     DidRegistration(Box<DidStatement>),
+    /// Records data artifact registration
     DataRegistration(DataStatement),
+    /// Records entity registration
     EntityRegistration(EntityStatement),
+    /// Records governance information
     GovernanceRegistration(GovernanceStatement),
 }
 
 impl Statement {
+    /// Returns the DID of the entity that registered this statement
     pub fn get_registered_by(&self) -> &str {
         match self {
             Statement::AssociationRegistration(s) => &s.registered_by,
@@ -251,7 +281,7 @@ impl StatementTrait for Statement {
     }
 }
 
-/// Helper fn to get the @id field from a Json Value Statement
+/// Helper function to get the @id field from a JSON Value Statement
 pub fn extract_statement_id(statement: &Value) -> Result<String> {
     Ok(statement
         .get("@id")
@@ -260,7 +290,7 @@ pub fn extract_statement_id(statement: &Value) -> Result<String> {
         .to_string())
 }
 
-/// Helper fn to get the @type field from a Json Value Statement
+/// Helper function to get the @type field from a JSON Value Statement
 pub fn extract_statement_type(statement: &Value) -> Result<String> {
     Ok(statement
         .get("@type")

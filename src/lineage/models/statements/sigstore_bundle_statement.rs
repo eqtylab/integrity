@@ -5,18 +5,30 @@ use serde::{Deserialize, Serialize};
 use super::{compute_cid, format_timestamp, get_jsonld_filename, StatementTrait};
 use crate::{json_ld::ig_common_context_link, sigstore_bundle::SigstoreBundle};
 
+/// Records a Sigstore bundle as a credential
+///
+/// This statement type stores Sigstore bundles which contain signatures
+/// and attestations from the Sigstore transparency log, providing
+/// verifiable proof of software artifact authenticity.
 #[derive(Clone, Debug, Serialize, Deserialize, utoipa::ToSchema, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct SigstoreBundleStatement {
+    /// JSON-LD context URL
     #[serde(rename = "@context")]
     pub context: String,
+    /// Unique identifier for this statement
     #[serde(rename = "@id")]
     id: String,
+    /// Statement type identifier
     #[serde(rename = "@type")]
     pub type_: String,
+    /// The subject that the bundle is about
     pub subject: String,
+    /// Base64-encoded Sigstore bundle
     pub sigstore_bundle: String,
+    /// DID of the entity that registered this statement
     pub registered_by: String,
+    /// ISO 8601 timestamp of when the statement was created
     pub timestamp: String,
 }
 

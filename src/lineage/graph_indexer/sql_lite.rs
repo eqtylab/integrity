@@ -13,6 +13,10 @@ use crate::lineage::{
     },
 };
 
+/// SQLite implementation of the graph-based statement indexer.
+///
+/// Provides persistent storage for statements organized in graphs
+/// with support for hierarchical relationships and queries.
 pub struct Sqlite {
     pool: SqlitePool,
 }
@@ -23,6 +27,7 @@ impl Sqlite {
         super::sql_indexer::rows_to_statements(rows)
     }
 
+    /// Initializes the database schema by creating all necessary tables and indexes.
     pub async fn init(&self) -> Result<()> {
         let comp_tables = r#"
             CREATE TABLE IF NOT EXISTS computation_statements (
@@ -170,6 +175,10 @@ impl Sqlite {
         Ok(())
     }
 
+    /// Creates a new SQLite indexer connected to the database at the given URL.
+    ///
+    /// # Arguments
+    /// * `database_url` - SQLite database connection string (e.g., "sqlite://path/to/db.sqlite")
     pub async fn new(database_url: &str) -> Result<Self> {
         let pool = SqlitePool::connect(database_url).await?;
 

@@ -4,18 +4,29 @@ use serde::{Deserialize, Serialize};
 use super::{compute_cid, format_timestamp, get_jsonld_filename, StatementTrait};
 use crate::{cid::prepend_urn_cid, json_ld::ig_common_context_link};
 
+/// Records an association between a subject and another entity
+///
+/// This statement type is used to create relationships between artifacts,
+/// such as linking data to its metadata, or connecting related entities.
 #[derive(Clone, Debug, Serialize, Deserialize, utoipa::ToSchema, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct AssociationStatement {
+    /// JSON-LD context URL
     #[serde(rename = "@context")]
     pub context: String,
+    /// Unique identifier for this statement
     #[serde(rename = "@id")]
     id: String,
+    /// Statement type identifier
     #[serde(rename = "@type")]
     pub type_: String,
+    /// The subject of the association (CID or DID)
     pub subject: String,
+    /// The associated entity (CID or DID)
     pub association: String,
+    /// DID of the entity that registered this statement
     pub registered_by: String,
+    /// ISO 8601 timestamp of when the statement was created
     pub timestamp: String,
 }
 

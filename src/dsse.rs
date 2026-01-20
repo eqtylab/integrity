@@ -11,8 +11,11 @@ use crate::{alt_signer::AltSigner, lineage::models, signer::Signer};
 /// with one or more digital signatures, commonly used in software supply chain security.
 #[derive(Debug, Clone)]
 pub struct Envelope {
+    /// The type/format of the payload being signed
     pub payload_type: PayloadType,
+    /// The raw payload data in bytes
     pub payload: Vec<u8>,
+    /// One or more digital signatures for the payload
     pub signatures: Vec<Signature>,
 }
 
@@ -47,8 +50,11 @@ impl Envelope {
 /// enabling proper verification and interpretation of the signed data.
 #[derive(Debug, Clone)]
 pub enum PayloadType {
+    /// in-toto attestation in JSON format
     InTotoJson,
+    /// Integrity statement URN reference
     IntegrityStatementUrn,
+    /// Any other custom payload type
     Other(String),
 }
 
@@ -84,7 +90,9 @@ impl FromStr for PayloadType {
 /// allowing multiple signatures from different signers on the same payload.
 #[derive(Debug, Clone)]
 pub struct Signature {
+    /// Key identifier used to create the signature
     pub keyid: String,
+    /// The actual signature bytes
     pub sig: Vec<u8>,
 }
 

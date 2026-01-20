@@ -6,25 +6,40 @@ use super::{
 };
 use crate::{cid::prepend_urn_cid, json_ld::ig_common_context_link};
 
+/// Records a computational process with its inputs and outputs
+///
+/// This statement type captures the lineage of data transformations,
+/// including the computation performed, input data, output data,
+/// and the entity that executed the computation.
 #[derive(Clone, Debug, Serialize, Deserialize, utoipa::ToSchema, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct ComputationStatement {
+    /// JSON-LD context URL
     #[serde(rename = "@context")]
     pub context: String,
+    /// Unique identifier for this statement
     #[serde(rename = "@id")]
     id: String,
+    /// Statement type identifier
     #[serde(rename = "@type")]
     pub type_: String,
+    /// Optional CID of the computation definition or code
     #[serde(skip_serializing_if = "Option::is_none")]
     pub computation: Option<String>,
+    /// Input data CIDs (single value or array)
     #[schema(value_type = String)]
     pub input: ValueOrArray<String>,
+    /// Output data CIDs (single value or array)
     #[schema(value_type = String)]
     pub output: ValueOrArray<String>,
+    /// DID of the entity that operated the computation
     pub operated_by: String,
+    /// Optional identifier of the system where computation was executed
     #[serde(skip_serializing_if = "Option::is_none")]
     pub executed_on: Option<String>,
+    /// DID of the entity that registered this statement
     pub registered_by: String,
+    /// ISO 8601 timestamp of when the statement was created
     pub timestamp: String,
 }
 

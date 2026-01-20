@@ -1,4 +1,6 @@
+/// Anchor models for recording statements on external systems
 pub mod anchor;
+/// Version 4 manifest format with graph support
 pub mod manifest_v4;
 
 use std::{
@@ -25,18 +27,35 @@ use crate::{
     lineage::models::statements::{Statement, StatementTrait},
 };
 
+/// A manifest packages statements, contexts, and blobs for distribution.
+///
+/// Version 3 manifest format that bundles statements with their JSON-LD contexts,
+/// binary blobs, and optional anchoring information.
 #[derive(Debug, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct Manifest {
+    /// Manifest format version
     pub version: String,
+    /// JSON-LD context definitions embedded for self-contained processing
     pub contexts: HashMap<String, Value>,
+    /// Statements included in this manifest, keyed by statement ID
     pub statements: HashMap<String, Statement>,
+    /// Binary blobs referenced by statements, keyed by CID
     pub blobs: HashMap<String, String>,
+    /// Optional anchor records proving statement publication
     #[serde(skip_serializing_if = "Option::is_none")]
     pub anchors: Option<Vec<Anchor>>,
+    /// Optional custom attributes for the manifest
     #[serde(skip_serializing_if = "Option::is_none")]
     pub attributes: Option<HashMap<String, Value>>,
 }
 
+/// Generates a version 3 manifest from statements and blobs.
+///
+/// # Arguments
+/// * `include_context` - Whether to embed JSON-LD contexts
+/// * `statements` - Statements to include in the manifest
+/// * `attributes` - Optional custom attributes
+/// * `blobs` - Binary blobs referenced by statements
 pub async fn generate_manifest(
     include_context: bool,
     statements: Vec<Statement>,

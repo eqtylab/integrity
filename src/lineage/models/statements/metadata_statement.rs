@@ -8,19 +8,29 @@ use crate::{
     json_ld::ig_common_context_link,
 };
 
+/// Records metadata associated with a subject
+///
+/// This statement type links metadata (descriptive information, properties,
+/// attributes) to artifacts or entities in the lineage system.
 #[derive(Clone, Debug, Serialize, Deserialize, utoipa::ToSchema, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct MetadataStatement {
+    /// JSON-LD context URL
     #[serde(rename = "@context")]
     pub context: String,
+    /// Unique identifier for this statement
     #[serde(rename = "@id")]
     id: String,
+    /// Statement type identifier
     #[serde(rename = "@type")]
     pub type_: String,
+    /// The subject the metadata describes (CID or DID)
     pub subject: String,
-    // CID of the Metadata Json
+    /// CID of the metadata JSON document
     pub metadata: String,
+    /// DID of the entity that registered this statement
     pub registered_by: String,
+    /// ISO 8601 timestamp of when the statement was created
     pub timestamp: String,
 }
 

@@ -10,42 +10,61 @@ use super::super::{
 };
 use crate::{cid::prepend_urn_cid, json_ld::ig_common_context_link};
 
+/// Type identifier for Azure verified computing statements
 pub const VCOMP_TYPE_VALUE: &str = "EqtyVCompAzureV1";
 
+/// DID registration with Azure Confidential Computing attestation
+///
+/// This statement type registers a DID with proof of execution in an
+/// Azure confidential computing environment.
 #[derive(Clone, Debug, Serialize, Deserialize, utoipa::ToSchema, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct DidStatementEqtyVCompAzureV1 {
+    /// JSON-LD context URL
     #[serde(rename = "@context")]
     pub context: String,
+    /// Unique identifier for this statement
     #[serde(rename = "@id")]
     id: String,
+    /// Statement type identifier
     #[serde(rename = "@type")]
     pub type_: String,
+    /// The DID being registered
     pub did: String,
+    /// Verified computing attestation data
     pub vcomp: DidStatementEqtyVCompAzureV1VComp,
+    /// DID of the entity that registered this statement
     pub registered_by: String,
+    /// ISO 8601 timestamp of when the statement was created
     pub timestamp: String,
 }
 
+/// Azure confidential computing attestation data
 #[derive(Clone, Debug, Serialize, Deserialize, utoipa::ToSchema, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct DidStatementEqtyVCompAzureV1VComp {
+    /// Verified computing type identifier
     #[serde(rename = "@type")]
     pub type_: String,
+    /// Optional measurement values from TPM or firmware
     #[serde(skip_serializing_if = "Option::is_none")]
     pub measurement: Option<DidStatementEqtyVCompAzureV1VCompMeasurement>,
+    /// Optional information about measured components
     #[serde(skip_serializing_if = "Option::is_none")]
     pub measurement_info: Option<DidStatementEqtyVCompAzureV1VCompMeasurementInfo>,
 }
 
+/// Measurement values from Azure attestation
 #[derive(Clone, Debug, Serialize, Deserialize, utoipa::ToSchema, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct DidStatementEqtyVCompAzureV1VCompMeasurement {
+    /// Optional TPM PCR11 value
     #[serde(
         serialize_with = "serialize_option_u8_vec_as_hex",
         deserialize_with = "deserialize_option_u8_vec_from_hex"
     )]
     pub pcr11: Option<Vec<u8>>,
+    /// Optional firmware measurement
     #[serde(
         serialize_with = "serialize_option_u8_vec_as_hex",
         deserialize_with = "deserialize_option_u8_vec_from_hex"
@@ -53,13 +72,19 @@ pub struct DidStatementEqtyVCompAzureV1VCompMeasurement {
     pub firmware: Option<Vec<u8>>,
 }
 
+/// Details about components measured in Azure attestation
 #[derive(Clone, Debug, Serialize, Deserialize, utoipa::ToSchema, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct DidStatementEqtyVCompAzureV1VCompMeasurementInfo {
+    /// Optional Unified Kernel Image CID
     uki: Option<String>,
+    /// Optional kernel with hash
     kernel: Option<UrnCidWithSha384>,
+    /// Optional initial RAM disk with hash
     initrd: Option<UrnCidWithSha384>,
+    /// Optional kernel command-line arguments with hash
     append: Option<UrnCidWithSha384>,
+    /// Optional root filesystem with hash
     rootfs: Option<UrnCidWithSha256>,
 }
 

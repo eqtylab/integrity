@@ -13,11 +13,19 @@ use crate::lineage::{
     models::statements::{extract_statement_id, extract_statement_type, Statement, StatementTrait},
 };
 
+/// SQLite implementation of the statement indexer with filtering support.
+///
+/// Provides persistent storage for statements with a flexible filter DSL
+/// for querying by type, attributes, and other criteria.
 pub struct SqlLite {
     pool: SqlitePool,
 }
 
 impl SqlLite {
+    /// Creates a new SQLite indexer and initializes the database schema.
+    ///
+    /// # Arguments
+    /// * `database_url` - SQLite database connection string (e.g., "sqlite://path/to/db.sqlite")
     pub async fn new(database_url: &str) -> Result<Self> {
         let pool = SqlitePool::connect(database_url).await?;
 
