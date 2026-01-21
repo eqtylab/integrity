@@ -52,7 +52,7 @@ In-Toto attestation format support for software supply chain security.
 
 The `static_contexts/` directory contains JSON-LD context documents that define the vocabulary and semantics for the Integrity Fabric. These contexts enable interoperable, machine-readable metadata using linked data standards.
 
-The schema is defined in https://github.com/eqtylab/integrity-schema
+The schema is defined in <https://github.com/eqtylab/integrity-schema>
 
 ### Structure
 
