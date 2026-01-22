@@ -70,7 +70,7 @@ The schema is defined in <https://github.com/eqtylab/integrity-schema>
 
 The Integrity Graph common context is referenced in code via:
 ```rust
-use crate::json_ld::ig_common_context_link;
+use integrity::json_ld::ig_common_context_link;
 
 let context_urn = ig_common_context_link();
 // Returns: "urn:cid:bafkr4ibtc72t26blsnipjniwpoawtopufixoe7bbloqk7ko65cizgnhgnq"
@@ -111,7 +111,6 @@ Available recipes:
     lint                   # Run clippy lints to check code quality
     lint-docs              # Check that all public items have documentation
     pre-commit             # Run all prek pre-commit hooks on all files
-    pre-push               # Called by git pre-push hook
     readme-check           # Check if README.md is up to date with auto-generated content
     readme-update          # Update README.md with auto-generated content (Justfile commands, etc.)
     test                   # Run unit tests with cargo

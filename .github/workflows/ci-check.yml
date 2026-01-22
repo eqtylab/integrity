@@ -38,6 +38,26 @@ jobs:
       - name: Rust Cache
         uses: eqtylab-actions/rust-cache@v2
 
-      - name: Build Crates
-        run: nix develop . -c just ci
+      - name: fmt-check
+        run: nix develop . -c just fmt-check
 
+      - name: readme-check
+        run: nix develop . -c just readme-check
+
+      - name: build
+        run: nix develop . -c just build
+
+      - name: build-wasm
+        run: nix develop . -c just build-wasm
+
+      - name: lint
+        run: nix develop . -c just lint
+
+      - name: lint-docs
+        run: nix develop . -c just lint-docs
+
+      - name: test
+        run: nix develop . -c just test
+
+      - name: test-wasm
+        run: nix develop . -c just test-wasm

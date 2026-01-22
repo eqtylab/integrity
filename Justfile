@@ -67,9 +67,6 @@ readme-check: _tmp
 # Run all CI checks (format, build, lint, test)
 ci: fmt-check readme-check build build-wasm lint lint-docs test test-wasm
 
-# Called by git pre-push hook
-pre-push: fmt-check lint lint-docs readme-check
-
 # Create temporary directory for artifacts
 _tmp:
     mkdir -p tmp
