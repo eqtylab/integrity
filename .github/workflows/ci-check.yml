@@ -1,4 +1,4 @@
-name: Integrity
+name: CI Check
 
 on:
   push:
