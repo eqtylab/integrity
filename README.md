@@ -109,7 +109,7 @@ Available recipes:
     fmt                    # Format Rust code using rustfmt
     fmt-check              # Check if code is formatted correctly without modifying files
     lint                   # Run clippy lints to check code quality
-    lint-docs              # Check that all public items have documentation (warnings only for now)
+    lint-docs              # Check that all public items have documentation
     pre-commit             # Run all prek pre-commit hooks on all files
     pre-push               # Called by git pre-push hook
     readme-check           # Check if README.md is up to date with auto-generated content
