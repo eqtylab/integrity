@@ -4,50 +4,6 @@ Library for data integrity, signing, verifiable credentials, and content-address
 
 This crate provides tools for creating tamper-evident data structures using cryptographic hashing, digital signatures, and W3C standards like Verifiable Credentials and JSON-LD.
 
-## Main Modules
-
-### `cid`
-Content Identifier (CID) utilities for content-addressable data. Provides BLAKE3-based hashing and CID generation compatible with IPFS/IPLD standards. Includes support for:
-- Raw binary data CIDs
-- JSON Canonicalization Scheme (JCS) CIDs
-- RDF Dataset Canonicalization (RDFC) CIDs
-- Iroh protocol integration
-
-### `json_ld`
-JSON-LD processing and canonicalization. Converts JSON-LD documents to canonical N-Quads format using the URDNA2015 algorithm, enabling deterministic content addressing of linked data.
-
-### `nquads`
-N-Quads RDF format parsing and canonicalization. Implements the Universal RDF Dataset Normalization Algorithm 2015 (URDNA2015) for creating canonical representations of RDF data.
-
-### `vc`
-W3C Verifiable Credentials creation and signing. Build and sign verifiable credentials with DID-based issuers and linked data proofs. Supports various signature algorithms through the `signer` module.
-
-### `blob_store`
-Content-addressable blob storage backends:
-- **Azure Blob Storage** - Cloud storage using Azure
-- **AWS S3** - Cloud storage using Amazon S3
-- **Local Filesystem** - File-based storage for development
-- **In-Memory** - Ephemeral storage for testing
-
-All data is indexed by CID for content-addressability.
-
-### `signer`
-Digital signature implementations for various key types:
-- **ed25519** - EdDSA signatures
-- **p256** - ECDSA with NIST P-256 curve
-- **secp256k1** - ECDSA with secp256k1 curve (Bitcoin/Ethereum)
-- **YubiKey HSM** - Hardware security module integration
-- **Azure Key Vault** - Cloud-based key management
-
-### `lineage`
-Data lineage tracking and graph indexing. Record and query the provenance of data transformations and computations.
-
-### `dsse`
-Dead Simple Signing Envelope (DSSE) implementation for authenticated message signing.
-
-### `intoto_attestation`
-In-Toto attestation format support for software supply chain security.
-
 ## Static Contexts
 
 The `static_contexts/` directory contains JSON-LD context documents that define the vocabulary and semantics for the Integrity Fabric. These contexts enable interoperable, machine-readable metadata using linked data standards.

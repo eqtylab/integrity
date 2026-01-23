@@ -16,7 +16,7 @@ build:
 
 # Build WebAssembly package with wasm-pack
 build-wasm:
-    RUST_LOG=debug wasm-pack build \
+    wasm-pack build \
         --mode no-install \
         --no-default-features
 
@@ -26,7 +26,7 @@ fix:
 
 # Run clippy lints to check code quality
 lint:
-  cargo clippy --workspace --all-targets -- -Dwarnings --no-deps
+    cargo clippy --workspace --all-targets -- -Dwarnings --no-deps
 
 # Check that all public items have documentation
 lint-docs:
