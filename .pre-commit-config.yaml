@@ -18,7 +18,7 @@ repos:
       - id: doc-check
         name: Rust Docs (cargo doc)
         description: Run `cargo doc` to ensure documentation builds without errors.
-        entry: cargo rustdoc --lib -- -W missing_docs -D rustdoc::broken_intra_doc_links
+        entry: cargo rustdoc --lib -- -D missing_docs -D rustdoc::broken_intra_doc_links
         language: system
         pass_filenames: false
         types: [rust]

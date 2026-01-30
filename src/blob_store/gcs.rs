@@ -1,3 +1,8 @@
+//! Google Cloud Storage implementation of the [`BlobStore`] trait.
+//!
+//! This module provides a GCS-backed blob store that stores content-addressed
+//! blobs in a Google Cloud Storage bucket.
+
 use anyhow::Result;
 use async_trait::async_trait;
 use bytes::Bytes;
@@ -6,13 +11,32 @@ use log::{debug, trace};
 
 use crate::blob_store::{calc_and_validate_cid, BlobStore};
 
+/// A blob store implementation backed by Google Cloud Storage.
+///
+/// Blobs are stored in a specified bucket and folder, using their CID
+/// (Content Identifier) as the object name.
 pub struct GCS {
+    /// The name of the GCS bucket.
     bucket: String,
+    /// The folder prefix within the bucket (always ends with `/`).
     folder: String,
+    /// The GCS client, initialized via [`GCS::init`].
     client: Option<Storage>,
 }
 
 impl GCS {
+    /// Creates a new GCS blob store instance.
+    ///
+    /// # Arguments
+    ///
+    /// * `bucket` - The name of the GCS bucket to use.
+    /// * `folder` - The folder prefix within the bucket. A trailing `/` will be
+    ///   added if not present.
+    ///
+    /// # Returns
+    ///
+    /// A new [`GCS`] instance with an uninitialized client. Call [`BlobStore::init`]
+    /// before using other methods.
     pub fn new(bucket: String, folder: String) -> Self {
         let folder = match folder.ends_with('/') {
             true => folder,
@@ -26,10 +50,12 @@ impl GCS {
         }
     }
 
+    /// Returns the GCS bucket path in the format required by the API.
     fn bucket_path(&self) -> String {
         format!("projects/_/buckets/{}", self.bucket)
     }
 
+    /// Constructs the full object name for a given CID.
     fn object_name(&self, cid: &str) -> String {
         format!("{folder}{cid}", folder = self.folder)
     }
@@ -37,13 +63,22 @@ impl GCS {
 
 #[async_trait]
 impl BlobStore for GCS {
+    /// Initializes the GCS client for this blob store.
+    ///
+    /// This must be called before any other operations. The client is built
+    /// using default credentials from the environment.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(())` - Client initialized successfully.
+    /// * `Err(_)` - Failed to build the GCS client.
     async fn init(&mut self) -> Result<()> {
         let client = Storage::builder().build().await?;
         self.client = Some(client);
         Ok(())
     }
 
-    /// Check if a CID exists in the store
+    /// Checks if a blob with the given CID exists in the store.
     async fn exists(&self, cid: &str) -> Result<bool> {
         let client = self
             .client
@@ -70,7 +105,7 @@ impl BlobStore for GCS {
         }
     }
 
-    /// Get a blob from the store
+    /// Retrieves a blob from the store by its CID.
     async fn get(&self, cid: &str) -> Result<Option<Vec<u8>>> {
         let client = self
             .client
@@ -104,7 +139,10 @@ impl BlobStore for GCS {
         }
     }
 
-    /// Put a blob into the store
+    /// Stores a blob in GCS.
+    ///
+    /// The blob is stored using its CID as the object name. If a CID is provided,
+    /// it will be validated against the computed CID of the blob data.
     async fn put(&self, blob: Vec<u8>, multicodec_code: u64, cid: Option<&str>) -> Result<String> {
         let client = self
             .client
