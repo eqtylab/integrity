@@ -311,3 +311,148 @@ async fn prepare_vc_proof(
 
     Ok(proof_preparation)
 }
+
+#[cfg(test)]
+#[cfg(not(target_arch = "wasm32"))]
+mod tests {
+    use super::*;
+    use crate::signer::{Ed25519Signer, SignerType};
+
+    #[tokio::test]
+    async fn test_issue_vc_with_simple_subject() {
+        let _ = env_logger::builder().is_test(true).try_init();
+
+        // Create an Ed25519 signer for testing
+        let signer = Ed25519Signer::create().unwrap();
+        let signer_type = SignerType::ED25519(signer);
+
+        // Issue a VC with a simple subject identifier
+        let subject = "urn:cid:bafkr4ibthuzk3zug7ghmx63yjqaiu6rx4hhfdv3453j5bodskgw57bx2ya";
+        let credential = issue_vc(subject, signer_type).await.unwrap();
+
+        // Verify the credential has expected structure
+        assert!(credential.proof.is_some(), "Credential should have a proof");
+        assert!(
+            credential.issuer.is_some(),
+            "Credential should have an issuer"
+        );
+
+        // Verify the credential can be serialized to JSON
+        let vc_json = serde_json::to_string(&credential);
+        assert!(vc_json.is_ok(), "Credential should serialize to JSON");
+    }
+
+    #[tokio::test]
+    async fn test_issue_vc_with_did_subject() {
+        let _ = env_logger::builder().is_test(true).try_init();
+
+        let signer = Ed25519Signer::create().unwrap();
+        let signer_type = SignerType::ED25519(signer);
+
+        // Issue a VC with a DID as subject
+        let subject = "did:key:z6Mkw2PvzC9DHXiYQHMDRwyxCCV9n4EDc6vqqp1uyi9nrwsP";
+        let credential = issue_vc(subject, signer_type).await.unwrap();
+
+        assert!(credential.proof.is_some(), "Credential should have a proof");
+
+        // Verify the credential subject contains the DID
+        let vc_json = serde_json::to_string(&credential).unwrap();
+        assert!(
+            vc_json.contains(subject),
+            "Credential should contain the subject DID"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_issue_and_verify_vc() {
+        let _ = env_logger::builder().is_test(true).try_init();
+
+        let signer = Ed25519Signer::create().unwrap();
+        let signer_type = SignerType::ED25519(signer);
+
+        let subject = "urn:cid:bafkr4ibthuzk3zug7ghmx63yjqaiu6rx4hhfdv3453j5bodskgw57bx2ya";
+        let credential = issue_vc(subject, signer_type).await.unwrap();
+
+        // Serialize the credential and verify it
+        let vc_json = serde_json::to_string(&credential).unwrap();
+        let verification_result = verify_vc(&vc_json).await;
+
+        assert!(
+            verification_result.is_ok(),
+            "Credential verification should succeed: {:?}",
+            verification_result.err()
+        );
+    }
+
+    #[tokio::test]
+    async fn test_issue_vc_with_json_subject() {
+        let _ = env_logger::builder().is_test(true).try_init();
+
+        let signer = Ed25519Signer::create().unwrap();
+        let signer_type = SignerType::ED25519(signer);
+
+        // Issue a VC with a JSON object as subject
+        let subject = r#"{"id": "urn:cid:bafkr4ibthuzk3zug7ghmx63yjqaiu6rx4hhfdv3453j5bodskgw57bx2ya", "name": "Test Subject"}"#;
+        let credential = issue_vc(subject, signer_type).await.unwrap();
+
+        assert!(credential.proof.is_some(), "Credential should have a proof");
+
+        // Verify the credential can be serialized
+        let vc_json = serde_json::to_string(&credential);
+        assert!(vc_json.is_ok(), "Credential should serialize to JSON");
+    }
+
+    #[tokio::test]
+    async fn test_verifiable_credential_serialization() {
+        let _ = env_logger::builder().is_test(true).try_init();
+
+        let signer = Ed25519Signer::create().unwrap();
+        let did_doc = signer.did_doc.clone();
+
+        let vc = VerifiableCredential::from_did_doc(
+            "urn:cid:bafkr4ibthuzk3zug7ghmx63yjqaiu6rx4hhfdv3453j5bodskgw57bx2ya",
+            &did_doc,
+        );
+
+        // Serialize to JSON
+        let vc_json = serde_json::to_string(&vc).unwrap();
+
+        // Verify expected fields are present
+        assert!(vc_json.contains("@context"), "Should have @context");
+        assert!(
+            vc_json.contains("https://www.w3.org/ns/credentials/v2"),
+            "Should have W3C VC context"
+        );
+        assert!(
+            vc_json.contains("VerifiableCredential"),
+            "Should have VerifiableCredential type"
+        );
+        assert!(
+            vc_json.contains("credentialSubject"),
+            "Should have credentialSubject"
+        );
+        assert!(vc_json.contains("issuer"), "Should have issuer");
+        assert!(vc_json.contains("issuanceDate"), "Should have issuanceDate");
+    }
+
+    #[tokio::test]
+    async fn test_verifiable_credential_try_into_credential() {
+        let _ = env_logger::builder().is_test(true).try_init();
+
+        let signer = Ed25519Signer::create().unwrap();
+        let did_doc = signer.did_doc.clone();
+
+        let vc = VerifiableCredential::from_did_doc(
+            "urn:cid:bafkr4ibthuzk3zug7ghmx63yjqaiu6rx4hhfdv3453j5bodskgw57bx2ya",
+            &did_doc,
+        );
+
+        // Convert to SSI Credential - this exercises the JSON-LD parsing path
+        let credential: Result<Credential> = vc.try_into();
+        assert!(
+            credential.is_ok(),
+            "VerifiableCredential should convert to Credential: {:?}",
+            credential.err()
+        );
+    }
+}

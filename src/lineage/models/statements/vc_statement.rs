@@ -115,3 +115,223 @@ impl VcStatement {
         Ok(statement)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use chrono::{DateTime, Utc};
+    use serde_json::json;
+
+    use super::*;
+    use crate::lineage::models::statements::Statement;
+
+    /// Creates a minimal valid W3C VC for testing
+    fn create_test_credential() -> Credential {
+        let vc_json = json!({
+            "@context": [
+                "https://www.w3.org/ns/credentials/v2",
+                "https://w3id.org/security/v2"
+            ],
+            "type": ["VerifiableCredential"],
+            "id": "urn:uuid:12345678-1234-1234-1234-123456789012",
+            "issuer": "did:key:z6Mkw2PvzC9DHXiYQHMDRwyxCCV9n4EDc6vqqp1uyi9nrwsP",
+            "issuanceDate": "2024-01-01T00:00:00Z",
+            "validFrom": "2024-01-01T00:00:00Z",
+            "credentialSubject": {
+                "id": "urn:cid:bafkr4ibthuzk3zug7ghmx63yjqaiu6rx4hhfdv3453j5bodskgw57bx2ya"
+            }
+        });
+
+        Credential::from_json_unsigned(&serde_json::to_string(&vc_json).unwrap()).unwrap()
+    }
+
+    #[tokio::test]
+    async fn create_vc_statement() {
+        let credential = create_test_credential();
+        let registered_by = "did:key:z6Mkw2PvzC9DHXiYQHMDRwyxCCV9n4EDc6vqqp1uyi9nrwsP";
+        let timestamp = "2024-06-27T21:40:37Z";
+
+        let statement = VcStatement::create(
+            credential.clone(),
+            registered_by.to_owned(),
+            Some(timestamp.to_owned()),
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(
+            statement.type_, "CredentialRegistration",
+            "Type match failed"
+        );
+        assert_eq!(
+            statement.registered_by, registered_by,
+            "RegisteredBy match failed"
+        );
+        assert_eq!(statement.timestamp, timestamp, "Timestamp match failed");
+        assert_eq!(
+            statement.context,
+            ig_common_context_link(),
+            "Context match failed"
+        );
+        assert!(
+            statement.id.starts_with("urn:cid:"),
+            "ID should be a CID URN"
+        );
+    }
+
+    #[tokio::test]
+    async fn create_vc_statement_no_timestamp() {
+        let credential = create_test_credential();
+        let registered_by = "did:key:z6Mkw2PvzC9DHXiYQHMDRwyxCCV9n4EDc6vqqp1uyi9nrwsP";
+
+        let statement = VcStatement::create(credential, registered_by.to_owned(), None)
+            .await
+            .unwrap();
+
+        // Verify a timestamp was generated
+        let min_timestamp: DateTime<Utc> = "2024-01-01T00:00:00Z".parse().unwrap();
+        let generated_timestamp: DateTime<Utc> = statement.timestamp.parse().unwrap();
+        assert!(
+            generated_timestamp > min_timestamp,
+            "Generated timestamp should be recent"
+        );
+    }
+
+    #[tokio::test]
+    async fn create_vc_statement_deterministic_cid() {
+        let credential = create_test_credential();
+        let registered_by = "did:key:z6Mkw2PvzC9DHXiYQHMDRwyxCCV9n4EDc6vqqp1uyi9nrwsP";
+        let timestamp = "2024-06-27T21:40:37Z";
+
+        // Create two statements with the same inputs
+        let statement1 = VcStatement::create(
+            credential.clone(),
+            registered_by.to_owned(),
+            Some(timestamp.to_owned()),
+        )
+        .await
+        .unwrap();
+
+        let statement2 = VcStatement::create(
+            credential,
+            registered_by.to_owned(),
+            Some(timestamp.to_owned()),
+        )
+        .await
+        .unwrap();
+
+        // CIDs should be identical for same inputs
+        assert_eq!(statement1.id, statement2.id, "CIDs should be deterministic");
+    }
+
+    #[tokio::test]
+    async fn referenced_cids_extracts_credential_id() {
+        let credential = create_test_credential();
+        let registered_by = "did:key:z6Mkw2PvzC9DHXiYQHMDRwyxCCV9n4EDc6vqqp1uyi9nrwsP";
+        let timestamp = "2024-06-27T21:40:37Z";
+
+        let statement = VcStatement::create(
+            credential,
+            registered_by.to_owned(),
+            Some(timestamp.to_owned()),
+        )
+        .await
+        .unwrap();
+
+        let refs = statement.referenced_cids();
+
+        // Should contain the credential ID
+        assert!(
+            refs.contains(&"urn:uuid:12345678-1234-1234-1234-123456789012".to_string()),
+            "Should reference the credential ID"
+        );
+    }
+
+    #[tokio::test]
+    async fn deserialize_vc_statement() {
+        // First create a statement to get a valid structure
+        let credential = create_test_credential();
+        let registered_by = "did:key:z6Mkw2PvzC9DHXiYQHMDRwyxCCV9n4EDc6vqqp1uyi9nrwsP";
+        let timestamp = "2024-06-27T21:40:37Z";
+
+        let original = VcStatement::create(
+            credential,
+            registered_by.to_owned(),
+            Some(timestamp.to_owned()),
+        )
+        .await
+        .unwrap();
+
+        // Serialize and deserialize through the Statement enum
+        let json_value = serde_json::to_value(&original).unwrap();
+        let deserialized: Statement = serde_json::from_value(json_value).unwrap();
+
+        if let Statement::CredentialRegistration(vc_statement) = deserialized {
+            assert_eq!(vc_statement.get_id(), original.get_id(), "ID match failed");
+            assert_eq!(
+                vc_statement.registered_by, original.registered_by,
+                "RegisteredBy match failed"
+            );
+            assert_eq!(
+                vc_statement.timestamp, original.timestamp,
+                "Timestamp match failed"
+            );
+        } else {
+            panic!("Expected CredentialRegistration variant");
+        }
+    }
+
+    #[tokio::test]
+    async fn vc_statement_jsonld_filename() {
+        let credential = create_test_credential();
+        let registered_by = "did:key:z6Mkw2PvzC9DHXiYQHMDRwyxCCV9n4EDc6vqqp1uyi9nrwsP";
+        let timestamp = "2024-06-27T21:40:37Z";
+
+        let statement = VcStatement::create(
+            credential,
+            registered_by.to_owned(),
+            Some(timestamp.to_owned()),
+        )
+        .await
+        .unwrap();
+
+        let filename = statement.jsonld_filename();
+        assert!(
+            filename.ends_with(".jsonld"),
+            "Filename should end with .jsonld"
+        );
+
+        // The filename should be based on the CID
+        let cid = statement.get_id_no_prefix();
+        assert_eq!(
+            filename,
+            format!("{}.jsonld", cid),
+            "Filename should match CID"
+        );
+    }
+
+    #[tokio::test]
+    async fn vc_statement_jcs_serialization() {
+        let credential = create_test_credential();
+        let registered_by = "did:key:z6Mkw2PvzC9DHXiYQHMDRwyxCCV9n4EDc6vqqp1uyi9nrwsP";
+        let timestamp = "2024-06-27T21:40:37Z";
+
+        let statement = VcStatement::create(
+            credential,
+            registered_by.to_owned(),
+            Some(timestamp.to_owned()),
+        )
+        .await
+        .unwrap();
+
+        // Should be able to serialize to JCS without errors
+        let jcs = serde_jcs::to_string(&statement);
+        assert!(jcs.is_ok(), "JCS serialization should succeed");
+
+        // Verify the JCS output contains expected fields
+        let jcs_string = jcs.unwrap();
+        assert!(jcs_string.contains("\"@type\":\"CredentialRegistration\""));
+        assert!(jcs_string.contains(
+            "\"registeredBy\":\"did:key:z6Mkw2PvzC9DHXiYQHMDRwyxCCV9n4EDc6vqqp1uyi9nrwsP\""
+        ));
+    }
+}

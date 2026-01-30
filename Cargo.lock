@@ -3813,6 +3813,7 @@ dependencies = [
  "sha256",
  "slh-dsa",
  "ssi",
+ "ssi-contexts",
  "ssi-json-ld",
  "strum 0.26.3",
  "tokio",
@@ -7428,9 +7429,9 @@ dependencies = [
 
 [[package]]
 name = "ssi-contexts"
-version = "0.1.10"
+version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5d0eda75b662bc3d7a9e751292c96a71a3d9bdcfb887e0b895032a5fd23c203e"
+checksum = "f3009b82cbae3d88a76f15460fb5fb3f30a1673eb0359ac6917ffaa3c57f7164"
 
 [[package]]
 name = "ssi-core"
