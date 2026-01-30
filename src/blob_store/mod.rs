@@ -5,6 +5,8 @@ use crate::cid::blake3::blake3_cid;
 
 /// Azure Blob Storage backend
 pub mod azure_blob;
+/// Gooogle Cloud Storage backend
+pub mod gcs;
 /// In-memory blob storage for testing
 pub mod in_memory;
 /// Local filesystem blob storage
@@ -13,6 +15,7 @@ pub mod local_fs;
 pub mod s3;
 
 pub use azure_blob::AzureBlob;
+pub use gcs::GCS;
 pub use in_memory::InMemoryStore;
 pub use local_fs::LocalFs;
 pub use s3::S3;
