@@ -170,6 +170,7 @@ mod tests {
     use super::*;
 
     #[tokio::test]
+    #[ignore]
     async fn put_gcs() {
         let mut gcs = GCS::new(String::from("ig-gcs-blob-store"), String::from("rootstore"));
         gcs.init().await.unwrap();
@@ -182,6 +183,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore]
     async fn get_gcs() {
         let mut gcs = GCS::new(String::from("ig-gcs-blob-store"), String::from("rootstore"));
         gcs.init().await.unwrap();
@@ -195,6 +197,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore]
     async fn exists_gcs() {
         let mut gcs = GCS::new(String::from("ig-gcs-blob-store"), String::from("rootstore"));
         gcs.init().await.unwrap();
