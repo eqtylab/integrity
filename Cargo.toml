@@ -1,0 +1,75 @@
+[package]
+name = "integrity"
+version = "0.0.1"
+edition = "2021"
+
+[lib]
+crate-type = ["rlib", "cdylib"]
+
+[features]
+default = []
+s3 = []
+tokio-tests = []
+
+[dependencies]
+anyhow = { version = "1", features = ["backtrace"] }
+bs58 = "0.5.1"
+cid = { version = "0.10", default-features = false, features = ["std"] }
+did-method-key = "0.2.2"
+futures = "0.3"
+hex = "0.4.3"
+iref = "2.0"
+json-ld = "0.12"
+locspan = "0.7"
+log = "0.4"
+nquads-syntax = "0.10"
+once_cell = "1"
+p256 = "0.13.2"
+rdf-types = "0.12"
+serde = { version = "1.0", features = ["derive"] }
+serde_jcs = "0.1.0"
+serde_json = "1.0"
+ssi = { version = "0.7", features = ["w3c", "http-did", "example-http-issuer", "ed25519", "secp256r1"] }
+ssi-contexts = "=0.1.5" # v0.1.10 has regressions causing jsonld expansion issues on vcs
+ssi-json-ld = "0.2"
+strum = { version = "0.26", features = ["derive"] }
+uuid = { version = "1.4", features = ["v4", "js", "serde"] }
+
+# blake3 is used on WASM, iroh-blake3 is used on native (see src/cid/blake3.rs)
+blake3 = "1.5"
+
+# dependencies not supported on WASM
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+async-trait = "0.1"
+aws-config = { version = "1.0.3", features = ["behavior-version-latest"] }
+aws-sdk-s3 = { version = "1.5.0" }
+azure_core = "0.21"
+azure_identity = "0.21"
+azure_security_keyvault = "0.21"
+azure_storage = { version = "0.21" }
+azure_storage_blobs = { version = "0.21" }
+base64 = "0.21"
+blake3 = { version = "1.5", features = ["mmap", "rayon"] }
+bytes = "1.5"
+cel = "0.11.1"
+chrono = { version = "0.4.37", features = ["serde"] }
+did-key = "0.2"
+dotenvy = "0.15"
+env_logger = "0.10"
+google-cloud-storage = { version = "1.7" }
+http-body-util = "0.1.1"
+hyper = { version = "1.3.1", features = ["full"] }
+hyper-util = { version = "0.1.3", features = ["full"] }
+ignore = "0.4"
+iroh = { version = "0.14.0" }
+iroh-blake3 = "1.4.5"
+pkcs8 = "0.10.2"
+postcard = "1"
+reqwest = { version = "0.12", features = ["json"] }
+sha2 = "0.10.8"
+sha256 = { version = "1.5" }
+slh-dsa = "0.0.3"
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+utoipa = { version = "3", features = ["axum_extras", "openapi_extensions", "uuid"] }
+wasm-bindgen-test = "0.2"
+yubihsm = { version = "0.42.1", features = ["usb", "http", "secp256k1", "ed25519-dalek", "digest"] }

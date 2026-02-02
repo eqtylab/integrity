@@ -1,0 +1,5 @@
+<urn:cid:TODO> <http://eqtylab.io/terms/executedBy> <did:key:EXECUTED_BY> .
+<urn:cid:TODO> <http://eqtylab.io/terms/executionContext> <urn:cid:EXECUTION_CONTEXT> .
+<urn:cid:TODO> <http://eqtylab.io/terms/input> <urn:cid:INPUT> .
+<urn:cid:TODO> <http://eqtylab.io/terms/output> <urn:cid:OUTPUT> .
+<urn:cid:TODO> <http://eqtylab.io/terms/timestamp> "2023-09-10T14:09:09Z" .

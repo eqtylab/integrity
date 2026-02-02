@@ -1,0 +1,6 @@
+{
+    "@context": "https://example.com/custom-context",
+    "@id": "urn:test:subject",
+    "name": "Test Subject",
+    "value": 42
+}

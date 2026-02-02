@@ -1,0 +1,33 @@
+repos:
+  - repo: local
+    hooks:
+      - id: cargo-fmt
+        name: Rust format (cargo fmt)
+        entry: cargo fmt --all --
+        language: system
+        types: [rust]
+        pass_filenames: false
+
+      - id: cargo-clippy
+        name: Rust lint (cargo clippy)
+        entry: cargo clippy --workspace --all-targets -- -Dwarnings --no-deps
+        language: system
+        types: [rust]
+        pass_filenames: false
+
+      - id: doc-check
+        name: Rust Docs (cargo doc)
+        description: Run `cargo doc` to ensure documentation builds without errors.
+        entry: cargo rustdoc --lib -- -D missing_docs -D rustdoc::broken_intra_doc_links
+        language: system
+        pass_filenames: false
+        types: [rust]
+
+  - repo: builtin
+    hooks:
+      - id: trailing-whitespace
+      - id: mixed-line-ending
+      - id: check-symlinks
+      - id: detect-private-key
+      - id: check-toml
+      - id: check-yaml

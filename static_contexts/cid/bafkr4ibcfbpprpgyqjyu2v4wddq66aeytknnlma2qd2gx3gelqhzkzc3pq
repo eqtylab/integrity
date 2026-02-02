@@ -1,0 +1,114 @@
+{
+    "@context": [
+        "urn:cid:bafkr4iep2pf2ha545wx44pzkutrfp2okwk4ks6fetcje77kbegomsb3qpy",
+        {
+            "@protected": true,
+
+            "registeredBy": {
+                "@id": "https://eqtylab.io/terms/registeredBy"
+            },
+
+            "timestamp": {
+                "@id": "https://eqtylab.io/terms/timestamp",
+                "@type": "http://www.w3.org/2001/XMLSchema#dateTime"
+            },
+
+            "MetadataRegistration": {
+                "@id": "https://eqtylab.io/terms/MetadataRegistration",
+                "@context": {
+                    "subject": {
+                        "@id": "https://eqtylab.io/terms/subject",
+                        "@type": "@id"
+                    },
+                    "metadata": {
+                        "@id": "https://eqtylab.io/terms/metadata",
+                        "@type": "@id"
+                    }
+                }
+            },
+
+            "ComputationRegistration": {
+                "@id": "https://eqtylab.io/terms/ComputationRegistration",
+                "@context": {
+                    "computation": {
+                        "@id": "https://eqtylab.io/terms/computation",
+                        "@type": "@id"
+                    },
+                    "input": {
+                        "@id": "https://eqtylab.io/terms/input",
+                        "@type": "@id"
+                    },
+                    "output": {
+                        "@id": "https://eqtylab.io/terms/output",
+                        "@type": "@id"
+                    },
+                    "executedOn": {
+                        "@id": "https://eqtylab.io/terms/executedOn"
+                    },
+                    "operatedBy": {
+                        "@id": "https://eqtylab.io/terms/operatedBy"
+                    }
+                }
+            },
+
+            "DataRegistration": {
+                "@id": "https://eqtylab.io/terms/DataRegistration",
+                "@context": {
+                    "data": {
+                        "@id": "https://eqtylab.io/terms/data",
+                        "@type": "@id"
+                    }
+                }
+            },
+
+            "DidRegistration": {
+                "@id": "https://eqtylab.io/terms/DidRegistration",
+                "@context": {
+                    "did": {
+                        "@id": "https://eqtylab.io/terms/did"
+                    }
+                }
+            },
+
+            "CredentialRegistration": {
+                "@id": "https://eqtylab.io/terms/CredentialRegistration",
+                "@context": {
+                    "credential": {
+                        "@id": "https://eqtylab.io/terms/credential"
+                    }
+                }
+            },
+
+            "GovernanceRegistration": {
+                "@id": "https://eqtylab.io/terms/GovernanceRegistration",
+                "@context": {
+                    "subject": {
+                        "@id": "https://eqtylab.io/terms/subject",
+                        "@type": "@id"
+                    },
+                    "document": {
+                        "@id": "https://eqtylab.io/terms/document",
+                        "@type": "@id"
+                    }
+                }
+            },
+
+            "StorageRegistration": {
+                "@id": "https://eqtylab.io/terms/StorageRegistration",
+                "@context": {
+                    "data": {
+                        "@id": "https://eqtylab.io/terms/data",
+                        "@type": "@id"
+                    },
+                    "storedOn": {
+                        "@id": "https://eqtylab.io/terms/storedOn",
+                        "@type": "@id"
+                    },
+                    "operatedBy": {
+                        "@id": "https://eqtylab.io/terms/operatedBy"
+                    }
+                }
+            }
+        }
+    ]
+}
