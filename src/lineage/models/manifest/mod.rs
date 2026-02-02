@@ -42,9 +42,6 @@ pub struct Manifest {
     /// Optional anchor records proving statement publication
     #[serde(skip_serializing_if = "Option::is_none")]
     pub anchors: Option<Vec<Anchor>>,
-    /// Optional custom attributes for the manifest
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub attributes: Option<HashMap<String, Value>>,
 }
 
 /// Generates a version 3 manifest from statements and blobs.
@@ -52,12 +49,10 @@ pub struct Manifest {
 /// # Arguments
 /// * `include_context` - Whether to embed JSON-LD contexts
 /// * `statements` - Statements to include in the manifest
-/// * `attributes` - Optional custom attributes
 /// * `blobs` - Binary blobs referenced by statements
 pub async fn generate_manifest(
     include_context: bool,
     statements: Vec<Statement>,
-    attributes: Option<HashMap<String, Value>>,
     blobs: HashMap<String, String>,
 ) -> Result<Manifest> {
     let contexts = if include_context {
@@ -73,7 +68,6 @@ pub async fn generate_manifest(
         statements,
         blobs,
         contexts,
-        attributes,
         anchors: None,
     })
 }
@@ -100,16 +94,6 @@ pub async fn merge_async(a: Manifest, b: Manifest) -> Result<Manifest> {
     let mut blobs = a.blobs;
     blobs.extend(b.blobs);
 
-    let attributes = match (a.attributes, b.attributes) {
-        (None, None) => None,
-        (Some(a), None) => Some(a),
-        (None, Some(b)) => Some(b),
-        (Some(mut a), Some(b)) => {
-            a.extend(b);
-            Some(a)
-        }
-    };
-
     let anchors = match (a.anchors, b.anchors) {
         (None, None) => None,
         (Some(a), None) => Some(a),
@@ -126,7 +110,6 @@ pub async fn merge_async(a: Manifest, b: Manifest) -> Result<Manifest> {
         statements,
         blobs,
         anchors,
-        attributes,
     };
 
     Ok(manifest)
