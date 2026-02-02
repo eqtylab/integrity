@@ -1,7 +1,5 @@
 /// Anchor models for recording statements on external systems
 pub mod anchor;
-/// Version 4 manifest format with graph support
-pub mod manifest_v4;
 
 use std::{
     collections::{HashMap, HashSet},
