@@ -13,6 +13,7 @@ use crate::{
     },
 };
 
+/// Opaque handle to a configured blob store instance for FFI consumers.
 pub struct IgBlobStoreHandle {
     pub(crate) store: Arc<dyn BlobStore + Send + Sync>,
 }

@@ -15,6 +15,7 @@ use crate::{
     },
 };
 
+/// Opaque handle to a signer implementation used by FFI consumers.
 pub struct IgSignerHandle {
     pub(crate) signer: SignerType,
 }

@@ -6,15 +6,25 @@ use std::{
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Status codes returned by FFI entrypoints.
 pub enum IgStatus {
+    /// Operation completed successfully.
     Ok = 0,
+    /// Input value failed validation.
     InvalidInput = 1,
+    /// Required pointer input was null.
     NullPointer = 2,
+    /// UTF-8 or string encoding/decoding error.
     Utf8Error = 3,
+    /// JSON parsing or serialization error.
     JsonError = 4,
+    /// Signature or proof verification failed.
     VerificationFailed = 5,
+    /// Requested operation is not supported in the current build/runtime.
     NotSupported = 6,
+    /// Runtime subsystem initialization or execution error.
     RuntimeError = 7,
+    /// Unexpected internal failure.
     InternalError = 255,
 }
 

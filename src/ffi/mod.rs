@@ -21,10 +21,16 @@ pub use signer::IgSignerHandle;
 #[cfg(test)]
 mod tests;
 
+/// Owned byte buffer returned across the C ABI boundary.
+///
+/// Memory in `ptr` is allocated by this library and must be released with
+/// [`ig_bytes_free`].
 #[repr(C)]
 #[derive(Debug, Clone, Copy, Default)]
 pub struct IgBytes {
+    /// Pointer to the first byte of the buffer, or null when empty.
     pub ptr: *mut u8,
+    /// Number of valid bytes at `ptr`.
     pub len: usize,
 }
 

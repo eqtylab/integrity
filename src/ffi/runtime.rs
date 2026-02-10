@@ -5,6 +5,7 @@ use crate::ffi::{
     util::write_out_ptr,
 };
 
+/// Opaque handle to the Tokio runtime used by asynchronous FFI operations.
 pub struct IgRuntimeHandle {
     pub(crate) runtime: tokio::runtime::Runtime,
 }
