@@ -16,7 +16,7 @@ pub mod cid;
 pub mod dsse;
 
 /// C ABI / FFI bridge for external SDKs
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(all(not(target_arch = "wasm32"), feature = "ffi"))]
 pub mod ffi;
 
 /// In-Toto attestation format support

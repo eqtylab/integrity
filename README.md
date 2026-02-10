@@ -25,6 +25,7 @@ The schema is defined in <https://github.com/eqtylab/integrity-schema>
 ### Usage
 
 The Integrity Graph common context is referenced in code via:
+
 ```rust
 use integrity::json_ld::ig_common_context_link;
 
@@ -33,6 +34,7 @@ let context_urn = ig_common_context_link();
 ```
 
 These contexts are embedded at compile time and used by the JSON-LD processor to:
+
 - Expand compact JSON-LD documents to their canonical form
 - Resolve context references without network requests
 - Ensure deterministic content addressing of linked data
@@ -40,6 +42,7 @@ These contexts are embedded at compile time and used by the JSON-LD processor to
 ### Regenerating Contexts
 
 To update the static contexts (e.g., after schema changes):
+
 ```bash
 just update-static-contexts
 ```
@@ -48,7 +51,8 @@ This downloads the latest W3C contexts and regenerates the CID-indexed files.
 
 ## FFI (C ABI)
 
-The crate now includes a stable C ABI surface in `src/ffi/` for SDK bindings (including the planned Go SDK).
+The crate includes a stable C ABI surface in `src/ffi/` for SDK bindings (including the Go SDK).
+FFI is feature-gated and enabled with `--features ffi`.
 
 - Public header: `include/integrity_ffi.h`
 - ABI version functions:
@@ -67,6 +71,7 @@ The current ABI version is `0.2.0`.
 ### Native Artifact Releases
 
 GitHub Actions can publish prebuilt native FFI artifacts for each supported system:
+
 - Linux x86_64 (`libintegrity.so`)
 - macOS 13 x86_64 (`libintegrity.dylib`)
 - macOS 14 aarch64 (`libintegrity.dylib`)
@@ -78,6 +83,12 @@ Workflow: `.github/workflows/release-native-ffi.yml`
 
 - Push a version tag like `v0.2.0` to build and attach release assets to that GitHub Release.
 - Use `workflow_dispatch` to run the build matrix and collect workflow artifacts without publishing a Release.
+
+Build native FFI artifacts locally:
+
+```bash
+cargo build --release --locked --features ffi
+```
 
 # Development
 
