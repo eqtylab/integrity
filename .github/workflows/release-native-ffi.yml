@@ -61,22 +61,32 @@ jobs:
             import_lib_candidates: "target/release/integrity.lib target/release/integrity.dll.lib target/release/libintegrity.dll.a"
 
     steps:
+      - name: Install Nix
+        uses: eqtylab-actions/install-nix-action@v31
+        with:
+          nix_path: nixpkgs=channel:nixos-unstable
+
+      - name: Cachix
+        uses: eqtylab-actions/cachix-action@v14
+        with:
+          name: eqtylab
+          authToken: "${{ secrets.CACHIX_AUTH_TOKEN }}"
+          skipPush: true
+        continue-on-error: true
+
       - name: Checkout repo
         uses: eqtylab-actions/checkout@v4
-
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
 
       - name: Rust cache
         uses: eqtylab-actions/rust-cache@v2
 
       - name: Build release cdylib
-        run: cargo build --release --locked
+        run: nix develop . -c cargo build --release --locked
 
       - name: Stage artifact files
         shell: bash
         run: |
-          set -euxo pipefail
+          nix develop . -c bash -euxo pipefail <<SCRIPT_EOF
           pkg="integrity-ffi-${{ matrix.asset_suffix }}"
           out_dir="dist/${pkg}"
           mkdir -p "${out_dir}"
@@ -91,13 +101,14 @@ jobs:
             fi
           done
 
-          cat > "${out_dir}/BUILD_INFO.txt" <<EOF
+          cat > "${out_dir}/BUILD_INFO.txt" <<BUILD_INFO_EOF
           crate=integrity
           git_ref=${GITHUB_REF}
           git_sha=${GITHUB_SHA}
           runner_os=${RUNNER_OS}
           asset_suffix=${{ matrix.asset_suffix }}
-          EOF
+          BUILD_INFO_EOF
+          SCRIPT_EOF
 
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v4
@@ -111,6 +122,22 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
+      - name: Install Nix
+        uses: eqtylab-actions/install-nix-action@v31
+        with:
+          nix_path: nixpkgs=channel:nixos-unstable
+
+      - name: Cachix
+        uses: eqtylab-actions/cachix-action@v14
+        with:
+          name: eqtylab
+          authToken: "${{ secrets.CACHIX_AUTH_TOKEN }}"
+          skipPush: true
+        continue-on-error: true
+
+      - name: Checkout repo
+        uses: eqtylab-actions/checkout@v4
+
       - name: Download all build artifacts
         uses: actions/download-artifact@v4
         with:
@@ -120,7 +147,7 @@ jobs:
       - name: Package tarballs + checksums
         shell: bash
         run: |
-          set -euxo pipefail
+          nix develop . -c bash -euxo pipefail <<SCRIPT_EOF
           mkdir -p release
 
           for dir in release-artifacts/*; do
@@ -130,6 +157,7 @@ jobs:
           done
 
           sha256sum release/*.tar.gz > release/SHA256SUMS.txt
+          SCRIPT_EOF
 
       - name: Upload packaged release artifacts
         uses: actions/upload-artifact@v4
