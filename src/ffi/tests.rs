@@ -20,7 +20,9 @@ fn take_owned_c_string(ptr: *mut c_char) -> String {
         .to_str()
         .expect("valid utf-8")
         .to_owned();
-    super::ig_string_free(ptr);
+    unsafe {
+        super::ig_string_free(ptr);
+    }
     s
 }
 
@@ -37,7 +39,9 @@ fn assert_ok(status: IgStatus, err: *mut c_char) {
             .to_str()
             .expect("valid utf-8")
             .to_owned();
-        super::ig_error_free(err);
+        unsafe {
+            super::ig_error_free(err);
+        }
         s
     };
 
@@ -103,7 +107,9 @@ fn ffi_vc_issue_and_verify_smoke() {
     let status =
         signer::ig_signer_ed25519_create(&mut signer_handle, &mut signer_did, &mut err_out);
     assert_ok(status, err_out);
-    super::ig_string_free(signer_did);
+    unsafe {
+        super::ig_string_free(signer_did);
+    }
 
     let subject = cstring("did:key:z6MksNPQf5wQwQfA2a5JY9xY8h6CZ9nHp4Y5qpc4kTYqN6xw");
     let mut vc_json_ptr = ptr::null_mut();
@@ -204,7 +210,9 @@ fn ffi_blob_store_local_fs_roundtrip() {
 
     let roundtrip = unsafe { std::slice::from_raw_parts(out_blob.ptr, out_blob.len) };
     assert_eq!(roundtrip, blob);
-    super::ig_bytes_free(out_blob);
+    unsafe {
+        super::ig_bytes_free(out_blob);
+    }
 
     blob_store::ig_blob_store_free(store_handle);
     runtime::ig_runtime_free(runtime_handle);

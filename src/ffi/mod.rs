@@ -28,8 +28,11 @@ pub struct IgBytes {
     pub len: usize,
 }
 
+/// # Safety
+/// `s` must be a pointer returned by this library via `CString::into_raw`
+/// and must not have been freed previously.
 #[no_mangle]
-pub extern "C" fn ig_string_free(s: *mut c_char) {
+pub unsafe extern "C" fn ig_string_free(s: *mut c_char) {
     if s.is_null() {
         return;
     }
@@ -39,13 +42,22 @@ pub extern "C" fn ig_string_free(s: *mut c_char) {
     }
 }
 
+/// # Safety
+/// `err` must be a pointer returned by this library via `CString::into_raw`
+/// and must not have been freed previously.
 #[no_mangle]
-pub extern "C" fn ig_error_free(err: *mut c_char) {
-    ig_string_free(err);
+pub unsafe extern "C" fn ig_error_free(err: *mut c_char) {
+    unsafe {
+        ig_string_free(err);
+    }
 }
 
+/// # Safety
+/// `bytes.ptr` must point to a heap allocation created by this library, with
+/// an allocation capacity equal to `bytes.len`, and must not be freed
+/// previously.
 #[no_mangle]
-pub extern "C" fn ig_bytes_free(bytes: IgBytes) {
+pub unsafe extern "C" fn ig_bytes_free(bytes: IgBytes) {
     if bytes.ptr.is_null() {
         return;
     }
