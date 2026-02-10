@@ -1,0 +1,134 @@
+name: Release Native FFI Artifacts
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build (${{ matrix.label }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            label: linux x86_64
+            asset_suffix: linux-x86_64
+            lib_path: target/release/libintegrity.so
+            lib_name: libintegrity.so
+            import_lib_candidates: ""
+          - os: macos-13
+            label: macos 13 x86_64
+            asset_suffix: macos-13-x86_64
+            lib_path: target/release/libintegrity.dylib
+            lib_name: libintegrity.dylib
+            import_lib_candidates: ""
+          - os: macos-14
+            label: macos 14 aarch64
+            asset_suffix: macos-14-aarch64
+            lib_path: target/release/libintegrity.dylib
+            lib_name: libintegrity.dylib
+            import_lib_candidates: ""
+          - os: macos-15-intel
+            label: macos 15 x86_64
+            asset_suffix: macos-15-x86_64
+            lib_path: target/release/libintegrity.dylib
+            lib_name: libintegrity.dylib
+            import_lib_candidates: ""
+          - os: macos-15
+            label: macos 15 aarch64
+            asset_suffix: macos-15-aarch64
+            lib_path: target/release/libintegrity.dylib
+            lib_name: libintegrity.dylib
+            import_lib_candidates: ""
+          - os: windows-2022
+            label: windows x86_64
+            asset_suffix: windows-x86_64
+            lib_path: target/release/integrity.dll
+            lib_name: integrity.dll
+            import_lib_candidates: "target/release/integrity.lib target/release/integrity.dll.lib target/release/libintegrity.dll.a"
+
+    steps:
+      - name: Checkout repo
+        uses: eqtylab-actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust cache
+        uses: eqtylab-actions/rust-cache@v2
+
+      - name: Build release cdylib
+        run: cargo build --release --locked
+
+      - name: Stage artifact files
+        shell: bash
+        run: |
+          set -euxo pipefail
+          pkg="integrity-ffi-${{ matrix.asset_suffix }}"
+          out_dir="dist/${pkg}"
+          mkdir -p "${out_dir}"
+
+          cp "${{ matrix.lib_path }}" "${out_dir}/${{ matrix.lib_name }}"
+          cp include/integrity_ffi.h "${out_dir}/integrity_ffi.h"
+          cp LICENSE "${out_dir}/LICENSE"
+
+          for candidate in ${{ matrix.import_lib_candidates }}; do
+            if [ -f "${candidate}" ]; then
+              cp "${candidate}" "${out_dir}/"
+            fi
+          done
+
+          cat > "${out_dir}/BUILD_INFO.txt" <<EOF
+          crate=integrity
+          git_ref=${GITHUB_REF}
+          git_sha=${GITHUB_SHA}
+          runner_os=${RUNNER_OS}
+          asset_suffix=${{ matrix.asset_suffix }}
+          EOF
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: integrity-ffi-${{ matrix.asset_suffix }}
+          path: dist/integrity-ffi-${{ matrix.asset_suffix }}
+          if-no-files-found: error
+
+  publish-release:
+    name: Publish GitHub Release Assets
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    steps:
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-artifacts
+          pattern: integrity-ffi-*
+
+      - name: Package tarballs + checksums
+        shell: bash
+        run: |
+          set -euxo pipefail
+          mkdir -p release
+
+          for dir in release-artifacts/*; do
+            [ -d "${dir}" ] || continue
+            base="$(basename "${dir}")"
+            tar -czf "release/${base}.tar.gz" -C release-artifacts "${base}"
+          done
+
+          sha256sum release/*.tar.gz > release/SHA256SUMS.txt
+
+      - name: Upload release assets
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            release/*.tar.gz
+            release/SHA256SUMS.txt

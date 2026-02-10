@@ -46,6 +46,39 @@ just update-static-contexts
 
 This downloads the latest W3C contexts and regenerates the CID-indexed files.
 
+## FFI (C ABI)
+
+The crate now includes a stable C ABI surface in `src/ffi/` for SDK bindings (including the planned Go SDK).
+
+- Public header: `include/integrity_ffi.h`
+- ABI version functions:
+  - `ig_abi_version_major`
+  - `ig_abi_version_minor`
+  - `ig_abi_version_patch`
+  - `ig_abi_version_string`
+- Runtime and handle model:
+  - Create one runtime with `ig_runtime_new`
+  - Create and reuse opaque handles (signers, blob stores)
+  - Release memory with `ig_string_free`, `ig_error_free`, `ig_bytes_free`
+  - Release handles with their corresponding `*_free` function
+
+The current ABI version is `0.2.0`.
+
+### Native Artifact Releases
+
+GitHub Actions can publish prebuilt native FFI artifacts for each supported system:
+- Linux x86_64 (`libintegrity.so`)
+- macOS 13 x86_64 (`libintegrity.dylib`)
+- macOS 14 aarch64 (`libintegrity.dylib`)
+- macOS 15 x86_64 (`libintegrity.dylib`)
+- macOS 15 aarch64 (`libintegrity.dylib`)
+- Windows x86_64 (`integrity.dll` plus import library when produced)
+
+Workflow: `.github/workflows/release-native-ffi.yml`
+
+- Push a version tag like `v0.2.0` to build and attach release assets to that GitHub Release.
+- Use `workflow_dispatch` to run the build matrix and collect workflow artifacts without publishing a Release.
+
 # Development
 
 Nix flake creates a dev environment with all the dependencies.
