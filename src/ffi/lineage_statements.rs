@@ -1,7 +1,6 @@
 use std::ffi::c_char;
 
-use serde::de::DeserializeOwned;
-use serde::Deserialize;
+use serde::{de::DeserializeOwned, Deserialize};
 use serde_json::Value;
 use ssi::vc::Credential;
 
