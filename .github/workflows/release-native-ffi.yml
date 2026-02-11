@@ -29,12 +29,6 @@ jobs:
             lib_path: target/release/libintegrity.so
             lib_name: libintegrity.so
             import_lib_candidates: ""
-          - os: macos-13
-            label: macos 13 x86_64
-            asset_suffix: macos-13-x86_64
-            lib_path: target/release/libintegrity.dylib
-            lib_name: libintegrity.dylib
-            import_lib_candidates: ""
           - os: macos-14
             label: macos 14 aarch64
             asset_suffix: macos-14-aarch64
