@@ -29,12 +29,6 @@ jobs:
             lib_path: target/release/libintegrity.so
             lib_name: libintegrity.so
             import_lib_candidates: ""
-          - os: macos-13
-            label: macos 13 x86_64
-            asset_suffix: macos-13-x86_64
-            lib_path: target/release/libintegrity.dylib
-            lib_name: libintegrity.dylib
-            import_lib_candidates: ""
           - os: macos-14
             label: macos 14 aarch64
             asset_suffix: macos-14-aarch64
@@ -53,12 +47,6 @@ jobs:
             lib_path: target/release/libintegrity.dylib
             lib_name: libintegrity.dylib
             import_lib_candidates: ""
-          - os: windows-2022
-            label: windows x86_64
-            asset_suffix: windows-x86_64
-            lib_path: target/release/integrity.dll
-            lib_name: integrity.dll
-            import_lib_candidates: "target/release/integrity.lib target/release/integrity.dll.lib target/release/libintegrity.dll.a"
 
     steps:
       - name: Install Nix
@@ -81,12 +69,12 @@ jobs:
         uses: eqtylab-actions/rust-cache@v2
 
       - name: Build release cdylib
-        run: nix develop . -c cargo build --release --locked
+        run: nix develop . -c cargo build --release --locked --features ffi
 
       - name: Stage artifact files
         shell: bash
         run: |
-          nix develop . -c bash -euxo pipefail <<SCRIPT_EOF
+          nix develop . -c bash -euxo pipefail <<'SCRIPT_EOF'
           pkg="integrity-ffi-${{ matrix.asset_suffix }}"
           out_dir="dist/${pkg}"
           mkdir -p "${out_dir}"
@@ -147,7 +135,7 @@ jobs:
       - name: Package tarballs + checksums
         shell: bash
         run: |
-          nix develop . -c bash -euxo pipefail <<SCRIPT_EOF
+          nix develop . -c bash -euxo pipefail <<'SCRIPT_EOF'
           mkdir -p release
 
           for dir in release-artifacts/*; do
