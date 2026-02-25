@@ -47,6 +47,9 @@ jobs:
       - name: build
         run: nix develop . -c just build
 
+      - name: build-ffi-feature
+        run: nix develop . -c cargo check --locked --features ffi
+
       - name: build-wasm
         run: nix develop . -c just build-wasm
 

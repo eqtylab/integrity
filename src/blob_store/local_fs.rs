@@ -9,6 +9,7 @@ use crate::blob_store::{calc_and_validate_cid, BlobStore};
 /// Local filesystem blob storage
 ///
 /// Stores blobs as files in a directory, with CIDs as filenames.
+#[derive(Clone)]
 pub struct LocalFs {
     path: PathBuf,
 }
