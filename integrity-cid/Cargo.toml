@@ -18,7 +18,8 @@ blake3 = { version = "1.5", features = ["mmap", "rayon"] }
 bytes = "1.5"
 ignore = "0.4"
 integrity-blob = { path = "../integrity-blob", default-features = false }
-iroh = { version = "0.14.0" }
+iroh-base = { version = "0.14.0", default-features = false, features = ["hash"] }
+iroh-bytes = { version = "0.14.0", default-features = false }
 iroh-blake3 = "1.4.5"
 log = "0.4"
 postcard = "1"

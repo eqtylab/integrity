@@ -97,6 +97,3 @@ integrity-intoto-attestation = { path = "integrity-intoto-attestation", default-
 integrity-dsse = { path = "integrity-dsse", default-features = false, optional = true }
 integrity-lineage-models = { path = "integrity-lineage-models", default-features = false, optional = true }
 integrity-model-signing = { path = "integrity-model-signing", default-features = false, optional = true }
-
-[patch.crates-io]
-libipld-cbor-derive = { path = "vendor/libipld-cbor-derive" }

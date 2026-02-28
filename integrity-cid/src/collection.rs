@@ -4,7 +4,8 @@ use anyhow::{anyhow, bail, Result};
 use bytes::Bytes;
 use cid::{multihash::MultihashGeneric, Cid};
 use integrity_blob::BlobStore;
-use iroh::{base::hash::Hash, bytes::hashseq::HashSeq};
+use iroh_base::hash::Hash;
+use iroh_bytes::hashseq::HashSeq;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 

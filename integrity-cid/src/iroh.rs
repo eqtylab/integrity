@@ -1,9 +1,13 @@
-use std::{fs, io::Read, path::PathBuf};
+use std::{
+    fs,
+    io::Read,
+    path::{Path, PathBuf},
+};
 
 use anyhow::{bail, Result};
 use bytes::Bytes;
 use cid::{multihash::MultihashGeneric, Cid};
-use iroh::{bytes::format::collection::Collection, util::fs::DataSource};
+use iroh_bytes::format::collection::Collection;
 use log::{debug, trace};
 use serde::{Deserialize, Serialize};
 
@@ -42,6 +46,26 @@ pub struct CidIgnoreConfig {
 
 /// Type alias for 64-byte multihash used in CID operations.
 type Multihash = MultihashGeneric<64>;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct DataSource {
+    name: String,
+    path: PathBuf,
+}
+
+impl DataSource {
+    fn with_name(path: PathBuf, name: String) -> Self {
+        Self { name, path }
+    }
+
+    fn name(&self) -> &str {
+        &self.name
+    }
+
+    fn path(&self) -> &Path {
+        &self.path
+    }
+}
 
 /// Result of computing a CID for a directory, including collection and metadata.
 #[derive(Debug, Clone)]
@@ -376,6 +400,6 @@ fn walked_files_for_dir_cid(
 
 fn sort_data_sources(ds: Vec<DataSource>) -> Vec<DataSource> {
     let mut ds = ds;
-    ds.sort_by(|a, b| a.name().cmp(&b.name()));
+    ds.sort_by(|a, b| a.name().cmp(b.name()));
     ds
 }
