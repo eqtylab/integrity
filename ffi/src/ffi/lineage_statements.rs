@@ -19,7 +19,7 @@ use crate::{
                 DidStatementEqtyVCompCustomV1, DidStatementEqtyVCompDockerV1,
                 DidStatementEqtyVCompIntelTdxV0, DidStatementRegular,
             },
-            extract_statement_id, extract_statement_type, AssociationStatement,
+            extract_statement_id, extract_statement_type, AssociationStatement, AssociationType,
             ComputationStatement, DataStatement, DsseStatement, EntityStatement,
             GovernanceStatement, MetadataStatement, SigstoreBundleStatement, Statement,
             StatementTrait, StorageStatement, VcStatement,
@@ -87,7 +87,9 @@ fn decode_hex_arr<const N: usize>(value: String, field_name: &str) -> Result<[u8
 #[serde(rename_all = "camelCase")]
 struct AssociationCreateRequest {
     subject: String,
-    association: String,
+    association: Vec<String>,
+    #[serde(rename = "type")]
+    association_type: AssociationType,
     registered_by: String,
     timestamp: Option<String>,
 }
@@ -277,6 +279,7 @@ pub extern "C" fn ig_lineage_statement_create_association(
         let statement = map_anyhow(runtime.block_on(AssociationStatement::create(
             request.subject,
             request.association,
+            request.association_type,
             request.registered_by,
             request.timestamp,
         )))?;

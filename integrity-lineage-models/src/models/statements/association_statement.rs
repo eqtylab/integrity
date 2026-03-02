@@ -5,6 +5,14 @@ use serde::{Deserialize, Serialize};
 use super::{compute_cid, format_timestamp, get_jsonld_filename, StatementTrait};
 use crate::cid::prepend_urn_cid;
 
+#[derive(Clone, Debug, Serialize, Deserialize, utoipa::ToSchema, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub enum AssociationType {
+    Certifies,
+    Includes,
+    IsInstanceOf,
+}
+
 /// Records an association between a subject and another entity
 ///
 /// This statement type is used to create relationships between artifacts,
@@ -23,8 +31,11 @@ pub struct AssociationStatement {
     pub type_: String,
     /// The subject of the association (CID or DID)
     pub subject: String,
-    /// The associated entity (CID or DID)
-    pub association: String,
+    /// The associated entities (CID or DID)
+    pub association: Vec<String>,
+    /// Type of the association
+    #[serde(rename = "type")]
+    pub r#type: AssociationType,
     /// DID of the entity that registered this statement
     pub registered_by: String,
     /// ISO 8601 timestamp of when the statement was created
@@ -41,7 +52,9 @@ impl StatementTrait for AssociationStatement {
     }
 
     fn referenced_cids(&self) -> Vec<String> {
-        vec![self.association.clone(), self.subject.clone()]
+        let mut cids = self.association.clone();
+        cids.push(self.subject.clone());
+        cids
     }
 }
 
@@ -51,7 +64,8 @@ impl AssociationStatement {
     /// # Arguments
     ///
     /// * `subject` - The subject of the association (CID or DID). If not prefixed, assumed to be a CID.
-    /// * `association` - The associated entity (CID or DID). If not prefixed, assumed to be a CID.
+    /// * `association` - The associated entities (CID or DID). If not prefixed, assumed to be a CID.
+    /// * `type` - The type of association.
     /// * `registered_by` - DID of the entity registering this statement.
     /// * `timestamp` - Optional ISO 8601 timestamp; uses current time if not provided.
     ///
@@ -60,7 +74,8 @@ impl AssociationStatement {
     /// A new `AssociationStatement` with a computed CID as its identifier.
     pub async fn create(
         subject: String,
-        association: String,
+        association: Vec<String>,
+        r#type: AssociationType,
         registered_by: String,
         timestamp: Option<String>,
     ) -> Result<Self> {
@@ -73,12 +88,17 @@ impl AssociationStatement {
             prepend_urn_cid(subject.as_str())?
         };
 
-        let association = if association.starts_with("urn:") || association.starts_with("did:") {
-            association
-        } else {
-            // if `association` string is not a URN or DID, assume it's a CID
-            prepend_urn_cid(association.as_str())?
-        };
+        let association = association
+            .into_iter()
+            .map(|value| {
+                if value.starts_with("urn:") || value.starts_with("did:") {
+                    Ok(value)
+                } else {
+                    // if `association` string is not a URN or DID, assume it's a CID
+                    prepend_urn_cid(value.as_str())
+                }
+            })
+            .collect::<Result<Vec<_>>>()?;
 
         let statement = Self {
             context: ig_common_context_link(),
@@ -86,6 +106,7 @@ impl AssociationStatement {
             type_,
             subject,
             association,
+            r#type,
             registered_by,
             timestamp: format_timestamp(timestamp),
         };
@@ -107,28 +128,29 @@ mod tests {
 
     #[tokio::test]
     async fn generate_association_statement() {
-        let statement = json!({
-            // to update @id, run statement through a rdf-c generator or run the test to let it compute the @id
-            "@id": "urn:cid:bagb6qaq6eaujjh6k6yitzoojs7p6dn77xwt2iz3nqyxoot6s5anma3ygpgutk",
-            "@context": ig_common_context_link(),
-            "@type": "AssociationRegistration",
-            "subject": "urn:cid:abc",
-            "association": "urn:cid:def",
-            "registeredBy": "did:key:abc",
-            "timestamp": "1970-01-01T00:00:00Z",
-        });
-
-        let statement_jcs = serde_jcs::to_string(&statement).unwrap();
-
         let generated_statement = AssociationStatement::create(
             "urn:cid:abc".to_owned(),
-            "urn:cid:def".to_owned(),
+            vec!["urn:cid:def".to_owned()],
+            AssociationType::Certifies,
             "did:key:abc".to_owned(),
             Some("1970-01-01T00:00:00Z".to_owned()),
         )
         .await
         .unwrap();
 
+        let mut statement = json!({
+            "@id": "in-progress",
+            "@context": ig_common_context_link(),
+            "@type": "AssociationRegistration",
+            "subject": "urn:cid:abc",
+            "association": ["urn:cid:def"],
+            "type": "certifies",
+            "registeredBy": "did:key:abc",
+            "timestamp": "1970-01-01T00:00:00Z",
+        });
+        statement["@id"] = json!(generated_statement.id);
+
+        let statement_jcs = serde_jcs::to_string(&statement).unwrap();
         let generated_statement_jcs = serde_jcs::to_string(&generated_statement).unwrap();
 
         assert_eq!(generated_statement_jcs, statement_jcs);
@@ -136,28 +158,29 @@ mod tests {
 
     #[tokio::test]
     async fn generate_association_statement_no_prefix() {
-        let statement = json!({
-            // to update @id, run statement through a rdf-c generator or run the test to let it compute the @id
-            "@id": "urn:cid:bagb6qaq6eaujjh6k6yitzoojs7p6dn77xwt2iz3nqyxoot6s5anma3ygpgutk",
-            "@context": ig_common_context_link(),
-            "@type": "AssociationRegistration",
-            "subject": "urn:cid:abc",
-            "association": "urn:cid:def",
-            "registeredBy": "did:key:abc",
-            "timestamp": "1970-01-01T00:00:00Z",
-        });
-
-        let statement_jcs = serde_jcs::to_string(&statement).unwrap();
-
         let generated_statement = AssociationStatement::create(
             "abc".to_owned(),
-            "def".to_owned(),
+            vec!["def".to_owned()],
+            AssociationType::Includes,
             "did:key:abc".to_owned(),
             Some("1970-01-01T00:00:00Z".to_owned()),
         )
         .await
         .unwrap();
 
+        let mut statement = json!({
+            "@id": "in-progress",
+            "@context": ig_common_context_link(),
+            "@type": "AssociationRegistration",
+            "subject": "urn:cid:abc",
+            "association": ["urn:cid:def"],
+            "type": "includes",
+            "registeredBy": "did:key:abc",
+            "timestamp": "1970-01-01T00:00:00Z",
+        });
+        statement["@id"] = json!(generated_statement.id);
+
+        let statement_jcs = serde_jcs::to_string(&statement).unwrap();
         let generated_statement_jcs = serde_jcs::to_string(&generated_statement).unwrap();
 
         assert_eq!(generated_statement_jcs, statement_jcs);
@@ -170,7 +193,8 @@ mod tests {
           "@context": "urn:cid:bafkr4ibb27ow5o2yukccjjyrcunsk6jw4muacuk22cny7qdlw5wkfwxl2u",
           "@id": "urn:cid:bagb6qaq6ebxbtd4ykyobejg7hdx7xvngldjo5ntzhpjngqk7eeobtcxe4suni",
           "subject": "urn:cid:bafkr4ibthuzk3zug7ghmx63yjqaiu6rx4hhfdv3453j5bodskgw57bx2ya",
-          "association": "urn:cid:baga6yaq6echz7kjzuhzubnsq2mqkw5oxpkrio5nwb4fibzkwaqke3hqbc25g4",
+          "association": ["urn:cid:baga6yaq6echz7kjzuhzubnsq2mqkw5oxpkrio5nwb4fibzkwaqke3hqbc25g4"],
+          "type": "isInstanceOf",
           "registeredBy": "did:key:z6Mkw2PvzC9DHXiYQHMDRwyxCCV9n4EDc6vqqp1uyi9nrwsP",
           "timestamp": "2025-04-04T22:28:36Z"
         });
@@ -188,8 +212,12 @@ mod tests {
             );
             assert_eq!(
                 association.association,
-                "urn:cid:baga6yaq6echz7kjzuhzubnsq2mqkw5oxpkrio5nwb4fibzkwaqke3hqbc25g4"
+                vec![
+                    "urn:cid:baga6yaq6echz7kjzuhzubnsq2mqkw5oxpkrio5nwb4fibzkwaqke3hqbc25g4"
+                        .to_owned()
+                ]
             );
+            assert_eq!(association.r#type, AssociationType::IsInstanceOf);
             assert_eq!(
                 association.registered_by,
                 "did:key:z6Mkw2PvzC9DHXiYQHMDRwyxCCV9n4EDc6vqqp1uyi9nrwsP"
