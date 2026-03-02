@@ -47,8 +47,8 @@ jobs:
       - name: build
         run: nix develop . -c just build
 
-      - name: build-ffi-feature
-        run: nix develop . -c cargo check --locked --features ffi
+      - name: build-ffi-crate
+        run: nix develop . -c cargo check --locked -p integrity-ffi --features "blob-all,signer-all"
 
       - name: build-wasm
         run: nix develop . -c just build-wasm

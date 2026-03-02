@@ -1,0 +1,52 @@
+[package]
+name = "integrity-blob"
+version = "0.0.1"
+edition = "2021"
+
+[features]
+default = ["blob-local", "blob-memory"]
+blob-local = []
+blob-memory = []
+blob-s3 = ["dep:aws-config", "dep:aws-sdk-s3"]
+blob-gcs = ["dep:bytes", "dep:google-cloud-storage"]
+blob-azure = ["dep:azure_storage", "dep:azure_storage_blobs"]
+blob-all = ["blob-local", "blob-memory", "blob-s3", "blob-gcs", "blob-azure"]
+
+[dependencies]
+anyhow = { version = "1", features = ["backtrace"] }
+async-trait = "0.1"
+cid = { version = "0.10", default-features = false, features = ["std"] }
+log = "0.4"
+
+# Used on wasm32
+blake3 = "1.5"
+
+# Used on native targets
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+iroh-blake3 = "1.4.5"
+
+# Optional backends
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies.aws-config]
+version = "1.0.3"
+features = ["behavior-version-latest"]
+optional = true
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies.aws-sdk-s3]
+version = "1.5.0"
+optional = true
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies.azure_storage]
+version = "0.21"
+optional = true
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies.azure_storage_blobs]
+version = "0.21"
+optional = true
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies.bytes]
+version = "1.5"
+optional = true
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies.google-cloud-storage]
+version = "1.7"
+optional = true

@@ -38,7 +38,7 @@ pre-commit:
 
 # Run unit tests with cargo
 test:
-    cargo test
+    cargo test --workspace
 
 # Run WASM tests in Node.js and browsers (Chrome, Firefox) Note: for macOS test Safari with --safari
 test-wasm:

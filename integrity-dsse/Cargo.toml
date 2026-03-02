@@ -1,0 +1,11 @@
+[package]
+name = "integrity-dsse"
+version = "0.0.1"
+edition = "2021"
+
+[dependencies]
+anyhow = { version = "1", features = ["backtrace"] }
+base64 = "0.21"
+integrity-lineage-models = { path = "../integrity-lineage-models", default-features = false }
+integrity-signer = { path = "../integrity-signer", default-features = false }
+serde_json = "1.0"
