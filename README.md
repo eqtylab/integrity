@@ -4,6 +4,30 @@ Library for data integrity, signing, verifiable credentials, and content-address
 
 This crate provides tools for creating tamper-evident data structures using cryptographic hashing, digital signatures, and W3C standards like Verifiable Credentials and JSON-LD.
 
+## Feature Flags
+
+Signer and blob backends are now split into dedicated workspace crates and are feature-gated.
+
+- Blob features:
+  - `blob-local`
+  - `blob-memory`
+  - `blob-s3`
+  - `blob-gcs`
+  - `blob-azure`
+  - `blob-all`
+- Signer features:
+  - `signer-ed25519`
+  - `signer-p256`
+  - `signer-secp256k1`
+  - `signer-auth-service`
+  - `signer-vcomp-notary`
+  - `signer-akv`
+  - `signer-yubihsm`
+  - `signer-slh-dsa`
+  - `signer-all`
+
+Default features include local blob backends (`blob-local`, `blob-memory`) and local software signers (`signer-ed25519`, `signer-p256`, `signer-secp256k1`).
+
 ## Static Contexts
 
 The `static_contexts/` directory contains JSON-LD context documents that define the vocabulary and semantics for the Integrity Fabric. These contexts enable interoperable, machine-readable metadata using linked data standards.
@@ -27,8 +51,10 @@ The schema is defined in <https://github.com/eqtylab/integrity-schema>
 The Integrity Graph common context is referenced in code via:
 
 ```rust
+#[cfg(feature = "jsonld")]
 use integrity::json_ld::ig_common_context_link;
 
+#[cfg(feature = "jsonld")]
 let context_urn = ig_common_context_link();
 // Returns: "urn:cid:bafkr4ibtc72t26blsnipjniwpoawtopufixoe7bbloqk7ko65cizgnhgnq"
 ```
@@ -51,8 +77,7 @@ This downloads the latest W3C contexts and regenerates the CID-indexed files.
 
 ## FFI (C ABI)
 
-The crate includes a stable C ABI surface in `src/ffi/` for SDK bindings (including the Go SDK).
-FFI is feature-gated and enabled with `--features ffi`.
+The workspace includes a stable C ABI surface in `ffi/src/ffi/` for SDK bindings (including the Go SDK), packaged as the dedicated `integrity-ffi` crate.
 
 - Public header: `include/integrity_ffi.h`
 - ABI version functions:
@@ -72,12 +97,10 @@ The current ABI version is `0.2.0`.
 
 GitHub Actions can publish prebuilt native FFI artifacts for each supported system:
 
-- Linux x86_64 (`libintegrity.so`)
-- macOS 13 x86_64 (`libintegrity.dylib`)
-- macOS 14 aarch64 (`libintegrity.dylib`)
-- macOS 15 x86_64 (`libintegrity.dylib`)
-- macOS 15 aarch64 (`libintegrity.dylib`)
-- Windows x86_64 (`integrity.dll` plus import library when produced)
+- Linux x86_64 (`libintegrity_ffi.so`)
+- macOS 14 aarch64 (`libintegrity_ffi.dylib`)
+- macOS 15 x86_64 (`libintegrity_ffi.dylib`)
+- macOS 15 aarch64 (`libintegrity_ffi.dylib`)
 
 Workflow: `.github/workflows/release-native-ffi.yml`
 
@@ -87,7 +110,7 @@ Workflow: `.github/workflows/release-native-ffi.yml`
 Build native FFI artifacts locally:
 
 ```bash
-cargo build --release --locked --features ffi
+cargo build -p integrity-ffi --release --locked --features "blob-all,signer-all"
 ```
 
 # Development

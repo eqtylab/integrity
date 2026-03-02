@@ -1,53 +1,38 @@
 #![doc = include_str!("../README.md")]
 
-/// Alternative signer implementations for post-quantum and advanced cryptography.
-#[cfg(not(target_arch = "wasm32"))]
-pub mod alt_signer;
-
-/// Blob storage backends (Azure, S3, local filesystem, in-memory)
-#[cfg(not(target_arch = "wasm32"))]
-pub mod blob_store;
-
+/// Blob storage backends and trait abstraction.
+#[cfg(feature = "blob")]
+pub use integrity_blob as blob_store;
 /// Content Identifier (CID) utilities and encoding
-pub mod cid;
-
+#[cfg(feature = "cid")]
+pub use integrity_cid as cid;
+/// Iroh protocol integration.
+#[cfg(all(not(target_arch = "wasm32"), feature = "cid"))]
+pub use integrity_cid::collection as iroh;
 /// Dead Simple Signing Envelope (DSSE) implementation
-#[cfg(not(target_arch = "wasm32"))]
-pub mod dsse;
-
-/// C ABI / FFI bridge for external SDKs
-#[cfg(all(not(target_arch = "wasm32"), feature = "ffi"))]
-pub mod ffi;
-
+#[cfg(all(not(target_arch = "wasm32"), feature = "dsse"))]
+pub use integrity_dsse as dsse;
 /// In-Toto attestation format support
-#[cfg(not(target_arch = "wasm32"))]
-pub mod intoto_attestation;
-
-/// Iroh protocol integration
-#[cfg(not(target_arch = "wasm32"))]
-pub mod iroh;
-
-/// JSON-LD processing and canonicalization
-pub mod json_ld;
-
-/// Data lineage tracking and graph indexing
-#[cfg(not(target_arch = "wasm32"))]
-pub mod lineage;
-
-/// Model signing utilities
-#[cfg(not(target_arch = "wasm32"))]
-pub mod model_signing;
-
+#[cfg(all(not(target_arch = "wasm32"), feature = "intoto-attestation"))]
+pub use integrity_intoto_attestation as intoto_attestation;
+/// JSON-LD processing and canonicalization.
+#[cfg(feature = "jsonld")]
+pub use integrity_jsonld as json_ld;
 /// N-Quads RDF format parsing
-pub mod nquads;
-
-/// Digital signature implementations (ed25519, p256, secp256k1, YubiKey, Azure Key Vault)
-#[cfg(not(target_arch = "wasm32"))]
-pub mod signer;
-
+#[cfg(feature = "jsonld")]
+pub use integrity_jsonld::nquads;
+/// Data lineage tracking and graph indexing
+#[cfg(all(not(target_arch = "wasm32"), feature = "lineage"))]
+pub use integrity_lineage_models as lineage;
+/// Model signing utilities
+#[cfg(all(not(target_arch = "wasm32"), feature = "model-signing"))]
+pub use integrity_model_signing as model_signing;
+/// Digital signer implementations and trait abstraction.
+#[cfg(feature = "signer")]
+pub use integrity_signer as signer;
 /// Sigstore bundle format support
-#[cfg(not(target_arch = "wasm32"))]
-pub mod sigstore_bundle;
-
-/// Verifiable Credentials creation and proofs
-pub mod vc;
+#[cfg(all(not(target_arch = "wasm32"), feature = "sigstore"))]
+pub use integrity_sigstore as sigstore_bundle;
+/// Verifiable Credentials creation and proofs.
+#[cfg(feature = "vc")]
+pub use integrity_vc as vc;

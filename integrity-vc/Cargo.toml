@@ -1,0 +1,39 @@
+[package]
+name = "integrity-vc"
+version = "0.0.1"
+edition = "2021"
+
+[features]
+default = [
+  "signer-ed25519",
+  "signer-p256",
+  "signer-secp256k1",
+]
+signer-ed25519 = ["integrity-signer/signer-ed25519"]
+signer-p256 = ["integrity-signer/signer-p256"]
+signer-secp256k1 = ["integrity-signer/signer-secp256k1"]
+signer-auth-service = ["integrity-signer/signer-auth-service"]
+signer-vcomp-notary = ["integrity-signer/signer-vcomp-notary"]
+signer-akv = ["integrity-signer/signer-akv"]
+signer-yubihsm = ["integrity-signer/signer-yubihsm"]
+signer-slh-dsa = ["integrity-signer/signer-slh-dsa"]
+signer-all = ["integrity-signer/signer-all"]
+
+[dependencies]
+anyhow = { version = "1", features = ["backtrace"] }
+did-method-key = "0.2.2"
+log = "0.4"
+serde_json = "1.0"
+ssi = { version = "0.7", features = ["w3c", "http-did", "example-http-issuer", "ed25519", "secp256r1"] }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+base64 = "0.21"
+chrono = { version = "0.4.37", features = ["serde"] }
+did-key = "0.2"
+integrity-signer = { path = "../integrity-signer", default-features = false }
+serde = { version = "1.0", features = ["derive"] }
+uuid = { version = "1.4", features = ["v4", "serde"] }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
+env_logger = "0.10"
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }

@@ -1,0 +1,19 @@
+[package]
+name = "integrity-model-signing"
+version = "0.0.1"
+edition = "2021"
+
+[dependencies]
+anyhow = { version = "1", features = ["backtrace"] }
+bs58 = "0.5.1"
+cid = { version = "0.10", default-features = false, features = ["std"] }
+hex = "0.4.3"
+integrity-blob = { path = "../integrity-blob", default-features = false }
+integrity-cid = { path = "../integrity-cid", default-features = false }
+integrity-intoto-attestation = { path = "../integrity-intoto-attestation", default-features = false }
+integrity-sigstore = { path = "../integrity-sigstore", default-features = false }
+p256 = "0.13.2"
+pkcs8 = "0.10.2"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+sha2 = "0.10.8"
