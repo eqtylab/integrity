@@ -88,8 +88,7 @@ fn decode_hex_arr<const N: usize>(value: String, field_name: &str) -> Result<[u8
 struct AssociationCreateRequest {
     subject: String,
     association: Vec<String>,
-    #[serde(rename = "type")]
-    association_type: AssociationType,
+    r#type: AssociationType,
     registered_by: String,
     timestamp: Option<String>,
 }
@@ -279,7 +278,7 @@ pub extern "C" fn ig_lineage_statement_create_association(
         let statement = map_anyhow(runtime.block_on(AssociationStatement::create(
             request.subject,
             request.association,
-            request.association_type,
+            request.r#type,
             request.registered_by,
             request.timestamp,
         )))?;
