@@ -3661,6 +3661,7 @@ dependencies = [
  "hyper 1.8.1",
  "hyper-util",
  "log",
+ "p256 0.13.2",
  "reqwest 0.12.28",
  "serde",
  "serde_json",
