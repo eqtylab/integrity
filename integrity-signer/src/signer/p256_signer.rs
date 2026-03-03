@@ -23,7 +23,7 @@ impl P256Signer {
         let key_pair = P256KeyPair::new();
         let did_doc = key_pair.get_did_document(did_key::Config {
             use_jose_format: true,
-            serialize_secrets: true,
+            serialize_secrets: false,
         });
         let signer = P256Signer {
             secret_key: key_pair.private_key_bytes(),
@@ -45,7 +45,7 @@ impl P256Signer {
         let key_pair = P256KeyPair::from_secret_key(secret_key);
         let did_doc = key_pair.get_did_document(did_key::Config {
             use_jose_format: true,
-            serialize_secrets: true,
+            serialize_secrets: false,
         });
         let signer = P256Signer {
             secret_key: secret_key.to_vec(),
