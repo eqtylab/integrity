@@ -92,6 +92,16 @@ fn build_static_contexts() -> Result<ContextMap> {
     let urn_cid_links: ContextMap = [
         // latest
         (
+            "urn:cid:bafkr4ic7ydwk3rtoltyzx4zn3vvu3r7hpzxtmbzmnksotx7k5nbnwclf6m".to_owned(),
+            {
+                let json = include_str!(
+                    "../../static_contexts/cid/bafkr4ic7ydwk3rtoltyzx4zn3vvu3r7hpzxtmbzmnksotx7k5nbnwclf6m"
+                );
+                validate_json_string(json)?;
+                json
+            },
+        ),
+        (
             "urn:cid:bafkr4ibtc72t26blsnipjniwpoawtopufixoe7bbloqk7ko65cizgnhgnq".to_owned(),
             {
                 let json = include_str!(

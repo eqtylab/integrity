@@ -56,7 +56,7 @@ use integrity::json_ld::ig_common_context_link;
 
 #[cfg(feature = "jsonld")]
 let context_urn = ig_common_context_link();
-// Returns: "urn:cid:bafkr4ibtc72t26blsnipjniwpoawtopufixoe7bbloqk7ko65cizgnhgnq"
+// Returns: "urn:cid:bafkr4ic7ydwk3rtoltyzx4zn3vvu3r7hpzxtmbzmnksotx7k5nbnwclf6m"
 ```
 
 These contexts are embedded at compile time and used by the JSON-LD processor to:
