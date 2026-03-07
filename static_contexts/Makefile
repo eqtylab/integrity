@@ -33,4 +33,4 @@ ${dirs}:
 
 .PHONY: clean
 clean:
-	rm -rf ${irs}
+	rm -rf ${dirs}
