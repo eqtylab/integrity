@@ -20,7 +20,7 @@ const MULTICODEC_RDFC_1_0: u64 = 0xb403;
 /// # Returns
 /// URN string in format `urn:cid:{cid}` for the IG common context.
 pub fn ig_common_context_link() -> String {
-    let cid: &'static str = "bafkr4ibtc72t26blsnipjniwpoawtopufixoe7bbloqk7ko65cizgnhgnq";
+    let cid: &'static str = "bafkr4ic7ydwk3rtoltyzx4zn3vvu3r7hpzxtmbzmnksotx7k5nbnwclf6m";
 
     format!("urn:cid:{cid}").trim_end().to_owned()
 }

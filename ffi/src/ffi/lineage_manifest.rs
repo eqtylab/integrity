@@ -1,13 +1,11 @@
 use std::{collections::HashMap, ffi::c_char};
 
-use serde_json::Value;
-
 use crate::{
     ffi::{
         blob_store::IgBlobStoreHandle,
         error::{map_anyhow, run_ffi, FfiError, IgStatus},
         runtime::IgRuntimeHandle,
-        util::{as_ref, cstr_to_string, optional_cstr_to_string, write_c_string},
+        util::{as_ref, cstr_to_string, write_c_string},
     },
     lineage::models::{
         manifest::{self, Manifest},
@@ -29,7 +27,6 @@ pub extern "C" fn ig_lineage_manifest_generate(
     runtime: *const IgRuntimeHandle,
     include_context: bool,
     statements_json: *const c_char,
-    attributes_json_or_null: *const c_char,
     blobs_json: *const c_char,
     out_manifest_json: *mut *mut c_char,
     err_out: *mut *mut c_char,
@@ -47,24 +44,9 @@ pub extern "C" fn ig_lineage_manifest_generate(
             )
         })?;
 
-        let attributes = match optional_cstr_to_string(attributes_json_or_null)? {
-            Some(attributes_json) => {
-                let value = serde_json::from_str::<HashMap<String, Value>>(&attributes_json)
-                    .map_err(|e| {
-                        FfiError::new(
-                            IgStatus::JsonError,
-                            format!("failed to parse attributes json: {e}"),
-                        )
-                    })?;
-                Some(value)
-            }
-            None => None,
-        };
-
         let manifest = map_anyhow(runtime.block_on(manifest::generate_manifest(
             include_context,
             statements,
-            attributes,
             blobs,
         )))?;
         let manifest_json = map_anyhow(serde_json::to_string(&manifest).map_err(Into::into))?;

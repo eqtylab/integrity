@@ -5,7 +5,7 @@
 
 /// Association statement for linking entities
 pub mod association_statement;
-pub use association_statement::AssociationStatement;
+pub use association_statement::{AssociationStatement, AssociationType};
 /// Computation statement for recording computational processes
 pub mod computation_statement;
 pub use computation_statement::ComputationStatement;
