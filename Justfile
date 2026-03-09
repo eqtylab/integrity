@@ -53,7 +53,7 @@ test-wasm:
 
 # Rebuild static JSON-LD context files
 update-static-contexts:
-    cd static_contexts && make clean && make all
+    cd integrity-jsonld/static_contexts && make clean && make all
 
 # Update README.md with auto-generated content (Justfile commands, etc.)
 readme-update:
