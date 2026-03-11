@@ -172,7 +172,7 @@ pub async fn compute_dir_cid(
 ///
 /// # Errors
 /// Returns an error when any provided CID is invalid or does not use the BLAKE3 multihash.
-pub fn compute_iroh_collection_cid(file_cids: &HashMap<String, String>) -> Result<String> {
+pub async fn compute_iroh_collection_cid(file_cids: &HashMap<String, String>) -> Result<DirCidResult> {
     let mut path_hash_map = file_cids
         .iter()
         .map(|(path, cid)| {
@@ -185,19 +185,31 @@ pub fn compute_iroh_collection_cid(file_cids: &HashMap<String, String>) -> Resul
 
     let collection = Collection::from_iter(path_hash_map);
 
-    let collection_blob = match collection.to_blobs().collect::<Vec<_>>().as_slice() {
-        [_, collection_blob] => collection_blob.clone(),
-        bs => bail!("Expected two blobs, found {}.", bs.len()),
-    };
+    let (meta_blob, collection_blob) = match collection.to_blobs().collect::<Vec<_>>().as_slice() {
+            [meta_blob, collection_blob] => (meta_blob.clone(), collection_blob.clone()),
+            bs => bail!("Expected two blobs, found {}.", bs.len()),
+        };
 
-    let hash = {
-        let mut hasher = blake3::Hasher::new();
-        hasher.update(&collection_blob);
-        hasher.finalize()
-    };
-    let multihash = Multihash::wrap(multihash::BLAKE3, hash.as_bytes())?;
+    let meta_blob_cid = compute_blob_cid(&meta_blob, multicodec::RAW_BINARY).await?;
+    let collection_cid = compute_blob_cid(&collection_blob, multicodec::BLAKE3_HASHSEQ).await?;
 
-    Ok(Cid::new_v1(multicodec::BLAKE3_HASHSEQ, multihash).to_string())
+    let file_hashes = file_cids
+        .iter()
+        .map(|(name, cid)| (name.clone(), cid.clone()))
+        .collect::<Vec<_>>();
+
+    Ok(DirCidResult {
+        collection: CidResult {
+            cid: collection_cid,
+            blob: collection_blob,
+        },
+        meta: CidResult {
+            cid: meta_blob_cid,
+            blob: meta_blob,
+        },
+        file_hashes,
+    })
+
 }
 
 /// Gets the list of files ignored when computing a directory CID.
@@ -532,11 +544,11 @@ mod tests {
             ("def.txt".to_owned(), def_cid),
         ]);
 
-        let iroh_cid =
-            compute_iroh_collection_cid(&file_cids).expect("should compute iroh collection cid");
+        let dir_result =
+            compute_iroh_collection_cid(&file_cids).await.expect("should compute iroh collection cid");
 
         assert_eq!(
-            iroh_cid,
+            dir_result.collection.cid,
             "bagaachraifnmn56rqtgbdxx5x2zvasw4slukuq2t7w3iefcmsqldn7axmrpq"
         );
     }
