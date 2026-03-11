@@ -1,11 +1,12 @@
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
-use base64::engine::{general_purpose::URL_SAFE_NO_PAD as BASE64_URL_NO_PAD, Engine};
-use did_key::{CoreSign, DIDCore, Document, Generate, KeyFormat, KeyMaterial, P256KeyPair};
-use p256::ecdsa::{SigningKey, VerifyingKey};
+use did_key::{CoreSign, DIDCore, Document, Generate, KeyMaterial, P256KeyPair};
 use serde::{Deserialize, Serialize};
 
-use crate::signer::Signer;
+use crate::signer::{
+    p256_jwk::{fix_p256_jwk_from_encoded_point, p256_encoded_point_from_secret_key},
+    Signer,
+};
 
 /// Signer implementation using P-256 (secp256r1) elliptic curve.
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
@@ -67,38 +68,8 @@ impl P256Signer {
 /// and omits the y field. This function extracts the correct x and y coordinates from
 /// the uncompressed public key and updates the JWK.
 fn fix_p256_jwk(did_doc: &mut Document, secret_key: &[u8]) -> Result<()> {
-    // Derive the public key from the secret key to get uncompressed coordinates
-    let signing_key =
-        SigningKey::from_bytes(secret_key.into()).map_err(|e| anyhow!("Invalid P-256 key: {e}"))?;
-    let verifying_key = VerifyingKey::from(&signing_key);
-
-    // Get the uncompressed public key point (65 bytes: 04 prefix + 32 bytes x + 32 bytes y)
-    let encoded_point = verifying_key.to_encoded_point(false);
-    let x_bytes = encoded_point
-        .x()
-        .ok_or_else(|| anyhow!("Failed to get x coordinate"))?;
-    let y_bytes = encoded_point
-        .y()
-        .ok_or_else(|| anyhow!("Failed to get y coordinate"))?;
-
-    let x_b64 = BASE64_URL_NO_PAD.encode(x_bytes);
-    let y_b64 = BASE64_URL_NO_PAD.encode(y_bytes);
-    let d_b64 = BASE64_URL_NO_PAD.encode(secret_key);
-
-    // Update the verification method's JWK
-    for vm in &mut did_doc.verification_method {
-        if let Some(KeyFormat::JWK(ref mut jwk)) = vm.public_key {
-            jwk.x = Some(x_b64.clone());
-            jwk.y = Some(y_b64.clone());
-        }
-        if let Some(KeyFormat::JWK(ref mut jwk)) = vm.private_key {
-            jwk.x = Some(x_b64.clone());
-            jwk.y = Some(y_b64.clone());
-            jwk.d = Some(d_b64.clone());
-        }
-    }
-
-    Ok(())
+    let encoded_point = p256_encoded_point_from_secret_key(secret_key)?;
+    fix_p256_jwk_from_encoded_point(did_doc, &encoded_point, Some(secret_key))
 }
 
 #[async_trait]
