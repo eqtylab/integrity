@@ -1,4 +1,5 @@
 use std::{
+    collections::HashMap,
     fs,
     io::Read,
     path::{Path, PathBuf},
@@ -161,6 +162,44 @@ pub async fn compute_dir_cid(
     })
 }
 
+/// Computes an iroh collection CID from a map of file paths to file CIDs.
+///
+/// # Arguments
+/// * `file_cids` - Map where keys are file paths and values are file CIDs
+///
+/// # Returns
+/// * `Result<String>` - The computed iroh collection CID
+///
+/// # Errors
+/// Returns an error when any provided CID is invalid or does not use the BLAKE3 multihash.
+pub fn compute_iroh_collection_cid(file_cids: &HashMap<String, String>) -> Result<String> {
+    let mut path_hash_map = file_cids
+        .iter()
+        .map(|(path, cid)| {
+            let hash = blake3_hash_for_cid(path, cid)?;
+            Ok((path.clone(), hash))
+        })
+        .collect::<Result<Vec<_>>>()?;
+
+    path_hash_map.sort_by(|a, b| pathname_sort(&a.0, &b.0));
+
+    let collection = Collection::from_iter(path_hash_map);
+
+    let collection_blob = match collection.to_blobs().collect::<Vec<_>>().as_slice() {
+        [_, collection_blob] => collection_blob.clone(),
+        bs => bail!("Expected two blobs, found {}.", bs.len()),
+    };
+
+    let hash = {
+        let mut hasher = blake3::Hasher::new();
+        hasher.update(&collection_blob);
+        hasher.finalize()
+    };
+    let multihash = Multihash::wrap(multihash::BLAKE3, hash.as_bytes())?;
+
+    Ok(Cid::new_v1(multicodec::BLAKE3_HASHSEQ, multihash).to_string())
+}
+
 /// Gets the list of files ignored when computing a directory CID.
 ///
 /// # Arguments
@@ -234,6 +273,26 @@ pub async fn compute_blob_cid(blob: impl Into<&Bytes>, multicodec: u64) -> Resul
     let cid = Cid::new_v1(multicodec, multihash).to_string();
 
     Ok(cid)
+}
+
+fn blake3_hash_for_cid(path: &str, cid_str: &str) -> Result<[u8; 32]> {
+    let cid: Cid = cid_str.parse()?;
+    let multihash = cid.hash();
+
+    if multihash.code() != multihash::BLAKE3 {
+        bail!("CID for path '{path}' is not a BLAKE3 CID: {cid_str}");
+    }
+
+    if multihash.digest().len() != 32 {
+        bail!(
+            "CID for path '{path}' has invalid BLAKE3 digest length {}; expected 32 bytes",
+            multihash.digest().len()
+        );
+    }
+
+    let mut hash = [0u8; 32];
+    hash.copy_from_slice(multihash.digest());
+    Ok(hash)
 }
 
 fn compute_hash_for_file(path: PathBuf, multithread: bool, memory_map: bool) -> Result<[u8; 32]> {
@@ -400,6 +459,12 @@ fn walked_files_for_dir_cid(
 
 fn sort_data_sources(ds: Vec<DataSource>) -> Vec<DataSource> {
     let mut ds = ds;
-    ds.sort_by(|a, b| a.name().cmp(b.name()));
+    ds.sort_by(|a, b| pathname_sort(a.name(), b.name()));
     ds
+}
+
+fn pathname_sort(a: &str, b: &str) -> std::cmp::Ordering {
+    a.cmp(b)
+}
+
 }
