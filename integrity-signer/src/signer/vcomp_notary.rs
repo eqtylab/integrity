@@ -12,7 +12,10 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use tokio::net::TcpStream;
 
-use crate::signer::Signer;
+use crate::signer::{
+    p256_jwk::{fix_p256_jwk_from_encoded_point, p256_encoded_point_from_public_key},
+    Signer,
+};
 
 /// Signer implementation for verified computing notary services.
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -38,6 +41,18 @@ fn strip_urn_cid(cid: &str) -> &str {
 }
 
 impl VCompNotarySigner {
+    fn did_doc_from_public_key(pub_key: &[u8]) -> Result<Document> {
+        let key_pair = P256KeyPair::from_public_key(pub_key);
+        let mut did_doc = key_pair.get_did_document(did_key::Config {
+            use_jose_format: true,
+            serialize_secrets: true,
+        });
+        let encoded_point = p256_encoded_point_from_public_key(pub_key)?;
+        fix_p256_jwk_from_encoded_point(&mut did_doc, &encoded_point, None)?;
+
+        Ok(did_doc)
+    }
+
     /// Creates a new VCompNotarySigner by connecting to a verified computing notary service.
     ///
     /// # Arguments
@@ -69,12 +84,7 @@ impl VCompNotarySigner {
         let pub_key = hex::decode(pub_key)?;
 
         log::trace!("Importing a secp256r1 VComp Notary signer");
-        let key_pair = P256KeyPair::from_public_key(&pub_key);
-
-        let did_doc = key_pair.get_did_document(did_key::Config {
-            use_jose_format: true,
-            serialize_secrets: true,
-        });
+        let did_doc = Self::did_doc_from_public_key(&pub_key)?;
 
         let response = client
             .get(format!("{url}/get_dids"))
@@ -230,5 +240,49 @@ impl Signer for VCompNotarySigner {
 
     async fn get_did_doc(&self) -> Result<Option<Document>> {
         Ok(Some(self.did_doc.clone()))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use base64::engine::{general_purpose::URL_SAFE_NO_PAD as BASE64_URL_NO_PAD, Engine};
+    use did_key::KeyFormat;
+    use p256::ecdsa::SigningKey;
+
+    use super::*;
+
+    #[test]
+    fn compressed_vcomp_public_key_repairs_verification_method_jwk() {
+        let signing_key = SigningKey::from_bytes((&[7u8; 32]).into()).unwrap();
+        let verifying_key = signing_key.verifying_key();
+        let compressed_pub_key = verifying_key.to_encoded_point(true);
+        let uncompressed_pub_key = verifying_key.to_encoded_point(false);
+
+        let key_pair = P256KeyPair::from_public_key(compressed_pub_key.as_bytes());
+        let broken_did_doc = key_pair.get_did_document(did_key::Config {
+            use_jose_format: true,
+            serialize_secrets: true,
+        });
+
+        let fixed_did_doc =
+            VCompNotarySigner::did_doc_from_public_key(compressed_pub_key.as_bytes()).unwrap();
+
+        let expected_x = BASE64_URL_NO_PAD.encode(uncompressed_pub_key.x().unwrap());
+        let expected_y = BASE64_URL_NO_PAD.encode(uncompressed_pub_key.y().unwrap());
+        let compressed_b64 = BASE64_URL_NO_PAD.encode(compressed_pub_key.as_bytes());
+
+        let broken_jwk = match &broken_did_doc.verification_method[0].public_key {
+            Some(KeyFormat::JWK(jwk)) => jwk,
+            _ => panic!("expected JWK verification method"),
+        };
+        assert_eq!(broken_jwk.x.as_deref(), Some(compressed_b64.as_str()));
+        assert_eq!(broken_jwk.y, None);
+
+        let fixed_jwk = match &fixed_did_doc.verification_method[0].public_key {
+            Some(KeyFormat::JWK(jwk)) => jwk,
+            _ => panic!("expected JWK verification method"),
+        };
+        assert_eq!(fixed_jwk.x.as_deref(), Some(expected_x.as_str()));
+        assert_eq!(fixed_jwk.y.as_deref(), Some(expected_y.as_str()));
     }
 }

@@ -12,6 +12,8 @@ pub mod akv_signer;
 pub mod auth_service_signer;
 #[cfg(feature = "signer-ed25519")]
 pub mod ed25519_signer;
+#[cfg(any(feature = "signer-p256", feature = "signer-vcomp-notary"))]
+pub(crate) mod p256_jwk;
 #[cfg(feature = "signer-p256")]
 pub mod p256_signer;
 #[cfg(feature = "signer-secp256k1")]
