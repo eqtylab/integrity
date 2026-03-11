@@ -467,4 +467,77 @@ fn pathname_sort(a: &str, b: &str) -> std::cmp::Ordering {
     a.cmp(b)
 }
 
+#[cfg(test)]
+mod tests {
+    use std::path::PathBuf;
+
+    use super::*;
+
+    #[tokio::test]
+    async fn compute_dir_cid_for_fixture_iroh_collection() {
+        let fixture_dir =
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../fixtures/iroh-collection");
+
+        let dir_result = compute_dir_cid(
+            &fixture_dir,
+            HashingConfig::default(),
+            CidIgnoreConfig::default(),
+        )
+        .await
+        .expect("should compute dir cid");
+
+        assert_eq!(
+            dir_result
+                .file_hashes
+                .iter()
+                .map(|(name, _)| name.as_str())
+                .collect::<Vec<_>>(),
+            vec!["abc.txt", "def.txt"]
+        );
+
+        let abc_cid = compute_file_cid(fixture_dir.join("abc.txt"), HashingConfig::default())
+            .await
+            .expect("should compute abc.txt cid")
+            .cid;
+        let def_cid = compute_file_cid(fixture_dir.join("def.txt"), HashingConfig::default())
+            .await
+            .expect("should compute def.txt cid")
+            .cid;
+
+        assert_eq!(dir_result.file_hashes[0].1, abc_cid);
+        assert_eq!(dir_result.file_hashes[1].1, def_cid);
+
+        assert_eq!(
+            dir_result.collection.cid,
+            "bagaachraifnmn56rqtgbdxx5x2zvasw4slukuq2t7w3iefcmsqldn7axmrpq"
+        );
+    }
+
+    #[tokio::test]
+    async fn compute_iroh_collection_cid_for_fixture_iroh_collection() {
+        let fixture_dir =
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../fixtures/iroh-collection");
+
+        let abc_cid = compute_file_cid(fixture_dir.join("abc.txt"), HashingConfig::default())
+            .await
+            .expect("should compute abc.txt cid")
+            .cid;
+        let def_cid = compute_file_cid(fixture_dir.join("def.txt"), HashingConfig::default())
+            .await
+            .expect("should compute def.txt cid")
+            .cid;
+
+        let file_cids = HashMap::from([
+            ("abc.txt".to_owned(), abc_cid),
+            ("def.txt".to_owned(), def_cid),
+        ]);
+
+        let iroh_cid =
+            compute_iroh_collection_cid(&file_cids).expect("should compute iroh collection cid");
+
+        assert_eq!(
+            iroh_cid,
+            "bagaachraifnmn56rqtgbdxx5x2zvasw4slukuq2t7w3iefcmsqldn7axmrpq"
+        );
+    }
 }
