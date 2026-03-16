@@ -12,7 +12,13 @@ pub mod akv_signer;
 pub mod auth_service_signer;
 #[cfg(feature = "signer-ed25519")]
 pub mod ed25519_signer;
-#[cfg(any(feature = "signer-p256", feature = "signer-vcomp-notary"))]
+#[cfg(feature = "signer-vcomp-notary-mod")]
+pub mod vcomp_notary_mod;
+#[cfg(any(
+    feature = "signer-p256",
+    feature = "signer-vcomp-notary",
+    feature = "signer-vcomp-notary-mod"
+))]
 pub(crate) mod p256_jwk;
 #[cfg(feature = "signer-p256")]
 pub mod p256_signer;
@@ -29,6 +35,8 @@ pub use akv_signer::{AkvConfig, AkvSigner};
 pub use auth_service_signer::AuthServiceSigner;
 #[cfg(feature = "signer-ed25519")]
 pub use ed25519_signer::Ed25519Signer;
+#[cfg(feature = "signer-vcomp-notary-mod")]
+pub use vcomp_notary_mod::VCompNotaryModSigner;
 #[cfg(feature = "signer-p256")]
 pub use p256_signer::P256Signer;
 #[cfg(feature = "signer-secp256k1")]
@@ -65,6 +73,8 @@ pub enum SignerType {
     AuthService(AuthServiceSigner),
     #[cfg(feature = "signer-vcomp-notary")]
     VCompNotarySigner(VCompNotarySigner),
+    #[cfg(feature = "signer-vcomp-notary-mod")]
+    VCompNotaryModSigner(VCompNotaryModSigner),
     #[cfg(feature = "signer-akv")]
     AKV(AkvSigner),
     #[cfg(feature = "signer-yubihsm")]
@@ -84,6 +94,8 @@ impl fmt::Display for SignerType {
             Self::AuthService(_) => write!(_f, "auth_service"),
             #[cfg(feature = "signer-vcomp-notary")]
             Self::VCompNotarySigner(_) => write!(_f, "vcomp_notary"),
+            #[cfg(feature = "signer-vcomp-notary-mod")]
+            Self::VCompNotaryModSigner(_) => write!(_f, "vcomp_notary_mod"),
             #[cfg(feature = "signer-akv")]
             Self::AKV(_) => write!(_f, "azure_key_vault"),
             #[cfg(feature = "signer-yubihsm")]
@@ -94,6 +106,7 @@ impl fmt::Display for SignerType {
                 feature = "signer-p256",
                 feature = "signer-auth-service",
                 feature = "signer-vcomp-notary",
+                feature = "signer-vcomp-notary-mod",
                 feature = "signer-akv",
                 feature = "signer-yubihsm"
             )))]
@@ -115,6 +128,8 @@ impl SignerType {
             Self::AuthService(signer) => signer.sign(_data).await,
             #[cfg(feature = "signer-vcomp-notary")]
             Self::VCompNotarySigner(signer) => signer.sign(_data).await,
+            #[cfg(feature = "signer-vcomp-notary-mod")]
+            Self::VCompNotaryModSigner(signer) => signer.sign(_data).await,
             #[cfg(feature = "signer-akv")]
             Self::AKV(signer) => signer.sign(_data).await,
             #[cfg(feature = "signer-yubihsm")]
@@ -125,6 +140,7 @@ impl SignerType {
                 feature = "signer-p256",
                 feature = "signer-auth-service",
                 feature = "signer-vcomp-notary",
+                feature = "signer-vcomp-notary-mod",
                 feature = "signer-akv",
                 feature = "signer-yubihsm"
             )))]
@@ -144,6 +160,8 @@ impl SignerType {
             Self::AuthService(signer) => signer.did_doc.clone(),
             #[cfg(feature = "signer-vcomp-notary")]
             Self::VCompNotarySigner(signer) => signer.did_doc.clone(),
+            #[cfg(feature = "signer-vcomp-notary-mod")]
+            Self::VCompNotaryModSigner(signer) => signer.did_doc.clone(),
             #[cfg(feature = "signer-akv")]
             Self::AKV(signer) => signer.did_doc.clone(),
             #[cfg(feature = "signer-yubihsm")]
@@ -154,6 +172,7 @@ impl SignerType {
                 feature = "signer-p256",
                 feature = "signer-auth-service",
                 feature = "signer-vcomp-notary",
+                feature = "signer-vcomp-notary-mod",
                 feature = "signer-akv",
                 feature = "signer-yubihsm"
             )))]

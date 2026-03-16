@@ -5,7 +5,7 @@ use p256::{
     ecdsa::{SigningKey, VerifyingKey},
     EncodedPoint,
 };
-#[cfg(feature = "signer-vcomp-notary")]
+#[cfg(any(feature = "signer-vcomp-notary", feature = "signer-vcomp-notary-mod"))]
 use p256::{elliptic_curve::sec1::ToEncodedPoint, PublicKey};
 
 pub(crate) fn p256_encoded_point_from_secret_key(secret_key: &[u8]) -> Result<EncodedPoint> {
@@ -16,7 +16,7 @@ pub(crate) fn p256_encoded_point_from_secret_key(secret_key: &[u8]) -> Result<En
     Ok(verifying_key.to_encoded_point(false))
 }
 
-#[cfg(feature = "signer-vcomp-notary")]
+#[cfg(any(feature = "signer-vcomp-notary", feature = "signer-vcomp-notary-mod"))]
 pub(crate) fn p256_encoded_point_from_public_key(public_key: &[u8]) -> Result<EncodedPoint> {
     let public_key = PublicKey::from_sec1_bytes(public_key)
         .map_err(|e| anyhow!("Invalid P-256 public key: {e}"))?;

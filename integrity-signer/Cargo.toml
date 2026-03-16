@@ -16,6 +16,7 @@ signer-vcomp-notary = [
   "dep:http-body-util",
   "dep:tokio",
 ]
+signer-vcomp-notary-mod = ["dep:libc"]
 signer-akv = [
   "dep:azure_core",
   "dep:azure_identity",
@@ -31,6 +32,7 @@ signer-all = [
   "signer-secp256k1",
   "signer-auth-service",
   "signer-vcomp-notary",
+  "signer-vcomp-notary-mod",
   "signer-akv",
   "signer-yubihsm",
   "signer-slh-dsa",
@@ -42,6 +44,7 @@ async-trait = "0.1"
 base64 = "0.21"
 did-key = "0.2"
 hex = "0.4.3"
+libc = { version = "0.2", optional = true }
 log = "0.4"
 p256 = "0.13"
 serde = { version = "1.0", features = ["derive"] }
