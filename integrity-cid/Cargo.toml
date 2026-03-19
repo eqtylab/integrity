@@ -23,3 +23,6 @@ iroh-bytes = { version = "0.14.0", default-features = false }
 iroh-blake3 = "1.4.5"
 log = "0.4"
 postcard = "1"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["macros", "rt"] }

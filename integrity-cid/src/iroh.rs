@@ -1,4 +1,5 @@
 use std::{
+    collections::HashMap,
     fs,
     io::Read,
     path::{Path, PathBuf},
@@ -161,6 +162,57 @@ pub async fn compute_dir_cid(
     })
 }
 
+/// Computes an iroh collection CID from a map of file paths to file CIDs.
+///
+/// # Arguments
+/// * `file_cids` - Map where keys are file paths and values are file CIDs
+///
+/// # Returns
+/// * `Result<String>` - The computed iroh collection CID
+///
+/// # Errors
+/// Returns an error when any provided CID is invalid or does not use the BLAKE3 multihash.
+pub async fn compute_iroh_collection_cid(
+    file_cids: &HashMap<String, String>,
+) -> Result<DirCidResult> {
+    let mut path_hash_map = file_cids
+        .iter()
+        .map(|(path, cid)| {
+            let hash = blake3_hash_for_cid(path, cid)?;
+            Ok((path.clone(), hash))
+        })
+        .collect::<Result<Vec<_>>>()?;
+
+    path_hash_map.sort_by(|a, b| pathname_sort(&a.0, &b.0));
+
+    let collection = Collection::from_iter(path_hash_map);
+
+    let (meta_blob, collection_blob) = match collection.to_blobs().collect::<Vec<_>>().as_slice() {
+        [meta_blob, collection_blob] => (meta_blob.clone(), collection_blob.clone()),
+        bs => bail!("Expected two blobs, found {}.", bs.len()),
+    };
+
+    let meta_blob_cid = compute_blob_cid(&meta_blob, multicodec::RAW_BINARY).await?;
+    let collection_cid = compute_blob_cid(&collection_blob, multicodec::BLAKE3_HASHSEQ).await?;
+
+    let file_hashes = file_cids
+        .iter()
+        .map(|(name, cid)| (name.clone(), cid.clone()))
+        .collect::<Vec<_>>();
+
+    Ok(DirCidResult {
+        collection: CidResult {
+            cid: collection_cid,
+            blob: collection_blob,
+        },
+        meta: CidResult {
+            cid: meta_blob_cid,
+            blob: meta_blob,
+        },
+        file_hashes,
+    })
+}
+
 /// Gets the list of files ignored when computing a directory CID.
 ///
 /// # Arguments
@@ -234,6 +286,26 @@ pub async fn compute_blob_cid(blob: impl Into<&Bytes>, multicodec: u64) -> Resul
     let cid = Cid::new_v1(multicodec, multihash).to_string();
 
     Ok(cid)
+}
+
+fn blake3_hash_for_cid(path: &str, cid_str: &str) -> Result<[u8; 32]> {
+    let cid: Cid = cid_str.parse()?;
+    let multihash = cid.hash();
+
+    if multihash.code() != multihash::BLAKE3 {
+        bail!("CID for path '{path}' is not a BLAKE3 CID: {cid_str}");
+    }
+
+    if multihash.digest().len() != 32 {
+        bail!(
+            "CID for path '{path}' has invalid BLAKE3 digest length {}; expected 32 bytes",
+            multihash.digest().len()
+        );
+    }
+
+    let mut hash = [0u8; 32];
+    hash.copy_from_slice(multihash.digest());
+    Ok(hash)
 }
 
 fn compute_hash_for_file(path: PathBuf, multithread: bool, memory_map: bool) -> Result<[u8; 32]> {
@@ -400,6 +472,86 @@ fn walked_files_for_dir_cid(
 
 fn sort_data_sources(ds: Vec<DataSource>) -> Vec<DataSource> {
     let mut ds = ds;
-    ds.sort_by(|a, b| a.name().cmp(b.name()));
+    ds.sort_by(|a, b| pathname_sort(a.name(), b.name()));
     ds
+}
+
+fn pathname_sort(a: &str, b: &str) -> std::cmp::Ordering {
+    a.cmp(b)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::PathBuf;
+
+    use super::*;
+
+    #[tokio::test]
+    async fn compute_dir_cid_for_fixture_iroh_collection() {
+        let fixture_dir =
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../fixtures/iroh-collection");
+
+        let dir_result = compute_dir_cid(
+            &fixture_dir,
+            HashingConfig::default(),
+            CidIgnoreConfig::default(),
+        )
+        .await
+        .expect("should compute dir cid");
+
+        assert_eq!(
+            dir_result
+                .file_hashes
+                .iter()
+                .map(|(name, _)| name.as_str())
+                .collect::<Vec<_>>(),
+            vec!["abc.txt", "def.txt"]
+        );
+
+        let abc_cid = compute_file_cid(fixture_dir.join("abc.txt"), HashingConfig::default())
+            .await
+            .expect("should compute abc.txt cid")
+            .cid;
+        let def_cid = compute_file_cid(fixture_dir.join("def.txt"), HashingConfig::default())
+            .await
+            .expect("should compute def.txt cid")
+            .cid;
+
+        assert_eq!(dir_result.file_hashes[0].1, abc_cid);
+        assert_eq!(dir_result.file_hashes[1].1, def_cid);
+
+        assert_eq!(
+            dir_result.collection.cid,
+            "bagaachraifnmn56rqtgbdxx5x2zvasw4slukuq2t7w3iefcmsqldn7axmrpq"
+        );
+    }
+
+    #[tokio::test]
+    async fn compute_iroh_collection_cid_for_fixture_iroh_collection() {
+        let fixture_dir =
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../fixtures/iroh-collection");
+
+        let abc_cid = compute_file_cid(fixture_dir.join("abc.txt"), HashingConfig::default())
+            .await
+            .expect("should compute abc.txt cid")
+            .cid;
+        let def_cid = compute_file_cid(fixture_dir.join("def.txt"), HashingConfig::default())
+            .await
+            .expect("should compute def.txt cid")
+            .cid;
+
+        let file_cids = HashMap::from([
+            ("abc.txt".to_owned(), abc_cid),
+            ("def.txt".to_owned(), def_cid),
+        ]);
+
+        let dir_result = compute_iroh_collection_cid(&file_cids)
+            .await
+            .expect("should compute iroh collection cid");
+
+        assert_eq!(
+            dir_result.collection.cid,
+            "bagaachraifnmn56rqtgbdxx5x2zvasw4slukuq2t7w3iefcmsqldn7axmrpq"
+        );
+    }
 }
