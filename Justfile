@@ -12,7 +12,7 @@ fmt-check:
 
 # Build the project for native target
 build:
-    cargo build
+    cargo build --all-features
 
 # Build WebAssembly package with wasm-pack
 build-wasm:
