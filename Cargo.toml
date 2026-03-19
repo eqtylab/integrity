@@ -78,6 +78,7 @@ signer-auth-service = ["signer", "integrity-signer/signer-auth-service", "integr
 signer-vcomp-notary = ["signer", "integrity-signer/signer-vcomp-notary", "integrity-vc?/signer-vcomp-notary"]
 signer-akv = ["signer", "integrity-signer/signer-akv", "integrity-vc?/signer-akv"]
 signer-yubihsm = ["signer", "integrity-signer/signer-yubihsm", "integrity-vc?/signer-yubihsm"]
+signer-yubikey = ["signer", "integrity-signer/signer-yubikey", "integrity-vc?/signer-yubikey"]
 signer-slh-dsa = ["signer", "integrity-signer/signer-slh-dsa", "integrity-vc?/signer-slh-dsa"]
 signer-all = ["signer", "integrity-signer/signer-all", "integrity-vc?/signer-all"]
 

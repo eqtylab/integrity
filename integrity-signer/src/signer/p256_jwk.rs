@@ -1,13 +1,13 @@
 use anyhow::{anyhow, Result};
 use base64::engine::{general_purpose::URL_SAFE_NO_PAD as BASE64_URL_NO_PAD, Engine};
 use did_key::{Document, KeyFormat};
-use p256::{
-    ecdsa::{SigningKey, VerifyingKey},
-    EncodedPoint,
-};
+#[cfg(feature = "signer-p256")]
+use p256::ecdsa::{SigningKey, VerifyingKey};
+use p256::EncodedPoint;
 #[cfg(feature = "signer-vcomp-notary")]
 use p256::{elliptic_curve::sec1::ToEncodedPoint, PublicKey};
 
+#[cfg(feature = "signer-p256")]
 pub(crate) fn p256_encoded_point_from_secret_key(secret_key: &[u8]) -> Result<EncodedPoint> {
     let signing_key =
         SigningKey::from_bytes(secret_key.into()).map_err(|e| anyhow!("Invalid P-256 key: {e}"))?;

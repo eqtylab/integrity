@@ -43,6 +43,7 @@
             geckodriver
             just
             openssl
+            pcsclite
             present-cli
             prek
             pkg-config
