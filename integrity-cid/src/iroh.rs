@@ -172,7 +172,9 @@ pub async fn compute_dir_cid(
 ///
 /// # Errors
 /// Returns an error when any provided CID is invalid or does not use the BLAKE3 multihash.
-pub async fn compute_iroh_collection_cid(file_cids: &HashMap<String, String>) -> Result<DirCidResult> {
+pub async fn compute_iroh_collection_cid(
+    file_cids: &HashMap<String, String>,
+) -> Result<DirCidResult> {
     let mut path_hash_map = file_cids
         .iter()
         .map(|(path, cid)| {
@@ -186,9 +188,9 @@ pub async fn compute_iroh_collection_cid(file_cids: &HashMap<String, String>) ->
     let collection = Collection::from_iter(path_hash_map);
 
     let (meta_blob, collection_blob) = match collection.to_blobs().collect::<Vec<_>>().as_slice() {
-            [meta_blob, collection_blob] => (meta_blob.clone(), collection_blob.clone()),
-            bs => bail!("Expected two blobs, found {}.", bs.len()),
-        };
+        [meta_blob, collection_blob] => (meta_blob.clone(), collection_blob.clone()),
+        bs => bail!("Expected two blobs, found {}.", bs.len()),
+    };
 
     let meta_blob_cid = compute_blob_cid(&meta_blob, multicodec::RAW_BINARY).await?;
     let collection_cid = compute_blob_cid(&collection_blob, multicodec::BLAKE3_HASHSEQ).await?;
@@ -209,7 +211,6 @@ pub async fn compute_iroh_collection_cid(file_cids: &HashMap<String, String>) ->
         },
         file_hashes,
     })
-
 }
 
 /// Gets the list of files ignored when computing a directory CID.
@@ -544,8 +545,9 @@ mod tests {
             ("def.txt".to_owned(), def_cid),
         ]);
 
-        let dir_result =
-            compute_iroh_collection_cid(&file_cids).await.expect("should compute iroh collection cid");
+        let dir_result = compute_iroh_collection_cid(&file_cids)
+            .await
+            .expect("should compute iroh collection cid");
 
         assert_eq!(
             dir_result.collection.cid,
