@@ -3670,6 +3670,7 @@ dependencies = [
  "serde",
  "serde_jcs",
  "serde_json",
+ "tokio",
 ]
 
 [[package]]
