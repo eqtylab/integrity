@@ -12,7 +12,11 @@ pub mod akv_signer;
 pub mod auth_service_signer;
 #[cfg(feature = "signer-ed25519")]
 pub mod ed25519_signer;
-#[cfg(any(feature = "signer-p256", feature = "signer-vcomp-notary"))]
+#[cfg(any(
+    feature = "signer-p256",
+    feature = "signer-vcomp-notary",
+    feature = "signer-yubikey"
+))]
 pub(crate) mod p256_jwk;
 #[cfg(feature = "signer-p256")]
 pub mod p256_signer;
@@ -22,6 +26,8 @@ pub mod secp256k1_signer;
 pub mod vcomp_notary;
 #[cfg(feature = "signer-yubihsm")]
 pub mod yubi_key;
+#[cfg(feature = "signer-yubikey")]
+pub mod yubikey_signer;
 
 #[cfg(feature = "signer-akv")]
 pub use akv_signer::{AkvConfig, AkvSigner};
@@ -37,6 +43,8 @@ pub use secp256k1_signer::Secp256k1Signer;
 pub use vcomp_notary::VCompNotarySigner;
 #[cfg(feature = "signer-yubihsm")]
 pub use yubi_key::YubiHsmSigner;
+#[cfg(feature = "signer-yubikey")]
+pub use yubikey_signer::{YubiKeySigner, YubikeyEvidenceBundle};
 
 /// Supported cryptographic key types for signing operations.
 #[derive(Clone, Copy, PartialEq, Debug, Serialize, Deserialize)]
@@ -69,6 +77,8 @@ pub enum SignerType {
     AKV(AkvSigner),
     #[cfg(feature = "signer-yubihsm")]
     YubiHsm2Signer(YubiHsmSigner),
+    #[cfg(feature = "signer-yubikey")]
+    YubiKeySigner(YubiKeySigner),
 }
 
 impl fmt::Display for SignerType {
@@ -88,6 +98,8 @@ impl fmt::Display for SignerType {
             Self::AKV(_) => write!(_f, "azure_key_vault"),
             #[cfg(feature = "signer-yubihsm")]
             Self::YubiHsm2Signer(_) => write!(_f, "yubihsm"),
+            #[cfg(feature = "signer-yubikey")]
+            Self::YubiKeySigner(_) => write!(_f, "yubikey"),
             #[cfg(not(any(
                 feature = "signer-secp256k1",
                 feature = "signer-ed25519",
@@ -95,7 +107,8 @@ impl fmt::Display for SignerType {
                 feature = "signer-auth-service",
                 feature = "signer-vcomp-notary",
                 feature = "signer-akv",
-                feature = "signer-yubihsm"
+                feature = "signer-yubihsm",
+                feature = "signer-yubikey"
             )))]
             _ => unreachable!("SignerType has no enabled variants"),
         }
@@ -119,6 +132,8 @@ impl SignerType {
             Self::AKV(signer) => signer.sign(_data).await,
             #[cfg(feature = "signer-yubihsm")]
             Self::YubiHsm2Signer(signer) => signer.sign(_data).await,
+            #[cfg(feature = "signer-yubikey")]
+            Self::YubiKeySigner(signer) => signer.sign(_data).await,
             #[cfg(not(any(
                 feature = "signer-secp256k1",
                 feature = "signer-ed25519",
@@ -126,7 +141,8 @@ impl SignerType {
                 feature = "signer-auth-service",
                 feature = "signer-vcomp-notary",
                 feature = "signer-akv",
-                feature = "signer-yubihsm"
+                feature = "signer-yubihsm",
+                feature = "signer-yubikey"
             )))]
             _ => Err(anyhow!("no signer implementation enabled at compile time")),
         }
@@ -148,6 +164,8 @@ impl SignerType {
             Self::AKV(signer) => signer.did_doc.clone(),
             #[cfg(feature = "signer-yubihsm")]
             Self::YubiHsm2Signer(signer) => signer.did_doc.clone(),
+            #[cfg(feature = "signer-yubikey")]
+            Self::YubiKeySigner(signer) => signer.did_doc.clone(),
             #[cfg(not(any(
                 feature = "signer-secp256k1",
                 feature = "signer-ed25519",
@@ -155,7 +173,8 @@ impl SignerType {
                 feature = "signer-auth-service",
                 feature = "signer-vcomp-notary",
                 feature = "signer-akv",
-                feature = "signer-yubihsm"
+                feature = "signer-yubihsm",
+                feature = "signer-yubikey"
             )))]
             _ => unreachable!("SignerType has no enabled variants"),
         }

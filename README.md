@@ -23,6 +23,7 @@ Signer and blob backends are now split into dedicated workspace crates and are f
   - `signer-vcomp-notary`
   - `signer-akv`
   - `signer-yubihsm`
+  - `signer-yubikey`
   - `signer-slh-dsa`
   - `signer-all`
 
