@@ -1,0 +1,3 @@
+# integrity - Trivy ignore file
+# Add CVE suppressions here as false positives are discovered.
+# Format: one CVE ID per line, with a comment explaining the justification.
