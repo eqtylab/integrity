@@ -47,7 +47,7 @@ jobs:
 
   # Main branch scans: Full attestation in TEE
   security-scan-main:
-    if: github.event_name != 'pull_request'
+    # if: github.ref == 'refs/heads/main'  # Uncomment after testing
     runs-on: vbuild
 
     permissions:
