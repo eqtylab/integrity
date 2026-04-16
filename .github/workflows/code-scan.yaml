@@ -30,8 +30,15 @@ jobs:
       - name: Checkout Repo
         uses: eqtylab-actions/checkout@v4
 
-      - name: Code & Security Scan → View results in Summary tab
-        uses: eqtylab/vbuild-scan-action@master
+      - name: Checkout scan action
+        uses: actions/checkout@v4
+        with:
+          repository: eqtylab/vbuild-scan-action
+          token: ${{ secrets.VBUILD_ACTION_READ_PAT }}
+          path: .vbuild-actions/vbuild-scan-action
+
+      - name: Code & Security Scan
+        uses: ./.vbuild-actions/vbuild-scan-action
         with:
           sarif: false
           attest: false
@@ -44,6 +51,7 @@ jobs:
           rl-scanner: true
           rl-encoded-license: ${{ secrets.RLSECURE_ENCODED_LICENSE }}
           rl-site-key: ${{ secrets.RLSECURE_SITE_KEY }}
+          exclude-dirs: .vbuild-actions
 
   # Main branch scans: Full attestation in TEE
   security-scan-main:
@@ -58,14 +66,32 @@ jobs:
       - name: Checkout Repo
         uses: eqtylab-actions/checkout@v4
 
+      - name: Checkout scan action
+        uses: actions/checkout@v4
+        with:
+          repository: eqtylab/vbuild-scan-action
+          token: ${{ secrets.VBUILD_ACTION_READ_PAT }}
+          path: .vbuild-actions/vbuild-scan-action
+
+      - name: Checkout vbuild action
+        uses: actions/checkout@v4
+        with:
+          repository: eqtylab/vbuild-action
+          ref: v0.12.0
+          token: ${{ secrets.VBUILD_ACTION_READ_PAT }}
+          path: .vbuild-actions/vbuild-action
+
+      - name: Patch scan action to use local vbuild-action
+        run: sed -i 's|uses: eqtylab/vbuild-action@v[0-9.]*|uses: ./.vbuild-actions/vbuild-action|' .vbuild-actions/vbuild-scan-action/action.yaml
+
       - name: Install Rust toolchain
         run: |
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | \
             sh -s -- -y --default-toolchain stable --profile minimal --no-modify-path
           echo "$HOME/.cargo/bin" >> $GITHUB_PATH
 
-      - name: Code & Security Scan → View results in Summary tab
-        uses: eqtylab/vbuild-scan-action@master
+      - name: Code & Security Scan
+        uses: ./.vbuild-actions/vbuild-scan-action
         with:
           sarif: true
           attest: true
@@ -81,3 +107,4 @@ jobs:
           rl-scanner: true
           rl-encoded-license: ${{ secrets.RLSECURE_ENCODED_LICENSE }}
           rl-site-key: ${{ secrets.RLSECURE_SITE_KEY }}
+          exclude-dirs: .vbuild-actions
