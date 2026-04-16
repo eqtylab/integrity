@@ -37,6 +37,18 @@ jobs:
           token: ${{ secrets.VBUILD_ACTION_READ_PAT }}
           path: .vbuild-actions/vbuild-scan-action
 
+      - name: Checkout vbuild action
+        uses: actions/checkout@v4
+        with:
+          repository: eqtylab/vbuild-action
+          ref: v0.12.0
+          token: ${{ secrets.VBUILD_ACTION_READ_PAT }}
+          path: .vbuild-actions/vbuild-action
+
+      - name: Patch scan action to use local vbuild-action
+        run: |
+          sed -i 's|uses: eqtylab/vbuild-action@v[0-9.]*|uses: ./.vbuild-actions/vbuild-action|' .vbuild-actions/vbuild-scan-action/action.yaml
+
       - name: Code & Security Scan
         uses: ./.vbuild-actions/vbuild-scan-action
         with:
