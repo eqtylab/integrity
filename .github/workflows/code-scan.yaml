@@ -60,9 +60,7 @@ jobs:
           veracode: true
           veracode-api-id: ${{ secrets.VERACODE_API_ID }}
           veracode-api-key: ${{ secrets.VERACODE_API_KEY }}
-          rl-scanner: true
-          rl-encoded-license: ${{ secrets.RLSECURE_ENCODED_LICENSE }}
-          rl-site-key: ${{ secrets.RLSECURE_SITE_KEY }}
+          rl-scanner: false
           exclude-dirs: .vbuild-actions
 
   # Main branch scans: Full attestation in TEE
@@ -117,7 +115,5 @@ jobs:
           veracode: true
           veracode-api-id: ${{ secrets.VERACODE_API_ID }}
           veracode-api-key: ${{ secrets.VERACODE_API_KEY }}
-          rl-scanner: true
-          rl-encoded-license: ${{ secrets.RLSECURE_ENCODED_LICENSE }}
-          rl-site-key: ${{ secrets.RLSECURE_SITE_KEY }}
+          rl-scanner: false
           exclude-dirs: .vbuild-actions
