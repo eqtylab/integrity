@@ -82,7 +82,8 @@ jobs:
           path: .vbuild-actions/vbuild-action
 
       - name: Patch scan action to use local vbuild-action
-        run: sed -i 's|uses: eqtylab/vbuild-action@v[0-9.]*|uses: ./.vbuild-actions/vbuild-action|' .vbuild-actions/vbuild-scan-action/action.yaml
+        run: |
+          sed -i 's|uses: eqtylab/vbuild-action@v[0-9.]*|uses: ./.vbuild-actions/vbuild-action|' .vbuild-actions/vbuild-scan-action/action.yaml
 
       - name: Install Rust toolchain
         run: |
