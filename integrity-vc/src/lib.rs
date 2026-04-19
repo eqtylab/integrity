@@ -15,7 +15,7 @@ use integrity_signer::SignerType;
 #[cfg(not(target_arch = "wasm32"))]
 use serde::ser::{Serialize, SerializeStruct, Serializer};
 #[cfg(not(target_arch = "wasm32"))]
-use serde_json::Value;
+use serde_json::{json, Value};
 use ssi::{jsonld::ContextLoader, vc::Credential};
 #[cfg(not(target_arch = "wasm32"))]
 use ssi::{
@@ -41,27 +41,56 @@ pub struct VerifiableCredential {
     /// When the credential becomes valid (ISO 8601 format)
     pub valid_from: Option<String>,
     /// DID or identifier of the credential subject
-    pub subject: String,
+    pub credential_subject: Value,
     /// Additional evidence supporting the credential claims
     pub evidence: Option<Value>,
     /// When the credential expires
     pub expiration_date: Option<VCDateTime>,
 }
 
+pub trait ToCredentialSubject {
+    fn to_credential_subject(self) -> Value;
+}
+
+impl ToCredentialSubject for String {
+    fn to_credential_subject(self) -> Value {
+        json!({"id": self})
+    }
+}
+
+impl ToCredentialSubject for &str {
+    fn to_credential_subject(self) -> Value {
+        json!({"id": self})
+    }
+}
+
+impl ToCredentialSubject for Value {
+    fn to_credential_subject(self) -> Value {
+        self
+    }
+}
+
 #[cfg(not(target_arch = "wasm32"))]
 impl VerifiableCredential {
-    /// Creates a verifiable credential from a DID document
+    /// Creates a verifiable credential
     ///
     /// # Arguments
     /// * `subject` - The credential subject identifier
     /// * `did_doc` - DID document of the issuer
     ///
     /// # Returns
-    /// A new verifiable credential with the issuer set from the DID document
-    pub fn from_did_doc(subject: &str, did_doc: &did_key::Document) -> Self {
+    /// A new verifiable credential instance with the provided properties
+    pub fn new(
+        credential_subject: impl ToCredentialSubject,
+        issuer: String,
+        evidence: Option<Value>,
+    ) -> Self {
+        let credential_subject = credential_subject.to_credential_subject();
+
         VerifiableCredential {
-            issuer: did_doc.id.clone(),
-            subject: subject.to_owned(),
+            issuer,
+            credential_subject,
+            evidence,
             ..Default::default()
         }
     }
@@ -130,15 +159,7 @@ impl Serialize for VerifiableCredential {
         let valid_from_str = valid_from.to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
         state.serialize_field("validFrom", &valid_from_str)?;
 
-        let credential_subject =
-            if let Ok(parsed_json) = serde_json::from_str::<Value>(&self.subject) {
-                // If subject is valid JSON, use it as the credential subject
-                parsed_json
-            } else {
-                // Otherwise, wrap it as {"id": subject}
-                serde_json::json!({"id": self.subject})
-            };
-        state.serialize_field("credentialSubject", &credential_subject)?;
+        state.serialize_field("credentialSubject", &self.credential_subject)?;
 
         if let Some(ref evidence) = self.evidence {
             state.serialize_field("evidence", evidence)?;
@@ -163,11 +184,26 @@ impl Serialize for VerifiableCredential {
 ///
 /// A signed `Credential` with a linked data proof.
 #[cfg(not(target_arch = "wasm32"))]
-pub async fn issue_vc(subject: &str, signer: SignerType) -> Result<Credential> {
+pub async fn issue_vc(
+    credential_subject: impl ToCredentialSubject,
+    signer: SignerType,
+    evidence: Option<Value>,
+) -> Result<Credential> {
+    let credential_subject = credential_subject.to_credential_subject();
+
+    let subject = credential_subject
+        .get("id")
+        .and_then(|id| id.as_str())
+        .ok_or_else(|| anyhow!("Credential subject must contain an 'id' field of type string"))?;
+
     log::debug!("Issuing VC for '{subject}'");
-    let did_doc = signer.get_did_doc();
-    let vc = VerifiableCredential::from_did_doc(subject, &did_doc);
+
+    let issuer = signer.get_did_doc().id.clone();
+
+    let vc = VerifiableCredential::new(credential_subject, issuer, evidence);
+
     log::trace!("Unsigned VC: {}", serde_json::to_string_pretty(&vc)?);
+
     sign_vc(&vc.try_into()?, signer).await
 }
 
@@ -328,7 +364,7 @@ mod tests {
 
         // Issue a VC with a simple subject identifier
         let subject = "urn:cid:bafkr4ibthuzk3zug7ghmx63yjqaiu6rx4hhfdv3453j5bodskgw57bx2ya";
-        let credential = issue_vc(subject, signer_type).await.unwrap();
+        let credential = issue_vc(subject, signer_type, None).await.unwrap();
 
         // Verify the credential has expected structure
         assert!(credential.proof.is_some(), "Credential should have a proof");
@@ -351,7 +387,7 @@ mod tests {
 
         // Issue a VC with a DID as subject
         let subject = "did:key:z6Mkw2PvzC9DHXiYQHMDRwyxCCV9n4EDc6vqqp1uyi9nrwsP";
-        let credential = issue_vc(subject, signer_type).await.unwrap();
+        let credential = issue_vc(subject, signer_type, None).await.unwrap();
 
         assert!(credential.proof.is_some(), "Credential should have a proof");
 
@@ -371,7 +407,7 @@ mod tests {
         let signer_type = SignerType::ED25519(signer);
 
         let subject = "urn:cid:bafkr4ibthuzk3zug7ghmx63yjqaiu6rx4hhfdv3453j5bodskgw57bx2ya";
-        let credential = issue_vc(subject, signer_type).await.unwrap();
+        let credential = issue_vc(subject, signer_type, None).await.unwrap();
 
         // Serialize the credential and verify it
         let vc_json = serde_json::to_string(&credential).unwrap();
@@ -393,7 +429,7 @@ mod tests {
 
         // Issue a VC with a JSON object as subject
         let subject = r#"{"id": "urn:cid:bafkr4ibthuzk3zug7ghmx63yjqaiu6rx4hhfdv3453j5bodskgw57bx2ya", "name": "Test Subject"}"#;
-        let credential = issue_vc(subject, signer_type).await.unwrap();
+        let credential = issue_vc(subject, signer_type, None).await.unwrap();
 
         assert!(credential.proof.is_some(), "Credential should have a proof");
 
@@ -409,9 +445,10 @@ mod tests {
         let signer = Ed25519Signer::create().unwrap();
         let did_doc = signer.did_doc.clone();
 
-        let vc = VerifiableCredential::from_did_doc(
+        let vc = VerifiableCredential::new(
             "urn:cid:bafkr4ibthuzk3zug7ghmx63yjqaiu6rx4hhfdv3453j5bodskgw57bx2ya",
-            &did_doc,
+            did_doc.id.clone(),
+            None,
         );
 
         // Serialize to JSON
@@ -442,9 +479,10 @@ mod tests {
         let signer = Ed25519Signer::create().unwrap();
         let did_doc = signer.did_doc.clone();
 
-        let vc = VerifiableCredential::from_did_doc(
+        let vc = VerifiableCredential::new(
             "urn:cid:bafkr4ibthuzk3zug7ghmx63yjqaiu6rx4hhfdv3453j5bodskgw57bx2ya",
-            &did_doc,
+            did_doc.id.clone(),
+            None,
         );
 
         // Convert to SSI Credential - this exercises the JSON-LD parsing path

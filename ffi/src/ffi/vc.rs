@@ -26,7 +26,7 @@ pub extern "C" fn ig_vc_issue(
         let subject = cstr_to_string(subject, "subject")?;
 
         let credential =
-            map_anyhow(runtime.block_on(vc::issue_vc(&subject, signer.signer.clone())))?;
+            map_anyhow(runtime.block_on(vc::issue_vc(subject, signer.signer.clone(), None)))?;
         let credential_json = map_anyhow(serde_json::to_string(&credential).map_err(Into::into))?;
 
         write_c_string(out_credential_json, credential_json, "out_credential_json")
