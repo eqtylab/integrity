@@ -15,7 +15,7 @@ blob-all = ["blob-local", "blob-memory", "blob-s3", "blob-gcs", "blob-azure"]
 [dependencies]
 anyhow = { version = "1", features = ["backtrace"] }
 async-trait = "0.1"
-cid = { version = "0.10", default-features = false, features = ["std"] }
+cid = { version = "0.11", default-features = false, features = ["std"] }
 log = "0.4"
 
 # Used on wasm32

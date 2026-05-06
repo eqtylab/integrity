@@ -13,7 +13,7 @@ use async_trait::async_trait;
     all(not(target_arch = "wasm32"), feature = "blob-gcs"),
     all(not(target_arch = "wasm32"), feature = "blob-s3"),
 ))]
-use cid::{multihash::MultihashGeneric, Cid};
+use cid::{multihash::Multihash, Cid};
 
 #[cfg(all(not(target_arch = "wasm32"), feature = "blob-azure"))]
 pub mod azure_blob;
@@ -43,8 +43,6 @@ pub use s3::S3;
     all(not(target_arch = "wasm32"), feature = "blob-gcs"),
     all(not(target_arch = "wasm32"), feature = "blob-s3"),
 ))]
-type Multihash = MultihashGeneric<64>;
-
 #[async_trait]
 pub trait BlobStore {
     async fn init(&mut self) -> Result<()>;

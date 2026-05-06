@@ -2,14 +2,12 @@ use std::{collections::HashMap, sync::Arc};
 
 use anyhow::{anyhow, bail, Result};
 use bytes::Bytes;
-use cid::{multihash::MultihashGeneric, Cid};
+use cid::{multihash::Multihash, Cid};
 use integrity_blob::BlobStore;
 use iroh_base::hash::Hash;
 use iroh_bytes::hashseq::HashSeq;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-
-type Multihash = MultihashGeneric<64>;
 
 /// Creates a Hashmap of <Item Name, Item CID> from the provided Iroh collection cid
 pub async fn hashmap_for_iroh_collection(

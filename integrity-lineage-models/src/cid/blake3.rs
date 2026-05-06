@@ -1,7 +1,5 @@
 use anyhow::Result;
-use cid::{multihash::MultihashGeneric, Cid};
-
-type Multihash = MultihashGeneric<64>;
+use cid::{multihash::Multihash, Cid};
 
 /// Creates a CID v1 from a codec identifier and multihash
 ///
@@ -11,7 +9,7 @@ type Multihash = MultihashGeneric<64>;
 ///
 /// # Returns
 /// The CID as a string
-pub fn cid(codec: u64, multihash: Multihash) -> String {
+pub fn cid(codec: u64, multihash: Multihash<64>) -> String {
     Cid::new_v1(codec, multihash).to_string()
 }
 

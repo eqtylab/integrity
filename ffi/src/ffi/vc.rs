@@ -1,6 +1,6 @@
 use std::ffi::c_char;
 
-use ssi::vc::Credential;
+use ssi::claims::vc::v1::JsonCredential;
 
 use crate::{
     ffi::{
@@ -47,10 +47,10 @@ pub extern "C" fn ig_vc_sign(
         let unsigned_credential_json =
             cstr_to_string(unsigned_credential_json, "unsigned_credential_json")?;
 
-        let unsigned_credential = Credential::from_json_unsigned(&unsigned_credential_json)
+        let unsigned_credential: JsonCredential = serde_json::from_str(&unsigned_credential_json)
             .map_err(|e| {
-                FfiError::new(IgStatus::InvalidInput, format!("invalid unsigned vc: {e}"))
-            })?;
+            FfiError::new(IgStatus::InvalidInput, format!("invalid unsigned vc: {e}"))
+        })?;
 
         let signed =
             map_anyhow(runtime.block_on(vc::sign_vc(&unsigned_credential, signer.signer.clone())))?;

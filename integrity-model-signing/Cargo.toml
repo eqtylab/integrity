@@ -6,7 +6,7 @@ edition = "2021"
 [dependencies]
 anyhow = { version = "1", features = ["backtrace"] }
 bs58 = "0.5.1"
-cid = { version = "0.10", default-features = false, features = ["std"] }
+cid = { version = "0.11", default-features = false, features = ["std"] }
 hex = "0.4.3"
 integrity-blob = { path = "../integrity-blob", default-features = false }
 integrity-cid = { path = "../integrity-cid", default-features = false }

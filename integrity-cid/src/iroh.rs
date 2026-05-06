@@ -7,7 +7,7 @@ use std::{
 
 use anyhow::{bail, Result};
 use bytes::Bytes;
-use cid::{multihash::MultihashGeneric, Cid};
+use cid::{multihash::Multihash, Cid};
 use iroh_bytes::format::collection::Collection;
 use log::{debug, trace};
 use serde::{Deserialize, Serialize};
@@ -44,9 +44,6 @@ pub struct CidIgnoreConfig {
     #[serde(default)]
     pub include_symlinks: bool,
 }
-
-/// Type alias for 64-byte multihash used in CID operations.
-type Multihash = MultihashGeneric<64>;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct DataSource {

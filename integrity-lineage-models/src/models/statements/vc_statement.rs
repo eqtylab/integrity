@@ -1,16 +1,20 @@
 use anyhow::Result;
 use integrity_jsonld::ig_common_context_link;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
-use ssi::vc::{Credential, StringOrURI};
+use ssi::claims::{
+    data_integrity::{AnySuite, DataIntegrity},
+    vc::v1::JsonCredential,
+};
 
 use super::{compute_cid, format_timestamp, get_jsonld_filename, StatementTrait};
+
+type Credential = DataIntegrity<JsonCredential, AnySuite>;
 
 /// Records a W3C Verifiable Credential
 ///
 /// This statement type stores verifiable credentials in W3C VC format,
 /// providing cryptographically verifiable claims about subjects.
-#[derive(Clone, Debug, Serialize, Deserialize, utoipa::ToSchema, PartialEq)]
+#[derive(Clone, Debug, Serialize, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct VcStatement {
     /// JSON-LD context URL
@@ -31,6 +35,18 @@ pub struct VcStatement {
     pub timestamp: String,
 }
 
+impl PartialEq for VcStatement {
+    fn eq(&self, other: &Self) -> bool {
+        self.context == other.context
+            && self.id == other.id
+            && self.type_ == other.type_
+            && self.registered_by == other.registered_by
+            && self.timestamp == other.timestamp
+            && serde_json::to_value(&self.credential).ok()
+                == serde_json::to_value(&other.credential).ok()
+    }
+}
+
 impl StatementTrait for VcStatement {
     fn get_id(&self) -> String {
         self.id.clone()
@@ -44,33 +60,27 @@ impl StatementTrait for VcStatement {
         let mut refs = vec![];
 
         // include credential subject
-        match &self.credential.id {
-            Some(StringOrURI::String(s)) => refs.push(s.clone()),
-            Some(StringOrURI::URI(u)) => match u {
-                ssi::vc::URI::String(s) => refs.push(s.clone()),
-            },
-            None => {}
+        if let Some(id) = &self.credential.id {
+            refs.push(id.to_string());
         }
 
         // include credential evidence
-        if let Some(evidence) = &self.credential.evidence {
-            for ev in evidence {
-                if let Some(props) = &ev.property_set {
-                    for key in [
-                        // `report` and `certificateChain` are used in everything but Azure
-                        "report",
-                        "certificateChain",
-                        // `report` + the rest are used in TPM-based Azure attestation
-                        "reportCertificateChain",
-                        "tpmQuote",
-                        "tpmQuoteSignature",
-                        "tpmAKCertificate",
-                        "tpmLog",
-                        "azureBootLog",
-                    ] {
-                        if let Some(Value::String(id)) = props.get(key) {
-                            refs.push(id.to_owned());
-                        }
+        for ev in &self.credential.evidence {
+            for key in [
+                // `report` and `certificateChain` are used in everything but Azure
+                "report",
+                "certificateChain",
+                // `report` + the rest are used in TPM-based Azure attestation
+                "reportCertificateChain",
+                "tpmQuote",
+                "tpmQuoteSignature",
+                "tpmAKCertificate",
+                "tpmLog",
+                "azureBootLog",
+            ] {
+                if let Some(value) = ev.extra_properties.get(key) {
+                    if let Ok(serde_json::Value::String(id)) = serde_json::to_value(value) {
+                        refs.push(id);
                     }
                 }
             }
@@ -141,7 +151,8 @@ mod tests {
             }
         });
 
-        Credential::from_json_unsigned(&serde_json::to_string(&vc_json).unwrap()).unwrap()
+        let credential: JsonCredential = serde_json::from_value(vc_json).unwrap();
+        Credential::new(credential, Default::default())
     }
 
     #[tokio::test]
@@ -244,6 +255,47 @@ mod tests {
             refs.contains(&"urn:uuid:12345678-1234-1234-1234-123456789012".to_string()),
             "Should reference the credential ID"
         );
+    }
+
+    #[tokio::test]
+    async fn referenced_cids_extracts_evidence_properties() {
+        let credential_json = json!({
+            "@context": [
+                "https://www.w3.org/ns/credentials/v2",
+                "https://w3id.org/security/v2"
+            ],
+            "type": ["VerifiableCredential"],
+            "id": "urn:uuid:12345678-1234-1234-1234-123456789012",
+            "issuer": "did:key:z6Mkw2PvzC9DHXiYQHMDRwyxCCV9n4EDc6vqqp1uyi9nrwsP",
+            "issuanceDate": "2024-01-01T00:00:00Z",
+            "validFrom": "2024-01-01T00:00:00Z",
+            "credentialSubject": {
+                "id": "urn:cid:bafkr4ibthuzk3zug7ghmx63yjqaiu6rx4hhfdv3453j5bodskgw57bx2ya"
+            },
+            "evidence": [{
+                "type": "AttestationEvidence",
+                "report": "urn:cid:reportcid",
+                "certificateChain": "urn:cid:chaincid",
+                "tpmLog": "urn:cid:logcid"
+            }]
+        });
+
+        let credential: JsonCredential = serde_json::from_value(credential_json).unwrap();
+        let credential = Credential::new(credential, Default::default());
+
+        let statement = VcStatement::create(
+            credential,
+            "did:key:z6Mkw2PvzC9DHXiYQHMDRwyxCCV9n4EDc6vqqp1uyi9nrwsP".to_owned(),
+            Some("2024-06-27T21:40:37Z".to_owned()),
+        )
+        .await
+        .unwrap();
+
+        let refs = statement.referenced_cids();
+
+        assert!(refs.contains(&"urn:cid:reportcid".to_string()));
+        assert!(refs.contains(&"urn:cid:chaincid".to_string()));
+        assert!(refs.contains(&"urn:cid:logcid".to_string()));
     }
 
     #[tokio::test]
