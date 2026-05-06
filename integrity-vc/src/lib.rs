@@ -403,6 +403,48 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_sign_vc_from_unsigned_json() {
+        let _ = env_logger::builder().is_test(true).try_init();
+
+        let signer = Ed25519Signer::create().unwrap();
+        let issuer = signer.did_doc.id.clone();
+        let signer_type = SignerType::ED25519(signer);
+
+        let unsigned_vc = serde_json::json!({
+            "@context": [
+                "https://www.w3.org/ns/credentials/v2",
+                "https://w3id.org/security/v2"
+            ],
+            "type": ["VerifiableCredential"],
+            "id": "urn:uuid:12345678-1234-1234-1234-123456789012",
+            "issuer": issuer,
+            "issuanceDate": "2024-01-01T00:00:00Z",
+            "validFrom": "2024-01-01T00:00:00Z",
+            "credentialSubject": {
+                "id": "urn:cid:bafkr4ibthuzk3zug7ghmx63yjqaiu6rx4hhfdv3453j5bodskgw57bx2ya"
+            }
+        });
+
+        let unsigned_vc: Credential =
+            Credential::from_json_unsigned(&serde_json::to_string(&unsigned_vc).unwrap()).unwrap();
+
+        let signed = sign_vc(&unsigned_vc, signer_type).await.unwrap();
+
+        assert!(
+            signed.proof.is_some(),
+            "Signed credential should have a proof"
+        );
+
+        let vc_json = serde_json::to_string(&signed).unwrap();
+        let verification_result = verify_vc(&vc_json).await;
+        assert!(
+            verification_result.is_ok(),
+            "Signed credential should verify: {:?}",
+            verification_result.err()
+        );
+    }
+
+    #[tokio::test]
     async fn test_verifiable_credential_serialization() {
         let _ = env_logger::builder().is_test(true).try_init();
 

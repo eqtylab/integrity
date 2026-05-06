@@ -118,8 +118,11 @@ impl VcStatement {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
     use chrono::{DateTime, Utc};
     use serde_json::json;
+    use ssi::{one_or_many::OneOrMany, vc::Evidence};
 
     use super::*;
     use crate::models::statements::Statement;
@@ -244,6 +247,34 @@ mod tests {
             refs.contains(&"urn:uuid:12345678-1234-1234-1234-123456789012".to_string()),
             "Should reference the credential ID"
         );
+    }
+
+    #[tokio::test]
+    async fn referenced_cids_extracts_evidence_properties() {
+        let mut credential = create_test_credential();
+        let mut property_set = HashMap::new();
+        property_set.insert("report".to_string(), json!("urn:cid:reportcid"));
+        property_set.insert("certificateChain".to_string(), json!("urn:cid:chaincid"));
+        property_set.insert("tpmLog".to_string(), json!("urn:cid:logcid"));
+        credential.evidence = Some(OneOrMany::One(Evidence {
+            id: None,
+            type_: vec!["AttestationEvidence".to_string()],
+            property_set: Some(property_set),
+        }));
+
+        let statement = VcStatement::create(
+            credential,
+            "did:key:z6Mkw2PvzC9DHXiYQHMDRwyxCCV9n4EDc6vqqp1uyi9nrwsP".to_owned(),
+            Some("2024-06-27T21:40:37Z".to_owned()),
+        )
+        .await
+        .unwrap();
+
+        let refs = statement.referenced_cids();
+
+        assert!(refs.contains(&"urn:cid:reportcid".to_string()));
+        assert!(refs.contains(&"urn:cid:chaincid".to_string()));
+        assert!(refs.contains(&"urn:cid:logcid".to_string()));
     }
 
     #[tokio::test]
