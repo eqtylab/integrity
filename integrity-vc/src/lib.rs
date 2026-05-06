@@ -1,29 +1,39 @@
 use core::default::Default;
+#[cfg(not(target_arch = "wasm32"))]
+use std::borrow::Cow;
 
 #[cfg(not(target_arch = "wasm32"))]
 use anyhow::anyhow;
-use anyhow::{bail, Result};
+use anyhow::Result;
 #[cfg(not(target_arch = "wasm32"))]
-use base64::engine::{general_purpose::URL_SAFE_NO_PAD as BASE64_URL_NO_PAD, Engine};
-#[cfg(not(target_arch = "wasm32"))]
-use chrono::{DateTime, Utc};
+use chrono::Utc;
 #[cfg(not(target_arch = "wasm32"))]
 use did_key::KeyFormat;
-use did_method_key::DIDKey;
 #[cfg(not(target_arch = "wasm32"))]
 use integrity_signer::SignerType;
 #[cfg(not(target_arch = "wasm32"))]
 use serde::ser::{Serialize, SerializeStruct, Serializer};
 #[cfg(not(target_arch = "wasm32"))]
 use serde_json::Value;
-use ssi::{jsonld::ContextLoader, vc::Credential};
+use ssi::claims::{
+    data_integrity::{
+        AnyInputSuiteOptions, AnySuite, CryptographicSuite, DataIntegrity, ProofOptions,
+    },
+    vc::v1::{data_integrity::any_credential_from_json_str, JsonCredential},
+    VerificationParameters,
+};
+#[cfg(not(target_arch = "wasm32"))]
+use ssi::verification_methods::ProofPurpose;
+#[cfg(not(target_arch = "wasm32"))]
+use ssi::xsd::DateTimeStamp;
 #[cfg(not(target_arch = "wasm32"))]
 use ssi::{
-    jwk::JWK,
-    ldp::{ProofPreparation, ProofSuite, ProofSuiteType, SigningInput},
-    one_or_many::OneOrMany,
-    vc::{LinkedDataProofOptions, ProofPurpose, VCDateTime, URI},
+    dids::{DIDResolver, VerificationMethodDIDResolver},
+    verification_methods::{AnyMethod, MessageSigner, ReferenceOrOwned, Signer},
 };
+
+pub type UnsignedCredential = JsonCredential;
+pub type Credential = DataIntegrity<JsonCredential, AnySuite>;
 
 /// Simplified verifiable credential
 ///
@@ -45,7 +55,7 @@ pub struct VerifiableCredential {
     /// Additional evidence supporting the credential claims
     pub evidence: Option<Value>,
     /// When the credential expires
-    pub expiration_date: Option<VCDateTime>,
+    pub expiration_date: Option<String>,
 }
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -73,8 +83,18 @@ impl TryInto<Credential> for VerifiableCredential {
 
     fn try_into(self) -> Result<Credential> {
         let vc_str = serde_json::to_string(&self)?;
-        let unsigned_vc: Credential = Credential::from_json_unsigned(&vc_str)?;
-        Ok(unsigned_vc)
+        let unsigned_vc: UnsignedCredential = serde_json::from_str(&vc_str)?;
+        Ok(DataIntegrity::new(unsigned_vc, Default::default()))
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+impl TryInto<UnsignedCredential> for VerifiableCredential {
+    type Error = anyhow::Error;
+
+    fn try_into(self) -> Result<UnsignedCredential> {
+        let vc_str = serde_json::to_string(&self)?;
+        Ok(serde_json::from_str(&vc_str)?)
     }
 }
 
@@ -182,45 +202,19 @@ pub async fn issue_vc(subject: &str, signer: SignerType) -> Result<Credential> {
 ///
 /// A signed `Credential` with the proof attached.
 #[cfg(not(target_arch = "wasm32"))]
-pub async fn sign_vc(unsigned_vc: &Credential, signer: SignerType) -> Result<Credential> {
+pub async fn sign_vc(unsigned_vc: &UnsignedCredential, signer: SignerType) -> Result<Credential> {
     log::debug!("Signing VC with {signer:?}");
-    let proof_date = if let Some(date) = unsigned_vc.issuance_date.clone() {
-        Some(date.into())
-    } else {
-        // backdate by 1 hour so VCs are valid immediately even between systems with slightly different clock drifts
-        Some(chrono::Utc::now() - chrono::Duration::hours(1))
-    };
+    let (resolver, verification_method) = resolve_verification_method(&signer).await?;
+    let options = prepare_proof_options(unsigned_vc, verification_method);
+    let signer = IntegritySigner::new(signer);
+    let jwk = signer.public_jwk()?;
+    let suite = AnySuite::pick(&jwk, options.verification_method.as_ref())
+        .ok_or_else(|| anyhow!("failed to pick cryptographic suite"))?;
 
-    log::trace!("Getting DID Doc from signer");
-    let did_doc = signer.get_did_doc();
-    let proof_preparation = &prepare_vc_proof(&did_doc, unsigned_vc, proof_date).await?;
-
-    let ProofPreparation {
-        proof,
-        signing_input,
-        ..
-    } = proof_preparation;
-
-    let signature = {
-        let data = match signing_input {
-            SigningInput::Bytes(bytes) => bytes,
-            _ => bail!("Invalid signing input type. Expected bytes."),
-        };
-        let data = data.0.as_slice();
-
-        let signature = signer.sign(data).await?;
-
-        BASE64_URL_NO_PAD.encode(signature)
-    };
-
-    let proof = proof.type_.complete(proof_preparation, &signature).await?;
-
-    let signed_vc = Credential {
-        proof: Some(OneOrMany::One(proof)),
-        ..unsigned_vc.clone()
-    };
-
-    Ok(signed_vc)
+    suite
+        .sign(unsigned_vc.clone(), &resolver, &signer, options)
+        .await
+        .map_err(Into::into)
 }
 
 /// Verifies a Verifiable Credential.
@@ -233,82 +227,114 @@ pub async fn sign_vc(unsigned_vc: &Credential, signer: SignerType) -> Result<Cre
 ///
 /// A formatted string containing the verification result on success.
 pub async fn verify_vc(vc: &str) -> Result<String> {
-    let vc = Credential::from_json_unsigned(vc)?;
+    let vc = any_credential_from_json_str(vc)?;
+    let resolver = did_method_key::DIDKey.into_vm_resolver::<AnyMethod>();
+    let params = VerificationParameters::from_resolver(resolver);
+    let result = vc.verify(params).await?;
 
-    let result = vc
-        .verify(None, &DIDKey, &mut ContextLoader::default())
-        .await;
-
-    if !result.errors.is_empty() {
-        bail!("VC verification failed. {:?}", result.errors);
+    if let Err(err) = &result {
+        return Err(anyhow!("VC verification failed: {err}"));
     }
 
-    Ok(format!(
-        "VC verification result:\n{}",
-        serde_json::to_string_pretty(&result)?
-    ))
+    Ok("VC verification result:\nvalid".to_owned())
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-async fn prepare_vc_proof(
-    did: &did_key::Document,
-    unsigned_vc: &Credential,
-    creation_date: Option<DateTime<Utc>>,
-) -> Result<ProofPreparation> {
-    log::trace!("Preparing VC Proof");
-    let key_type = match &did.verification_method[0].public_key {
-        Some(KeyFormat::JWK(jwk)) => jwk.curve.clone(),
-        _ => {
-            log::error!("Unhandled key type in DID verification method");
-            bail!("Unhandled key type in DID verification method");
-        }
-    };
-
-    let proof_type = match key_type.as_str() {
-        "Ed25519" => ProofSuiteType::Ed25519Signature2018,
-        "secp256k1" => ProofSuiteType::EcdsaSecp256k1Signature2019,
-        "P-256" => ProofSuiteType::EcdsaSecp256r1Signature2019,
-        _ => {
-            log::error!("Unknown key type for signing");
-            bail!("Unknown key type for signing");
-        }
-    };
-
-    let verification_method = did
+async fn resolve_verification_method(
+    signer: &SignerType,
+) -> Result<(
+    VerificationMethodDIDResolver<did_method_key::DIDKey, AnyMethod>,
+    ReferenceOrOwned<AnyMethod>,
+)> {
+    let did_doc = signer.get_did_doc();
+    let verification_method = did_doc
         .verification_method
         .first()
-        .ok_or_else(|| anyhow!("Verification method not found in DID Document"))?;
+        .ok_or_else(|| anyhow!("verification method not found in DID document"))?;
+    let verification_method = ReferenceOrOwned::Reference(verification_method.id.parse()?);
+    let resolver = did_method_key::DIDKey.into_vm_resolver::<AnyMethod>();
+    Ok((resolver, verification_method))
+}
 
-    let jwk = match &verification_method.public_key {
-        Some(KeyFormat::JWK(jwk)) => {
-            log::trace!("Converting did_key JWK to ssi JWK");
-            // Convert did_key JWK to ssi JWK via JSON serialization
-            let jwk_json = serde_json::to_value(jwk)?;
-            serde_json::from_value::<JWK>(jwk_json)?
+#[cfg(not(target_arch = "wasm32"))]
+fn prepare_proof_options(
+    unsigned_vc: &UnsignedCredential,
+    verification_method: ReferenceOrOwned<AnyMethod>,
+) -> ProofOptions<AnyMethod, AnyInputSuiteOptions> {
+    let created = unsigned_vc
+        .issuance_date
+        .as_ref()
+        .and_then(|date| chrono::DateTime::parse_from_rfc3339(&date.to_string()).ok())
+        .map(|date| date.with_timezone(&Utc))
+        .unwrap_or_else(|| Utc::now() - chrono::Duration::hours(1));
+
+    ProofOptions {
+        created: Some(DateTimeStamp::from(created).into()),
+        verification_method: Some(verification_method),
+        proof_purpose: ProofPurpose::Assertion,
+        ..Default::default()
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+#[derive(Clone)]
+struct IntegritySigner {
+    signer: SignerType,
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+impl IntegritySigner {
+    fn new(signer: SignerType) -> Self {
+        Self { signer }
+    }
+
+    fn public_jwk(&self) -> Result<ssi::jwk::JWK> {
+        let did_doc = self.signer.get_did_doc();
+        let verification_method = did_doc
+            .verification_method
+            .first()
+            .ok_or_else(|| anyhow!("verification method not found in DID document"))?;
+
+        match &verification_method.public_key {
+            Some(KeyFormat::JWK(jwk)) => {
+                let jwk_json = serde_json::to_value(jwk)?;
+                Ok(serde_json::from_value::<ssi::jwk::JWK>(jwk_json)?)
+            }
+            _ => Err(anyhow!(
+                "public key not found or not in JWK format in DID verification method"
+            )),
         }
-        _ => {
-            log::error!("Public key not found or not in JWK format in DID verification method");
-            bail!("Public key not found or not in JWK format in DID verification method");
-        }
-    };
+    }
+}
 
-    let proof_preparation = unsigned_vc
-        .prepare_proof(
-            &jwk,
-            &LinkedDataProofOptions {
-                type_: Some(proof_type),
-                proof_purpose: Some(ProofPurpose::AssertionMethod),
-                verification_method: Some(URI::String(verification_method.id.clone())),
-                created: creation_date,
-                ..Default::default()
-            },
-            &DIDKey,
-            &mut ContextLoader::default(),
-        )
-        .await?;
-    log::trace!("Proof preparation complete");
+#[cfg(not(target_arch = "wasm32"))]
+impl Signer<AnyMethod> for IntegritySigner {
+    type MessageSigner = Self;
 
-    Ok(proof_preparation)
+    async fn for_method(
+        &self,
+        _method: Cow<'_, AnyMethod>,
+    ) -> Result<Option<Self::MessageSigner>, ssi::claims::SignatureError> {
+        Ok(Some(self.clone()))
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+impl<A> MessageSigner<A> for IntegritySigner
+where
+    A: ssi::crypto::algorithm::SignatureAlgorithmType,
+{
+    async fn sign(
+        self,
+        _algorithm: A::Instance,
+        message: &[u8],
+    ) -> Result<Vec<u8>, ssi::claims::MessageSignatureError> {
+        self.signer
+            .sign(message)
+            .await
+            .map(|signature| signature.to_vec())
+            .map_err(ssi::claims::MessageSignatureError::signature_failed)
+    }
 }
 
 #[cfg(test)]
@@ -331,9 +357,12 @@ mod tests {
         let credential = issue_vc(subject, signer_type).await.unwrap();
 
         // Verify the credential has expected structure
-        assert!(credential.proof.is_some(), "Credential should have a proof");
         assert!(
-            credential.issuer.is_some(),
+            !credential.proofs.is_empty(),
+            "Credential should have a proof"
+        );
+        assert!(
+            !credential.issuer.id().as_str().is_empty(),
             "Credential should have an issuer"
         );
 
@@ -353,7 +382,10 @@ mod tests {
         let subject = "did:key:z6Mkw2PvzC9DHXiYQHMDRwyxCCV9n4EDc6vqqp1uyi9nrwsP";
         let credential = issue_vc(subject, signer_type).await.unwrap();
 
-        assert!(credential.proof.is_some(), "Credential should have a proof");
+        assert!(
+            !credential.proofs.is_empty(),
+            "Credential should have a proof"
+        );
 
         // Verify the credential subject contains the DID
         let vc_json = serde_json::to_string(&credential).unwrap();
@@ -395,11 +427,54 @@ mod tests {
         let subject = r#"{"id": "urn:cid:bafkr4ibthuzk3zug7ghmx63yjqaiu6rx4hhfdv3453j5bodskgw57bx2ya", "name": "Test Subject"}"#;
         let credential = issue_vc(subject, signer_type).await.unwrap();
 
-        assert!(credential.proof.is_some(), "Credential should have a proof");
+        assert!(
+            !credential.proofs.is_empty(),
+            "Credential should have a proof"
+        );
 
         // Verify the credential can be serialized
         let vc_json = serde_json::to_string(&credential);
         assert!(vc_json.is_ok(), "Credential should serialize to JSON");
+    }
+
+    #[tokio::test]
+    async fn test_sign_vc_from_unsigned_json() {
+        let _ = env_logger::builder().is_test(true).try_init();
+
+        let signer = Ed25519Signer::create().unwrap();
+        let signer_type = SignerType::ED25519(signer);
+
+        let unsigned_vc = serde_json::json!({
+            "@context": [
+                "https://www.w3.org/ns/credentials/v2",
+                "https://w3id.org/security/v2"
+            ],
+            "type": ["VerifiableCredential"],
+            "id": "urn:uuid:12345678-1234-1234-1234-123456789012",
+            "issuer": "did:key:z6Mkw2PvzC9DHXiYQHMDRwyxCCV9n4EDc6vqqp1uyi9nrwsP",
+            "issuanceDate": "2024-01-01T00:00:00Z",
+            "validFrom": "2024-01-01T00:00:00Z",
+            "credentialSubject": {
+                "id": "urn:cid:bafkr4ibthuzk3zug7ghmx63yjqaiu6rx4hhfdv3453j5bodskgw57bx2ya"
+            }
+        });
+
+        let unsigned_vc: UnsignedCredential = serde_json::from_value(unsigned_vc).unwrap();
+
+        let signed = sign_vc(&unsigned_vc, signer_type).await.unwrap();
+
+        assert!(
+            !signed.proofs.is_empty(),
+            "Signed credential should have a proof"
+        );
+
+        let vc_json = serde_json::to_string(&signed).unwrap();
+        let verification_result = verify_vc(&vc_json).await;
+        assert!(
+            verification_result.is_ok(),
+            "Signed credential should verify: {:?}",
+            verification_result.err()
+        );
     }
 
     #[tokio::test]

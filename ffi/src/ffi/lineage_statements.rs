@@ -2,7 +2,10 @@ use std::ffi::c_char;
 
 use serde::{de::DeserializeOwned, Deserialize};
 use serde_json::Value;
-use ssi::vc::Credential;
+use ssi::claims::{
+    data_integrity::{AnySuite, DataIntegrity},
+    vc::v1::JsonCredential,
+};
 
 use crate::{
     ffi::{
@@ -27,6 +30,8 @@ use crate::{
     },
     sigstore_bundle::SigstoreBundle,
 };
+
+type Credential = DataIntegrity<JsonCredential, AnySuite>;
 
 fn parse_request<T: DeserializeOwned>(
     request_json: String,
