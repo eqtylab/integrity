@@ -24,6 +24,8 @@ use crate::signer::{
 const DEFAULT_UNIX_AUTHORITY: &str = "x";
 const REGISTRATIONS_PATH: &str = "/v1/registrations";
 const SIGN_PATH: &str = "/v1/sign";
+const SIGN_HASH_ALG: &str = "SHA256";
+const SIGN_ALGO: &str = "ECDSA";
 
 /// Signer implementation for verified computing notary services.
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -273,7 +275,11 @@ impl Signer for VCompNotarySigner {
             &self.url,
             Method::POST,
             SIGN_PATH,
-            Some(json!({ "data": hex::encode(data) })),
+            Some(json!({
+                "data": hex::encode(data),
+                "hash": SIGN_HASH_ALG,
+                "algo": SIGN_ALGO,
+            })),
         )
         .await
         .context("failed to sign payload with VComp notary")?;
@@ -440,11 +446,15 @@ where
         .to_bytes();
 
     if !status.is_success() {
-        let body = String::from_utf8_lossy(&bytes);
+        let detail = serde_json::from_slice::<Value>(&bytes)
+            .ok()
+            .as_ref()
+            .and_then(|v| v.get("error"))
+            .and_then(|v| v.as_str())
+            .map(str::to_owned)
+            .unwrap_or_else(|| String::from_utf8_lossy(&bytes).trim().to_owned());
         bail!(
-            "VComp notary request {method} {path} failed: status={} body={}",
-            status,
-            body.trim()
+            "VComp notary request {method} {path} failed: status={status} error={detail}"
         );
     }
 
