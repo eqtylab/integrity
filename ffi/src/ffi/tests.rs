@@ -147,6 +147,70 @@ fn ffi_vc_issue_and_verify_smoke() {
 }
 
 #[test]
+fn ffi_vc_sign_roundtrip_from_unsigned_json() {
+    let mut runtime_handle = ptr::null_mut();
+    let mut err_out = ptr::null_mut();
+    let status = runtime::ig_runtime_new(&mut runtime_handle, &mut err_out);
+    assert_ok(status, err_out);
+
+    let mut signer_handle = ptr::null_mut();
+    let mut signer_did = ptr::null_mut();
+    let status =
+        signer::ig_signer_ed25519_create(&mut signer_handle, &mut signer_did, &mut err_out);
+    assert_ok(status, err_out);
+    let issuer_did = take_owned_c_string(signer_did);
+
+    let unsigned_vc = serde_json::json!({
+        "@context": [
+            "https://www.w3.org/ns/credentials/v2",
+            "https://w3id.org/security/v2"
+        ],
+        "type": ["VerifiableCredential"],
+        "id": "urn:uuid:12345678-1234-1234-1234-123456789012",
+        "issuer": issuer_did,
+        "issuanceDate": "2024-01-01T00:00:00Z",
+        "validFrom": "2024-01-01T00:00:00Z",
+        "credentialSubject": {
+            "id": "urn:cid:bafkr4ibthuzk3zug7ghmx63yjqaiu6rx4hhfdv3453j5bodskgw57bx2ya"
+        }
+    });
+    let unsigned_vc_json = cstring(&serde_json::to_string(&unsigned_vc).unwrap());
+
+    let mut signed_vc_ptr = ptr::null_mut();
+    let status = vc::ig_vc_sign(
+        runtime_handle,
+        signer_handle,
+        unsigned_vc_json.as_ptr(),
+        &mut signed_vc_ptr,
+        &mut err_out,
+    );
+    assert_ok(status, err_out);
+
+    let signed_vc_json = take_owned_c_string(signed_vc_ptr);
+    let signed_vc: Value = serde_json::from_str(&signed_vc_json).expect("valid signed vc json");
+    assert!(signed_vc.get("proof").is_some());
+
+    let signed_vc_c = cstring(&signed_vc_json);
+    let mut verify_result_ptr = ptr::null_mut();
+    let mut is_valid = false;
+    let status = vc::ig_vc_verify(
+        runtime_handle,
+        signed_vc_c.as_ptr(),
+        &mut verify_result_ptr,
+        &mut is_valid,
+        &mut err_out,
+    );
+    assert_ok(status, err_out);
+
+    let verify_result = take_owned_c_string(verify_result_ptr);
+    assert!(verify_result.contains("VC verification result"));
+    assert!(is_valid);
+
+    signer::ig_signer_free(signer_handle);
+    runtime::ig_runtime_free(runtime_handle);
+}
+
+#[test]
 fn ffi_blob_store_local_fs_roundtrip() {
     let mut runtime_handle = ptr::null_mut();
     let mut err_out = ptr::null_mut();
