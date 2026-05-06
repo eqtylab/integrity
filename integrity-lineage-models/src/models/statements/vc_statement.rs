@@ -365,4 +365,192 @@ mod tests {
             "\"registeredBy\":\"did:key:z6Mkw2PvzC9DHXiYQHMDRwyxCCV9n4EDc6vqqp1uyi9nrwsP\""
         ));
     }
+
+    #[tokio::test]
+    async fn referenced_cids_no_credential_id() {
+        // Credential without an `id` field produces no refs from that field
+        let vc_json = json!({
+            "@context": ["https://www.w3.org/ns/credentials/v2"],
+            "type": ["VerifiableCredential"],
+            "issuer": "did:key:z6Mkw2PvzC9DHXiYQHMDRwyxCCV9n4EDc6vqqp1uyi9nrwsP",
+            "issuanceDate": "2024-01-01T00:00:00Z",
+            "credentialSubject": {
+                "id": "urn:cid:bafkr4ibthuzk3zug7ghmx63yjqaiu6rx4hhfdv3453j5bodskgw57bx2ya"
+            }
+        });
+        let credential =
+            Credential::from_json_unsigned(&serde_json::to_string(&vc_json).unwrap()).unwrap();
+
+        let statement = VcStatement::create(
+            credential,
+            "did:key:z6Mkw2PvzC9DHXiYQHMDRwyxCCV9n4EDc6vqqp1uyi9nrwsP".to_owned(),
+            Some("2024-06-27T21:40:37Z".to_owned()),
+        )
+        .await
+        .unwrap();
+
+        // No credential id means no refs from that path
+        let refs = statement.referenced_cids();
+        assert!(
+            refs.is_empty(),
+            "Expected no refs when credential has no id"
+        );
+    }
+
+    #[tokio::test]
+    async fn referenced_cids_all_eight_evidence_keys() {
+        let mut credential = create_test_credential();
+        // Strip credential id so refs come exclusively from evidence
+        credential.id = None;
+
+        let mut props = HashMap::new();
+        props.insert("report".to_string(), json!("urn:cid:report"));
+        props.insert("certificateChain".to_string(), json!("urn:cid:chain"));
+        props.insert(
+            "reportCertificateChain".to_string(),
+            json!("urn:cid:rchain"),
+        );
+        props.insert("tpmQuote".to_string(), json!("urn:cid:quote"));
+        props.insert("tpmQuoteSignature".to_string(), json!("urn:cid:quotesig"));
+        props.insert("tpmAKCertificate".to_string(), json!("urn:cid:akcert"));
+        props.insert("tpmLog".to_string(), json!("urn:cid:tpmlog"));
+        props.insert("azureBootLog".to_string(), json!("urn:cid:bootlog"));
+        credential.evidence = Some(OneOrMany::One(Evidence {
+            id: None,
+            type_: vec!["AttestationEvidence".to_string()],
+            property_set: Some(props),
+        }));
+
+        let statement = VcStatement::create(
+            credential,
+            "did:key:z6Mkw2PvzC9DHXiYQHMDRwyxCCV9n4EDc6vqqp1uyi9nrwsP".to_owned(),
+            Some("2024-06-27T21:40:37Z".to_owned()),
+        )
+        .await
+        .unwrap();
+
+        let refs = statement.referenced_cids();
+        assert_eq!(refs.len(), 8, "All eight evidence keys should be extracted");
+        for expected in &[
+            "urn:cid:report",
+            "urn:cid:chain",
+            "urn:cid:rchain",
+            "urn:cid:quote",
+            "urn:cid:quotesig",
+            "urn:cid:akcert",
+            "urn:cid:tpmlog",
+            "urn:cid:bootlog",
+        ] {
+            assert!(
+                refs.contains(&expected.to_string()),
+                "Missing ref: {expected}"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn referenced_cids_skips_non_string_evidence_values() {
+        let mut credential = create_test_credential();
+        credential.id = None;
+
+        let mut props = HashMap::new();
+        props.insert("report".to_string(), json!(42)); // number, not a string
+        props.insert("certificateChain".to_string(), json!(true)); // bool, not a string
+        props.insert("tpmLog".to_string(), json!("urn:cid:validcid")); // valid
+        credential.evidence = Some(OneOrMany::One(Evidence {
+            id: None,
+            type_: vec!["AttestationEvidence".to_string()],
+            property_set: Some(props),
+        }));
+
+        let statement = VcStatement::create(
+            credential,
+            "did:key:z6Mkw2PvzC9DHXiYQHMDRwyxCCV9n4EDc6vqqp1uyi9nrwsP".to_owned(),
+            Some("2024-06-27T21:40:37Z".to_owned()),
+        )
+        .await
+        .unwrap();
+
+        let refs = statement.referenced_cids();
+        assert_eq!(refs, vec!["urn:cid:validcid".to_string()]);
+    }
+
+    #[tokio::test]
+    async fn referenced_cids_multiple_evidence_entries() {
+        let mut credential = create_test_credential();
+        credential.id = None;
+
+        let mut props1 = HashMap::new();
+        props1.insert("report".to_string(), json!("urn:cid:report1"));
+        let mut props2 = HashMap::new();
+        props2.insert("report".to_string(), json!("urn:cid:report2"));
+
+        credential.evidence = Some(OneOrMany::Many(vec![
+            Evidence {
+                id: None,
+                type_: vec!["AttestationEvidence".to_string()],
+                property_set: Some(props1),
+            },
+            Evidence {
+                id: None,
+                type_: vec!["AttestationEvidence".to_string()],
+                property_set: Some(props2),
+            },
+        ]));
+
+        let statement = VcStatement::create(
+            credential,
+            "did:key:z6Mkw2PvzC9DHXiYQHMDRwyxCCV9n4EDc6vqqp1uyi9nrwsP".to_owned(),
+            Some("2024-06-27T21:40:37Z".to_owned()),
+        )
+        .await
+        .unwrap();
+
+        let refs = statement.referenced_cids();
+        assert_eq!(refs.len(), 2);
+        assert!(refs.contains(&"urn:cid:report1".to_string()));
+        assert!(refs.contains(&"urn:cid:report2".to_string()));
+    }
+
+    #[tokio::test]
+    async fn different_inputs_produce_different_cids() {
+        let credential = create_test_credential();
+        let registered_by = "did:key:z6Mkw2PvzC9DHXiYQHMDRwyxCCV9n4EDc6vqqp1uyi9nrwsP";
+        let timestamp = "2024-06-27T21:40:37Z";
+
+        let s1 = VcStatement::create(
+            credential.clone(),
+            registered_by.to_owned(),
+            Some(timestamp.to_owned()),
+        )
+        .await
+        .unwrap();
+
+        let s2 = VcStatement::create(
+            credential,
+            "did:key:z6MksNPQf5wQwQfA2a5JY9xY8h6CZ9nHp4Y5qpc4kTYqN6xw".to_owned(),
+            Some(timestamp.to_owned()),
+        )
+        .await
+        .unwrap();
+
+        assert_ne!(
+            s1.id, s2.id,
+            "Different registeredBy should produce different CIDs"
+        );
+    }
+
+    #[tokio::test]
+    async fn get_type_string_returns_credential_registration() {
+        let statement = VcStatement::create(
+            create_test_credential(),
+            "did:key:z6Mkw2PvzC9DHXiYQHMDRwyxCCV9n4EDc6vqqp1uyi9nrwsP".to_owned(),
+            Some("2024-06-27T21:40:37Z".to_owned()),
+        )
+        .await
+        .unwrap();
+
+        let type_string = statement.get_type_string().unwrap();
+        assert_eq!(type_string, "CredentialRegistration");
+    }
 }
