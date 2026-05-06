@@ -9,7 +9,7 @@ use std::{
 use anchor::Anchor;
 use anyhow::{anyhow, Result};
 use base64::engine::{general_purpose::STANDARD as BASE64, Engine};
-use cid::{multihash::MultihashGeneric, Cid};
+use cid::{multihash::Multihash, Cid};
 use futures::{stream, stream::StreamExt};
 use integrity_blob::BlobStore;
 use integrity_cid::collection::hashmap_for_iroh_collection;
@@ -145,7 +145,7 @@ pub async fn resolve_blobs(
                             // add iroh meta blob
                             let iroh_meta_blob_hash = blob[0..32].to_vec();
                             let iroh_meta_blob_multihash =
-                                MultihashGeneric::wrap(BLAKE3, &iroh_meta_blob_hash).unwrap();
+                                Multihash::wrap(BLAKE3, &iroh_meta_blob_hash).unwrap();
                             let iroh_meta_blob_cid =
                                 Cid::new_v1(RAW_BINARY, iroh_meta_blob_multihash).to_string();
 

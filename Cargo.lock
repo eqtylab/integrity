@@ -3563,7 +3563,6 @@ dependencies = [
  "tokio",
  "tokio-rustls 0.26.4",
  "tower-service",
- "webpki-roots 1.0.6",
 ]
 
 [[package]]
@@ -3881,7 +3880,7 @@ dependencies = [
  "integrity-sigstore",
  "integrity-vc",
  "openssl",
- "reqwest 0.12.28",
+ "reqwest 0.13.1",
  "serde_json",
  "tokio",
  "wasm-bindgen-test",
@@ -3899,7 +3898,7 @@ dependencies = [
  "azure_storage_blobs",
  "blake3",
  "bytes",
- "cid 0.10.1",
+ "cid 0.11.3",
  "google-cloud-storage",
  "iroh-blake3",
  "log",
@@ -3912,7 +3911,7 @@ dependencies = [
  "anyhow",
  "blake3",
  "bytes",
- "cid 0.10.1",
+ "cid 0.11.3",
  "ignore",
  "integrity-blob",
  "iroh-base",
@@ -3959,7 +3958,7 @@ version = "0.0.1"
 dependencies = [
  "anyhow",
  "base64 0.21.7",
- "cid 0.10.1",
+ "cid 0.11.3",
  "did-key",
  "hex",
  "integrity-signer",
@@ -3997,7 +3996,7 @@ dependencies = [
  "base64 0.21.7",
  "blake3",
  "chrono",
- "cid 0.10.1",
+ "cid 0.11.3",
  "futures",
  "hex",
  "integrity-blob",
@@ -4024,7 +4023,7 @@ version = "0.0.1"
 dependencies = [
  "anyhow",
  "bs58 0.5.1",
- "cid 0.10.1",
+ "cid 0.11.3",
  "hex",
  "integrity-blob",
  "integrity-cid",
@@ -4055,7 +4054,7 @@ dependencies = [
  "hyper-util",
  "log",
  "p256 0.13.2",
- "reqwest 0.12.28",
+ "reqwest 0.13.1",
  "serde",
  "serde_json",
  "sha2 0.10.9",
@@ -6348,7 +6347,7 @@ dependencies = [
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",
- "webpki-roots 0.25.4",
+ "webpki-roots",
  "winreg",
 ]
 
@@ -6361,7 +6360,6 @@ dependencies = [
  "base64 0.22.1",
  "bytes",
  "encoding_rs",
- "futures-channel",
  "futures-core",
  "futures-util",
  "h2 0.4.13",
@@ -6378,8 +6376,6 @@ dependencies = [
  "native-tls",
  "percent-encoding",
  "pin-project-lite",
- "quinn 0.11.9",
- "rustls 0.23.36",
  "rustls-pki-types",
  "serde",
  "serde_json",
@@ -6387,7 +6383,6 @@ dependencies = [
  "sync_wrapper 1.0.2",
  "tokio",
  "tokio-native-tls",
- "tokio-rustls 0.26.4",
  "tokio-util",
  "tower",
  "tower-http",
@@ -6397,7 +6392,6 @@ dependencies = [
  "wasm-bindgen-futures",
  "wasm-streams",
  "web-sys",
- "webpki-roots 1.0.6",
 ]
 
 [[package]]
@@ -6408,8 +6402,11 @@ checksum = "04e9018c9d814e5f30cc16a0f03271aeab3571e609612d9fe78c1aa8d11c2f62"
 dependencies = [
  "base64 0.22.1",
  "bytes",
+ "encoding_rs",
+ "futures-channel",
  "futures-core",
  "futures-util",
+ "h2 0.4.13",
  "http 1.4.0",
  "http-body 1.0.1",
  "http-body-util",
@@ -6418,6 +6415,7 @@ dependencies = [
  "hyper-util",
  "js-sys",
  "log",
+ "mime",
  "mime_guess",
  "percent-encoding",
  "pin-project-lite",
@@ -6615,7 +6613,6 @@ dependencies = [
  "aws-lc-rs",
  "log",
  "once_cell",
- "ring 0.17.14",
  "rustls-pki-types",
  "rustls-webpki 0.103.8",
  "subtle",
@@ -9086,15 +9083,6 @@ name = "webpki-roots"
 version = "0.25.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5f20c57d8d7db6d3b86154206ae5d8fba62dd39573114de97c2cb0578251f8e1"
-
-[[package]]
-name = "webpki-roots"
-version = "1.0.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "22cfaf3c063993ff62e73cb4311efde4db1efb31ab78a3e5c457939ad5cc0bed"
-dependencies = [
- "rustls-pki-types",
-]
 
 [[package]]
 name = "winapi"
