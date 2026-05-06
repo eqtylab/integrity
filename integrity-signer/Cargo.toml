@@ -10,7 +10,6 @@ signer-p256 = []
 signer-secp256k1 = []
 signer-auth-service = ["dep:reqwest", "dep:sha2"]
 signer-vcomp-notary = [
-  "dep:reqwest",
   "dep:hyper",
   "dep:hyper-util",
   "dep:http-body-util",
