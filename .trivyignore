@@ -1,0 +1,7 @@
+# integrity - Trivy ignore file
+# Add CVE suppressions here as false positives are discovered.
+# Format: one CVE ID per line, with a comment explaining the justification.
+
+# quinn-proto 0.10.6 — DoS via crafted QUIC Initial packet. Only affects QUIC servers;
+# we use quinn-proto as a client via reqwest HTTP/3. Not exploitable.
+CVE-2026-31812
