@@ -314,7 +314,9 @@ async fn prepare_vc_proof(
 #[cfg(test)]
 #[cfg(not(target_arch = "wasm32"))]
 mod tests {
+    use chrono::Utc;
     use integrity_signer::{Ed25519Signer, SignerType};
+    use ssi::vc::VCDateTime;
 
     use super::*;
 
@@ -495,6 +497,166 @@ mod tests {
             credential.is_ok(),
             "VerifiableCredential should convert to Credential: {:?}",
             credential.err()
+        );
+    }
+
+    #[tokio::test]
+    async fn test_from_did_doc_sets_issuer_from_did_doc_id() {
+        let signer = Ed25519Signer::create().unwrap();
+        let did_doc = signer.did_doc.clone();
+        let expected_issuer = did_doc.id.clone();
+
+        let vc = VerifiableCredential::from_did_doc("urn:cid:abc", &did_doc);
+
+        assert_eq!(vc.issuer, expected_issuer);
+        assert_eq!(
+            vc.subject, "urn:cid:abc",
+            "Subject should be passed through unchanged"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_verifiable_credential_with_explicit_id_and_dates() {
+        let signer = Ed25519Signer::create().unwrap();
+        let did_doc = signer.did_doc.clone();
+
+        let vc = VerifiableCredential {
+            id: Some("urn:uuid:aaaabbbb-cccc-dddd-eeee-ffffffffffff".to_string()),
+            issuance_date: Some("2023-03-15T10:00:00Z".to_string()),
+            valid_from: Some("2023-03-15T10:00:00Z".to_string()),
+            ..VerifiableCredential::from_did_doc("urn:cid:abc", &did_doc)
+        };
+
+        let json = serde_json::to_string(&vc).unwrap();
+        assert!(json.contains("aaaabbbb-cccc-dddd-eeee-ffffffffffff"));
+        assert!(json.contains("2023-03-15T10:00:00Z"));
+    }
+
+    #[tokio::test]
+    async fn test_verifiable_credential_with_expiration_date() {
+        let signer = Ed25519Signer::create().unwrap();
+        let did_doc = signer.did_doc.clone();
+
+        let expiry = Utc::now() + chrono::Duration::days(365);
+        let vc = VerifiableCredential {
+            expiration_date: Some(VCDateTime::from(expiry)),
+            ..VerifiableCredential::from_did_doc("urn:cid:abc", &did_doc)
+        };
+
+        let json = serde_json::to_string(&vc).unwrap();
+        assert!(
+            json.contains("validUntil"),
+            "Serialized VC should include validUntil"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_verifiable_credential_with_evidence() {
+        let signer = Ed25519Signer::create().unwrap();
+        let did_doc = signer.did_doc.clone();
+
+        let evidence = serde_json::json!({
+            "type": "DocumentVerification",
+            "verifier": "did:key:z6Mkw2PvzC9DHXiYQHMDRwyxCCV9n4EDc6vqqp1uyi9nrwsP"
+        });
+        let vc = VerifiableCredential {
+            evidence: Some(evidence.clone()),
+            ..VerifiableCredential::from_did_doc("urn:cid:abc", &did_doc)
+        };
+
+        let json = serde_json::to_string(&vc).unwrap();
+        assert!(
+            json.contains("DocumentVerification"),
+            "Evidence should appear in serialized output"
+        );
+        assert!(json.contains("evidence"));
+    }
+
+    #[tokio::test]
+    async fn test_verifiable_credential_invalid_issuance_date_is_error() {
+        let signer = Ed25519Signer::create().unwrap();
+        let did_doc = signer.did_doc.clone();
+
+        let vc = VerifiableCredential {
+            issuance_date: Some("not-a-date".to_string()),
+            ..VerifiableCredential::from_did_doc("urn:cid:abc", &did_doc)
+        };
+
+        let result = serde_json::to_string(&vc);
+        assert!(
+            result.is_err(),
+            "Serialization should fail with an invalid issuance_date"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_verify_vc_fails_with_invalid_json() {
+        let result = verify_vc("this is not json at all").await;
+        assert!(result.is_err(), "verify_vc should fail on invalid JSON");
+    }
+
+    #[tokio::test]
+    async fn test_verify_vc_fails_with_unsigned_credential() {
+        let unsigned = serde_json::json!({
+            "@context": ["https://www.w3.org/ns/credentials/v2"],
+            "type": ["VerifiableCredential"],
+            "issuer": "did:key:z6Mkw2PvzC9DHXiYQHMDRwyxCCV9n4EDc6vqqp1uyi9nrwsP",
+            "issuanceDate": "2024-01-01T00:00:00Z",
+            "credentialSubject": {
+                "id": "urn:cid:bafkr4ibthuzk3zug7ghmx63yjqaiu6rx4hhfdv3453j5bodskgw57bx2ya"
+            }
+        });
+
+        let result = verify_vc(&serde_json::to_string(&unsigned).unwrap()).await;
+        assert!(
+            result.is_err(),
+            "verify_vc should fail for a credential with no proof"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_verify_vc_fails_with_tampered_credential() {
+        let _ = env_logger::builder().is_test(true).try_init();
+
+        let signer = Ed25519Signer::create().unwrap();
+        let signer_type = SignerType::ED25519(signer);
+        let credential = issue_vc(
+            "urn:cid:bafkr4ibthuzk3zug7ghmx63yjqaiu6rx4hhfdv3453j5bodskgw57bx2ya",
+            signer_type,
+        )
+        .await
+        .unwrap();
+
+        let mut vc_value: serde_json::Value =
+            serde_json::from_str(&serde_json::to_string(&credential).unwrap()).unwrap();
+        // Tamper: swap the issuer for a different DID
+        vc_value["issuer"] =
+            serde_json::json!("did:key:z6MksNPQf5wQwQfA2a5JY9xY8h6CZ9nHp4Y5qpc4kTYqN6xw");
+
+        let result = verify_vc(&serde_json::to_string(&vc_value).unwrap()).await;
+        assert!(
+            result.is_err(),
+            "verify_vc should fail for a tampered credential"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_issue_vc_json_subject_end_to_end_verify() {
+        let _ = env_logger::builder().is_test(true).try_init();
+
+        let signer = Ed25519Signer::create().unwrap();
+        let signer_type = SignerType::ED25519(signer);
+
+        let subject =
+            r#"{"id": "urn:cid:bafkr4ibthuzk3zug7ghmx63yjqaiu6rx4hhfdv3453j5bodskgw57bx2ya"}"#;
+        let credential = issue_vc(subject, signer_type).await.unwrap();
+
+        let vc_json = serde_json::to_string(&credential).unwrap();
+        let result = verify_vc(&vc_json).await;
+        assert!(
+            result.is_ok(),
+            "Credential with JSON subject should verify: {:?}",
+            result.err()
         );
     }
 }
