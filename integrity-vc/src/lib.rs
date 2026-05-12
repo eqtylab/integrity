@@ -19,8 +19,12 @@ use serde_json::Value;
 use ssi::{jsonld::ContextLoader, vc::Credential};
 #[cfg(not(target_arch = "wasm32"))]
 use ssi::{
+    jsonld::{json_to_dataset, parse_ld_context, rdf::DataSet},
     jwk::JWK,
-    ldp::{ProofPreparation, ProofSuite, ProofSuiteType, SigningInput},
+    ldp::{
+        Error as LdpError, LinkedDataDocument, LinkedDataProofs, Proof, ProofPreparation,
+        ProofSuite, ProofSuiteType, SigningInput,
+    },
     one_or_many::OneOrMany,
     vc::{LinkedDataProofOptions, ProofPurpose, VCDateTime, URI},
 };
@@ -171,6 +175,147 @@ pub async fn issue_vc(subject: &str, signer: SignerType) -> Result<Credential> {
     sign_vc(&vc.try_into()?, signer).await
 }
 
+/// Creates and signs a revocable Verifiable Credential.
+///
+/// Builds an unsigned VC, posts it to the vc-status-server at
+/// `status_server_url` to allocate a status-list slot, then signs the
+/// returned VC (which now carries `credentialStatus` entries) and returns
+/// it as a JSON string.
+///
+/// # Arguments
+///
+/// * `subject` - The credential subject identifier (DID or other identifier).
+/// * `signer` - The signer to use for signing the credential.
+/// * `status_server_url` - Base URL of the VC status server (no path, with or
+///   without trailing slash).
+/// * `status_server_jwt` - Bearer JWT issued by the status server. Its `sub`
+///   claim must match the VC's issuer (the signer's DID); otherwise the
+///   server returns 403.
+///
+/// # Returns
+///
+/// The signed VC as a JSON string. A string is returned (rather than an
+/// `ssi::vc::Credential`) because the status server appends multiple
+/// `credentialStatus` entries (one per purpose), which ssi 0.7's
+/// `Credential` struct cannot model — it expects a single object. The raw
+/// JSON preserves the server response verbatim.
+#[cfg(not(target_arch = "wasm32"))]
+pub async fn issue_revocable_vc(
+    subject: &str,
+    signer: SignerType,
+    status_server_url: &str,
+    status_server_jwt: &str,
+) -> Result<String> {
+    log::debug!("Issuing revocable VC for '{subject}' via {status_server_url}");
+
+    let did_doc = signer.get_did_doc();
+    let vc = VerifiableCredential::from_did_doc(subject, &did_doc);
+    let unsigned_vc: Credential = vc.try_into()?;
+    let unsigned_json = serde_json::to_string(&unsigned_vc)?;
+    log::trace!("Unsigned VC sent to status server: {unsigned_json}");
+
+    let url = format!(
+        "{}/credentials/status/allocate",
+        status_server_url.trim_end_matches('/')
+    );
+    let resp = reqwest::Client::new()
+        .post(&url)
+        .bearer_auth(status_server_jwt)
+        .header("Content-Type", "application/json")
+        .body(unsigned_json)
+        .send()
+        .await?;
+
+    let status = resp.status();
+    let body = resp.text().await?;
+    log::trace!("Status server response ({status}): {body}");
+
+    if !status.is_success() {
+        bail!("status server allocate failed ({status}): {body}");
+    }
+
+    let mut allocated: Value = serde_json::from_str(&body)
+        .map_err(|e| anyhow!("failed to parse allocated VC body as JSON: {e}. Body: {body}"))?;
+
+    // Server is supposed to strip pre-existing proofs, but be defensive so the
+    // signature is always over the proof-less doc.
+    if let Some(obj) = allocated.as_object_mut() {
+        obj.remove("proof");
+    }
+
+    let proof_date = allocated
+        .get("issuanceDate")
+        .and_then(Value::as_str)
+        .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok())
+        .map(|dt| dt.with_timezone(&Utc))
+        .or_else(|| Some(Utc::now() - chrono::Duration::hours(1)));
+
+    let raw_doc = RawJsonVc {
+        value: allocated.clone(),
+    };
+    let proof = sign_ld_doc(&raw_doc, signer, proof_date).await?;
+
+    if let Some(obj) = allocated.as_object_mut() {
+        obj.insert("proof".to_string(), serde_json::to_value(&proof)?);
+    }
+
+    Ok(serde_json::to_string(&allocated)?)
+}
+
+/// A `LinkedDataDocument` that wraps an arbitrary JSON-LD VC document.
+///
+/// Used to sign VCs whose shape (e.g. multi-entry `credentialStatus`) the
+/// strongly-typed `ssi::vc::Credential` cannot represent.
+#[cfg(not(target_arch = "wasm32"))]
+struct RawJsonVc {
+    value: Value,
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+#[async_trait::async_trait]
+impl LinkedDataDocument for RawJsonVc {
+    fn get_contexts(&self) -> Result<Option<String>, LdpError> {
+        let ctx = self
+            .value
+            .get("@context")
+            .cloned()
+            .unwrap_or(serde_json::json!([]));
+        Ok(Some(serde_json::to_string(&ctx)?))
+    }
+
+    async fn to_dataset_for_signing(
+        &self,
+        parent: Option<&(dyn LinkedDataDocument + Sync)>,
+        context_loader: &mut ContextLoader,
+    ) -> Result<DataSet, LdpError> {
+        let mut copy = self.value.clone();
+        if let Some(obj) = copy.as_object_mut() {
+            obj.remove("proof");
+        }
+        let json = ssi::jsonld::syntax::to_value_with(copy, Default::default).unwrap();
+        let parent_ctx = parent
+            .map(LinkedDataDocument::get_contexts)
+            .transpose()?
+            .flatten()
+            .as_deref()
+            .map(parse_ld_context)
+            .transpose()?;
+        Ok(json_to_dataset(json, context_loader, parent_ctx).await?)
+    }
+
+    fn to_value(&self) -> Result<Value, LdpError> {
+        Ok(self.value.clone())
+    }
+
+    fn get_issuer(&self) -> Option<&str> {
+        self.value.get("issuer").and_then(Value::as_str)
+    }
+
+    fn get_default_proof_purpose(&self) -> Option<ProofPurpose> {
+        Some(ProofPurpose::AssertionMethod)
+    }
+}
+
 /// Creates a VC proof and signs the provided credential.
 ///
 /// # Arguments
@@ -188,32 +333,10 @@ pub async fn sign_vc(unsigned_vc: &Credential, signer: SignerType) -> Result<Cre
         Some(date.into())
     } else {
         // backdate by 1 hour so VCs are valid immediately even between systems with slightly different clock drifts
-        Some(chrono::Utc::now() - chrono::Duration::hours(1))
+        Some(Utc::now() - chrono::Duration::hours(1))
     };
 
-    log::trace!("Getting DID Doc from signer");
-    let did_doc = signer.get_did_doc();
-    let proof_preparation = &prepare_vc_proof(&did_doc, unsigned_vc, proof_date).await?;
-
-    let ProofPreparation {
-        proof,
-        signing_input,
-        ..
-    } = proof_preparation;
-
-    let signature = {
-        let data = match signing_input {
-            SigningInput::Bytes(bytes) => bytes,
-            _ => bail!("Invalid signing input type. Expected bytes."),
-        };
-        let data = data.0.as_slice();
-
-        let signature = signer.sign(data).await?;
-
-        BASE64_URL_NO_PAD.encode(signature)
-    };
-
-    let proof = proof.type_.complete(proof_preparation, &signature).await?;
+    let proof = sign_ld_doc(unsigned_vc, signer, proof_date).await?;
 
     let signed_vc = Credential {
         proof: Some(OneOrMany::One(proof)),
@@ -221,6 +344,38 @@ pub async fn sign_vc(unsigned_vc: &Credential, signer: SignerType) -> Result<Cre
     };
 
     Ok(signed_vc)
+}
+
+/// Generic JSON-LD document signing flow used by both `sign_vc` and
+/// `issue_revocable_vc`.
+///
+/// Prepares a linked-data proof for the given document, hands the canonical
+/// signing-input bytes to the signer, completes the proof with the resulting
+/// signature, and returns the finished `Proof`. Callers attach it to their
+/// own document representation.
+#[cfg(not(target_arch = "wasm32"))]
+async fn sign_ld_doc(
+    doc: &(dyn LinkedDataDocument + Sync),
+    signer: SignerType,
+    proof_date: Option<DateTime<Utc>>,
+) -> Result<Proof> {
+    log::trace!("Getting DID Doc from signer");
+    let did_doc = signer.get_did_doc();
+    let proof_preparation = prepare_vc_proof(&did_doc, doc, proof_date).await?;
+
+    let data = match &proof_preparation.signing_input {
+        SigningInput::Bytes(bytes) => bytes.0.clone(),
+        _ => bail!("Invalid signing input type. Expected bytes."),
+    };
+
+    let signature = signer.sign(&data).await?;
+    let signature = BASE64_URL_NO_PAD.encode(signature);
+
+    Ok(proof_preparation
+        .proof
+        .type_
+        .complete(&proof_preparation, &signature)
+        .await?)
 }
 
 /// Verifies a Verifiable Credential.
@@ -252,7 +407,7 @@ pub async fn verify_vc(vc: &str) -> Result<String> {
 #[cfg(not(target_arch = "wasm32"))]
 async fn prepare_vc_proof(
     did: &did_key::Document,
-    unsigned_vc: &Credential,
+    doc: &(dyn LinkedDataDocument + Sync),
     creation_date: Option<DateTime<Utc>>,
 ) -> Result<ProofPreparation> {
     log::trace!("Preparing VC Proof");
@@ -292,20 +447,21 @@ async fn prepare_vc_proof(
         }
     };
 
-    let proof_preparation = unsigned_vc
-        .prepare_proof(
-            &jwk,
-            &LinkedDataProofOptions {
-                type_: Some(proof_type),
-                proof_purpose: Some(ProofPurpose::AssertionMethod),
-                verification_method: Some(URI::String(verification_method.id.clone())),
-                created: creation_date,
-                ..Default::default()
-            },
-            &DIDKey,
-            &mut ContextLoader::default(),
-        )
-        .await?;
+    let proof_preparation = LinkedDataProofs::prepare(
+        doc,
+        &LinkedDataProofOptions {
+            type_: Some(proof_type),
+            proof_purpose: Some(ProofPurpose::AssertionMethod),
+            verification_method: Some(URI::String(verification_method.id.clone())),
+            created: creation_date,
+            ..Default::default()
+        },
+        &DIDKey,
+        &mut ContextLoader::default(),
+        &jwk,
+        None,
+    )
+    .await?;
     log::trace!("Proof preparation complete");
 
     Ok(proof_preparation)
@@ -433,6 +589,125 @@ mod tests {
         );
         assert!(vc_json.contains("issuer"), "Should have issuer");
         assert!(vc_json.contains("issuanceDate"), "Should have issuanceDate");
+    }
+
+    #[tokio::test]
+    async fn test_issue_revocable_vc() {
+        use wiremock::{
+            matchers::{header, method, path},
+            Mock, MockServer, Request, Respond, ResponseTemplate,
+        };
+
+        struct AllocateResponder;
+        impl Respond for AllocateResponder {
+            fn respond(&self, req: &Request) -> ResponseTemplate {
+                let mut vc: serde_json::Value = serde_json::from_slice(&req.body).unwrap();
+                vc["credentialStatus"] = serde_json::json!([
+                    {
+                        "id": "https://status.example/status-lists/abc#42",
+                        "type": "BitstringStatusListEntry",
+                        "statusPurpose": "revocation",
+                        "statusListIndex": "42",
+                        "statusListCredential": "https://status.example/status-lists/abc"
+                    },
+                    {
+                        "id": "https://status.example/status-lists/abc#43",
+                        "type": "BitstringStatusListEntry",
+                        "statusPurpose": "suspension",
+                        "statusListIndex": "43",
+                        "statusListCredential": "https://status.example/status-lists/abc"
+                    }
+                ]);
+                ResponseTemplate::new(200).set_body_json(vc)
+            }
+        }
+
+        let _ = env_logger::builder().is_test(true).try_init();
+        let server = MockServer::start().await;
+
+        Mock::given(method("POST"))
+            .and(path("/credentials/status/allocate"))
+            .and(header("Authorization", "Bearer test-jwt"))
+            .respond_with(AllocateResponder)
+            .mount(&server)
+            .await;
+
+        let signer = Ed25519Signer::create().unwrap();
+        let signer_type = SignerType::ED25519(signer);
+        let vc_json = issue_revocable_vc(
+            "did:key:z6Mkw2PvzC9DHXiYQHMDRwyxCCV9n4EDc6vqqp1uyi9nrwsP",
+            signer_type,
+            &server.uri(),
+            "test-jwt",
+        )
+        .await
+        .unwrap();
+
+        let parsed: serde_json::Value = serde_json::from_str(&vc_json).unwrap();
+        assert!(
+            parsed.get("proof").is_some(),
+            "VC should have a proof: {vc_json}"
+        );
+
+        let status = parsed
+            .get("credentialStatus")
+            .and_then(|v| v.as_array())
+            .expect("credentialStatus should be an array preserved from server response");
+        assert_eq!(
+            status.len(),
+            2,
+            "Both revocation and suspension entries preserved"
+        );
+        assert!(
+            status
+                .iter()
+                .any(|e| e.get("statusPurpose").and_then(|v| v.as_str()) == Some("revocation")),
+            "Should retain revocation entry"
+        );
+        assert!(
+            status
+                .iter()
+                .any(|e| e.get("statusPurpose").and_then(|v| v.as_str()) == Some("suspension")),
+            "Should retain suspension entry"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_issue_revocable_vc_propagates_server_error() {
+        use wiremock::{
+            matchers::{method, path},
+            Mock, MockServer, ResponseTemplate,
+        };
+
+        let _ = env_logger::builder().is_test(true).try_init();
+        let server = MockServer::start().await;
+
+        Mock::given(method("POST"))
+            .and(path("/credentials/status/allocate"))
+            .respond_with(
+                ResponseTemplate::new(403)
+                    .set_body_string(r#"{"error":"forbidden","message":"sub mismatch"}"#),
+            )
+            .mount(&server)
+            .await;
+
+        let signer = Ed25519Signer::create().unwrap();
+        let signer_type = SignerType::ED25519(signer);
+        let err = issue_revocable_vc(
+            "did:key:z6Mkw2PvzC9DHXiYQHMDRwyxCCV9n4EDc6vqqp1uyi9nrwsP",
+            signer_type,
+            &server.uri(),
+            "test-jwt",
+        )
+        .await
+        .unwrap_err();
+
+        let msg = format!("{err}");
+        assert!(msg.contains("403"), "error should mention status: {msg}");
+        assert!(
+            msg.contains("sub mismatch"),
+            "error should include body: {msg}"
+        );
     }
 
     #[tokio::test]

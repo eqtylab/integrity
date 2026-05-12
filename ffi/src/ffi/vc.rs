@@ -34,6 +34,34 @@ pub extern "C" fn ig_vc_issue(
 }
 
 #[no_mangle]
+pub extern "C" fn ig_vc_issue_revocable(
+    runtime: *const IgRuntimeHandle,
+    signer: *const IgSignerHandle,
+    subject: *const c_char,
+    status_server_url: *const c_char,
+    status_server_jwt: *const c_char,
+    out_credential_json: *mut *mut c_char,
+    err_out: *mut *mut c_char,
+) -> IgStatus {
+    run_ffi(err_out, || {
+        let runtime = as_ref(runtime, "runtime")?;
+        let signer = as_ref(signer, "signer")?;
+        let subject = cstr_to_string(subject, "subject")?;
+        let status_server_url = cstr_to_string(status_server_url, "status_server_url")?;
+        let status_server_jwt = cstr_to_string(status_server_jwt, "status_server_jwt")?;
+
+        let credential_json = map_anyhow(runtime.block_on(vc::issue_revocable_vc(
+            &subject,
+            signer.signer.clone(),
+            &status_server_url,
+            &status_server_jwt,
+        )))?;
+
+        write_c_string(out_credential_json, credential_json, "out_credential_json")
+    })
+}
+
+#[no_mangle]
 pub extern "C" fn ig_vc_sign(
     runtime: *const IgRuntimeHandle,
     signer: *const IgSignerHandle,
