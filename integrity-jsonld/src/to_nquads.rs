@@ -1,8 +1,9 @@
 use std::collections::HashMap;
 
 use anyhow::Result;
-use json_ld::syntax::Parse;
-use ssi_json_ld::rdf::IntoNQuads;
+use json_ld::{JsonLdProcessor, RemoteDocument};
+use json_syntax::Parse;
+use rdf_types::generator;
 
 /// Trait for types that can be converted to JSON-LD input strings.
 ///
@@ -25,7 +26,7 @@ impl Input for serde_json::Value {
     }
 }
 
-/// Convert JSON-LD to N-Quads.
+/// Convert JSON-LD to N-Quads (non-canonical).
 ///
 /// Optionally provide additional runtime contexts that take precedence over static contexts.
 pub async fn jsonld_to_nquads<I>(
@@ -36,17 +37,23 @@ where
     I: Input,
 {
     let input = input.convert_input()?;
+    let loader = crate::loader::loader(additional_contexts)?;
 
-    let mut loader = crate::loader::loader(additional_contexts)?;
+    let (json, _) = json_syntax::Value::parse_str(&input)
+        .map_err(|e| anyhow::anyhow!("failed to parse input JSON-LD: {e}"))?;
+    let doc = RemoteDocument::new(None, None, json);
 
-    let dataset = ssi_json_ld::json_to_dataset(
-        json_ld::syntax::Value::parse_str(&input, |span| span)?,
-        &mut loader,
-        None,
-    )
-    .await?;
+    let mut generator = generator::Blank::new();
+    let mut rdf = doc
+        .to_rdf(&mut generator, &loader)
+        .await
+        .map_err(|e| anyhow::anyhow!("failed to convert JSON-LD to RDF: {e}"))?;
 
-    let nquads = dataset.into_nquads();
+    let nquads = rdf
+        .cloned_quads()
+        .map(|q| format!("{q} ."))
+        .collect::<Vec<_>>()
+        .join("\n");
 
     Ok(nquads)
 }
@@ -54,9 +61,7 @@ where
 #[cfg(test)]
 #[cfg(feature = "tokio-tests")]
 mod tests {
-    use locspan::Meta;
     use nquads_syntax::parsing::Parse;
-    use rdf_types::Quad;
 
     use super::*;
 
@@ -71,22 +76,19 @@ mod tests {
 
                     let expected = nquads_syntax::Document::parse_str(
                         include_str!(concat!("../../fixtures/", $fixture, ".nquads")),
-                        |span| span,
                     ).unwrap();
                     let expected = expected
-                        .into_value()
+                        .0
                         .into_iter()
-                        .map(Meta::into_value)
-                        .map(Quad::strip_all_but_predicate)
+                        .map(|q| q.strip_all_but_predicate())
                         .collect::<Vec<_>>();
 
                     let computed = jsonld_to_nquads(json_ld, None).await.unwrap();
-                    let computed = nquads_syntax::Document::parse_str(&computed, |span| span).unwrap();
+                    let computed = nquads_syntax::Document::parse_str(&computed).unwrap();
                     let computed = computed
-                        .into_value()
+                        .0
                         .into_iter()
-                        .map(Meta::into_value)
-                        .map(Quad::strip_all_but_predicate)
+                        .map(|q| q.strip_all_but_predicate())
                         .collect::<Vec<_>>();
 
                     assert_eq!(computed, expected);
@@ -117,27 +119,24 @@ mod tests {
             context.to_string(),
         );
 
-        let expected = nquads_syntax::Document::parse_str(
-            include_str!("../../fixtures/additional-context.nquads"),
-            |span| span,
-        )
+        let expected = nquads_syntax::Document::parse_str(include_str!(
+            "../../fixtures/additional-context.nquads"
+        ))
         .unwrap();
         let expected = expected
-            .into_value()
+            .0
             .into_iter()
-            .map(Meta::into_value)
-            .map(Quad::strip_all_but_predicate)
+            .map(|q| q.strip_all_but_predicate())
             .collect::<Vec<_>>();
 
         let computed = jsonld_to_nquads(json_ld, Some(additional_contexts))
             .await
             .unwrap();
-        let computed = nquads_syntax::Document::parse_str(&computed, |span| span).unwrap();
+        let computed = nquads_syntax::Document::parse_str(&computed).unwrap();
         let computed = computed
-            .into_value()
+            .0
             .into_iter()
-            .map(Meta::into_value)
-            .map(Quad::strip_all_but_predicate)
+            .map(|q| q.strip_all_but_predicate())
             .collect::<Vec<_>>();
 
         assert_eq!(computed, expected);

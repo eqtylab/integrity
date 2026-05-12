@@ -11,15 +11,17 @@ tokio-tests = ["dep:tokio"]
 anyhow = { version = "1", features = ["backtrace"] }
 cid = { version = "0.10", default-features = false, features = ["std"] }
 futures = "0.3"
-iref = "2.0"
-json-ld = "0.12"
-locspan = "0.7"
+iref = "3.2"
+json-ld = "0.21"
+json-syntax = "0.12"
+locspan = "0.8"
 log = "0.4"
-nquads-syntax = "0.10"
+nquads-syntax = "0.19"
 once_cell = "1"
-rdf-types = "0.12"
+rdf-types = "0.22"
 serde_json = "1.0"
-ssi-json-ld = "0.2"
+ssi-json-ld = "0.3"
+ssi-rdf = "0.1"
 
 blake3 = "1.5"
 tokio = { version = "1", features = ["macros", "rt-multi-thread"], optional = true }

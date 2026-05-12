@@ -1,75 +1,31 @@
 use std::collections::HashMap;
 
-use anyhow::{anyhow, Result};
-use futures::future::{BoxFuture, FutureExt};
-use iref::IriBuf;
-use json_ld::{loader::Loader, syntax, syntax::Parse, RemoteDocument};
-use locspan::Span;
-use log::{debug, trace};
+use anyhow::Result;
 use once_cell::sync::OnceCell;
-use rdf_types::vocabulary::IriVocabularyMut;
+use ssi_json_ld::ContextLoader;
 
 type ContextMap = HashMap<String, &'static str>;
 
-/// JSON-LD context loader for resolving context URIs to their definitions.
+/// Get JSON-LD context loader, pre-loaded with our static contexts plus the
+/// W3C contexts ssi already ships with.
 ///
-/// Loads contexts from static embedded definitions or additional runtime contexts,
-/// enabling JSON-LD document expansion without network requests.
-#[derive(Clone)]
-pub struct ContextLoader {
-    static_context_map: &'static ContextMap,
-    additional_contexts: HashMap<String, String>,
-}
-
-impl Loader<IriBuf, Span> for ContextLoader {
-    type Output = syntax::Value<Span>;
-    type Error = anyhow::Error;
-
-    fn load_with<'a>(
-        &'a mut self,
-        _vocabulary: &'a mut (impl Sync + Send + IriVocabularyMut<Iri = IriBuf>),
-        url: IriBuf,
-    ) -> BoxFuture<'a, json_ld::LoadingResult<IriBuf, Span, Self::Output, Self::Error>>
-    where
-        IriBuf: 'a,
-    {
-        async move {
-            let link = url.as_str();
-
-            debug!("Loading context: {link}");
-
-            let context_str: &str = if let Some(ctx) = self.additional_contexts.get(link) {
-                ctx.as_str()
-            } else if let Some(ctx) = self.static_context_map.get(link) {
-                ctx
-            } else {
-                return Err(anyhow!("Missing context: {}", url.as_str()));
-            };
-
-            trace!("Context: {context_str}");
-
-            let context_document = RemoteDocument::new(
-                None,
-                None,
-                json_ld::syntax::Value::parse_str(context_str, |span| span)?,
-            );
-
-            Ok(context_document)
-        }
-        .boxed()
-    }
-}
-
-/// Get JSON-LD context loader.
-///
-/// Optionally provide additional runtime contexts that take precedence over static contexts.
+/// Optionally provide additional runtime contexts that take precedence over
+/// static contexts.
 pub fn loader(additional_contexts: Option<HashMap<String, String>>) -> Result<ContextLoader> {
     let static_context_map = static_contexts()?;
 
-    let loader = ContextLoader {
-        static_context_map,
-        additional_contexts: additional_contexts.unwrap_or_default(),
-    };
+    let mut combined: HashMap<String, String> = static_context_map
+        .iter()
+        .map(|(k, v)| (k.clone(), (*v).to_string()))
+        .collect();
+    if let Some(additional) = additional_contexts {
+        combined.extend(additional);
+    }
+
+    let loader = ContextLoader::default()
+        .with_static_loader()
+        .with_context_map_from(combined)
+        .map_err(|e| anyhow::anyhow!("failed to build context loader: {e}"))?;
 
     Ok(loader)
 }
@@ -336,47 +292,10 @@ fn build_static_contexts() -> Result<ContextMap> {
     .into_iter()
     .collect();
 
-    let http_links: ContextMap = [
-        ("https://www.w3.org/ns/did/v1", {
-            let json = include_str!("../static_contexts/http/www.w3.org/ns/did/v1");
-            validate_json_string(json)?;
-            json
-        }),
-        ("https://www.w3.org/2018/credentials/v1", {
-            let json = include_str!("../static_contexts/http/www.w3.org/2018/credentials/v1");
-            validate_json_string(json)?;
-            json
-        }),
-        ("https://www.w3.org/ns/credentials/v2", {
-            let json = include_str!("../static_contexts/http/www.w3.org/ns/credentials/v2");
-            validate_json_string(json)?;
-            json
-        }),
-        ("https://w3id.org/security/v1", {
-            let json = include_str!("../static_contexts/http/w3id.org/security/v1");
-            validate_json_string(json)?;
-            json
-        }),
-        ("https://w3id.org/security/v2", {
-            let json = include_str!("../static_contexts/http/w3id.org/security/v2");
-            validate_json_string(json)?;
-            json
-        }),
-    ]
-    .into_iter()
-    .map(|(link, json)| (link.to_owned(), json))
-    .collect();
-
-    let context_map = {
-        let mut map = HashMap::new();
-
-        map.extend(urn_cid_links);
-        map.extend(http_links);
-
-        map
-    };
-
-    Ok(context_map)
+    // The W3C/security contexts the old code shipped are now provided by
+    // ssi_json_ld's built-in StaticLoader (CREDENTIALS_V1, CREDENTIALS_V2,
+    // SECURITY_V1, SECURITY_V2, DID_V1, ...). No need to re-add them here.
+    Ok(urn_cid_links)
 }
 
 fn validate_json_string(s: &str) -> Result<()> {

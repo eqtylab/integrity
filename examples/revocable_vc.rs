@@ -52,11 +52,17 @@ fn main() -> Result<()> {
     let subject = "did:key:z6Mkw2PvzC9DHXiYQHMDRwyxCCV9n4EDc6vqqp1uyi9nrwsP";
 
     let runtime = Runtime::new().context("build Tokio runtime")?;
-    let vc_json = runtime.block_on(vc::issue_revocable_vc(subject, signer_type, &url, &jwt))?;
+    let signed = runtime.block_on(vc::issue_revocable_vc(subject, signer_type, &url, &jwt))?;
 
-    let parsed: serde_json::Value = serde_json::from_str(&vc_json)?;
     println!();
-    println!("{}", serde_json::to_string_pretty(&parsed)?);
+    println!("{}", serde_json::to_string_pretty(&signed)?);
+
+    let signed_json = serde_json::to_string(&signed)?;
+    println!();
+    match runtime.block_on(vc::verify_vc(&signed_json)) {
+        Ok(msg) => println!("verify: {msg}"),
+        Err(e) => println!("verify failed: {e}"),
+    }
 
     Ok(())
 }

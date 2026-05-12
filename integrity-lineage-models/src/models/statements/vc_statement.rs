@@ -1,8 +1,7 @@
 use anyhow::Result;
 use integrity_jsonld::ig_common_context_link;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
-use ssi::vc::{Credential, StringOrURI};
+use ssi::claims::vc::v2::syntax::JsonCredential;
 
 use super::{compute_cid, format_timestamp, get_jsonld_filename, StatementTrait};
 
@@ -10,7 +9,7 @@ use super::{compute_cid, format_timestamp, get_jsonld_filename, StatementTrait};
 ///
 /// This statement type stores verifiable credentials in W3C VC format,
 /// providing cryptographically verifiable claims about subjects.
-#[derive(Clone, Debug, Serialize, Deserialize, utoipa::ToSchema, PartialEq)]
+#[derive(Clone, Debug, Serialize, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct VcStatement {
     /// JSON-LD context URL
@@ -23,12 +22,23 @@ pub struct VcStatement {
     #[serde(rename = "@type")]
     pub type_: String,
     /// The W3C Verifiable Credential
-    #[schema(value_type = Value)]
-    pub credential: Credential,
+    #[schema(value_type = serde_json::Value)]
+    pub credential: JsonCredential,
     /// DID of the entity that registered this statement
     pub registered_by: String,
     /// ISO 8601 timestamp of when the statement was created
     pub timestamp: String,
+}
+
+/// `JsonCredential` doesn't implement `PartialEq`, so compare via canonical
+/// JSON. Required because the `Statement` enum derives `PartialEq`.
+impl PartialEq for VcStatement {
+    fn eq(&self, other: &Self) -> bool {
+        match (serde_jcs::to_string(self), serde_jcs::to_string(other)) {
+            (Ok(a), Ok(b)) => a == b,
+            _ => false,
+        }
+    }
 }
 
 impl StatementTrait for VcStatement {
@@ -43,34 +53,30 @@ impl StatementTrait for VcStatement {
     fn referenced_cids(&self) -> Vec<String> {
         let mut refs = vec![];
 
-        // include credential subject
-        match &self.credential.id {
-            Some(StringOrURI::String(s)) => refs.push(s.clone()),
-            Some(StringOrURI::URI(u)) => match u {
-                ssi::vc::URI::String(s) => refs.push(s.clone()),
-            },
-            None => {}
+        // include credential id
+        if let Some(uri) = &self.credential.id {
+            refs.push(uri.as_str().to_owned());
         }
 
         // include credential evidence
-        if let Some(evidence) = &self.credential.evidence {
-            for ev in evidence {
-                if let Some(props) = &ev.property_set {
-                    for key in [
-                        // `report` and `certificateChain` are used in everything but Azure
-                        "report",
-                        "certificateChain",
-                        // `report` + the rest are used in TPM-based Azure attestation
-                        "reportCertificateChain",
-                        "tpmQuote",
-                        "tpmQuoteSignature",
-                        "tpmAKCertificate",
-                        "tpmLog",
-                        "azureBootLog",
-                    ] {
-                        if let Some(Value::String(id)) = props.get(key) {
-                            refs.push(id.to_owned());
-                        }
+        for ev in &self.credential.evidence {
+            // Custom evidence properties live in `extra_properties` after the
+            // v2 syntax migration.
+            for key in [
+                // `report` and `certificateChain` are used in everything but Azure
+                "report",
+                "certificateChain",
+                // `report` + the rest are used in TPM-based Azure attestation
+                "reportCertificateChain",
+                "tpmQuote",
+                "tpmQuoteSignature",
+                "tpmAKCertificate",
+                "tpmLog",
+                "azureBootLog",
+            ] {
+                if let Some(val) = ev.extra_properties.get(key) {
+                    if let Ok(serde_json::Value::String(id)) = serde_json::to_value(val) {
+                        refs.push(id);
                     }
                 }
             }
@@ -93,7 +99,7 @@ impl VcStatement {
     ///
     /// A new `VcStatement` with a computed CID as its identifier.
     pub async fn create(
-        credential: Credential,
+        credential: JsonCredential,
         registered_by: String,
         timestamp: Option<String>,
     ) -> Result<Self> {
@@ -125,23 +131,21 @@ mod tests {
     use crate::models::statements::Statement;
 
     /// Creates a minimal valid W3C VC for testing
-    fn create_test_credential() -> Credential {
+    fn create_test_credential() -> JsonCredential {
         let vc_json = json!({
             "@context": [
-                "https://www.w3.org/ns/credentials/v2",
-                "https://w3id.org/security/v2"
+                "https://www.w3.org/ns/credentials/v2"
             ],
             "type": ["VerifiableCredential"],
             "id": "urn:uuid:12345678-1234-1234-1234-123456789012",
             "issuer": "did:key:z6Mkw2PvzC9DHXiYQHMDRwyxCCV9n4EDc6vqqp1uyi9nrwsP",
-            "issuanceDate": "2024-01-01T00:00:00Z",
             "validFrom": "2024-01-01T00:00:00Z",
             "credentialSubject": {
                 "id": "urn:cid:bafkr4ibthuzk3zug7ghmx63yjqaiu6rx4hhfdv3453j5bodskgw57bx2ya"
             }
         });
 
-        Credential::from_json_unsigned(&serde_json::to_string(&vc_json).unwrap()).unwrap()
+        serde_json::from_value(vc_json).unwrap()
     }
 
     #[tokio::test]

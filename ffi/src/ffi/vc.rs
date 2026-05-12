@@ -1,6 +1,6 @@
 use std::ffi::c_char;
 
-use ssi::vc::Credential;
+use integrity::vc::Credential as JsonCredential;
 
 use crate::{
     ffi::{
@@ -50,12 +50,13 @@ pub extern "C" fn ig_vc_issue_revocable(
         let status_server_url = cstr_to_string(status_server_url, "status_server_url")?;
         let status_server_jwt = cstr_to_string(status_server_jwt, "status_server_jwt")?;
 
-        let credential_json = map_anyhow(runtime.block_on(vc::issue_revocable_vc(
+        let credential = map_anyhow(runtime.block_on(vc::issue_revocable_vc(
             &subject,
             signer.signer.clone(),
             &status_server_url,
             &status_server_jwt,
         )))?;
+        let credential_json = map_anyhow(serde_json::to_string(&credential).map_err(Into::into))?;
 
         write_c_string(out_credential_json, credential_json, "out_credential_json")
     })
@@ -75,13 +76,13 @@ pub extern "C" fn ig_vc_sign(
         let unsigned_credential_json =
             cstr_to_string(unsigned_credential_json, "unsigned_credential_json")?;
 
-        let unsigned_credential = Credential::from_json_unsigned(&unsigned_credential_json)
+        let unsigned_credential = serde_json::from_str::<JsonCredential>(&unsigned_credential_json)
             .map_err(|e| {
                 FfiError::new(IgStatus::InvalidInput, format!("invalid unsigned vc: {e}"))
             })?;
 
         let signed =
-            map_anyhow(runtime.block_on(vc::sign_vc(&unsigned_credential, signer.signer.clone())))?;
+            map_anyhow(runtime.block_on(vc::sign_vc(unsigned_credential, signer.signer.clone())))?;
         let signed_json = map_anyhow(serde_json::to_string(&signed).map_err(Into::into))?;
 
         write_c_string(
