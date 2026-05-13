@@ -28,6 +28,11 @@ name = "yubikey-example"
 path = "examples/yubikey_example.rs"
 required-features = ["signer-yubikey", "vc"]
 
+[[example]]
+name = "revocable-vc"
+path = "examples/revocable_vc.rs"
+required-features = ["signer-ed25519", "vc"]
+
 [features]
 default = [
   "cid",

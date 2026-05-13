@@ -1,8 +1,8 @@
 use std::ffi::c_char;
 
+use integrity::vc::Credential;
 use serde::{de::DeserializeOwned, Deserialize};
 use serde_json::Value;
-use ssi::vc::Credential;
 
 use crate::{
     ffi::{

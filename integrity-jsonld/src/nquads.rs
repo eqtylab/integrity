@@ -1,7 +1,5 @@
 use anyhow::Result;
-use locspan::Meta;
-use nquads_syntax::parsing::Parse;
-use rdf_types::Quad;
+use nquads_syntax::Parse;
 
 /// Canonicalizes N-Quads RDF data using URDNA2015 algorithm
 ///
@@ -17,20 +15,28 @@ use rdf_types::Quad;
 /// # Errors
 /// Returns error if the input cannot be parsed as valid N-Quads
 pub fn canonicalize_nquads(nquads: String) -> Result<String> {
-    let dataset = nquads_syntax::Document::parse_str(&nquads, |span| span)?;
+    let parsed = nquads_syntax::Document::parse_str(&nquads)
+        .map_err(|e| anyhow::anyhow!("failed to parse n-quads: {e}"))?;
 
-    let stripped_dataset = dataset
+    let stripped: Vec<rdf_types::LexicalQuad> = parsed
         .into_value()
         .into_iter()
-        .map(Meta::into_value)
-        .map(Quad::strip_all_but_predicate)
-        .collect::<Vec<_>>();
+        .map(|meta_quad| {
+            let quad = meta_quad.into_value();
+            quad.map_all(
+                |s| s.into_value(),
+                |p| p.into_value(),
+                |o| o.into_value(),
+                |g| g.map(|m| m.into_value()),
+            )
+        })
+        .collect();
 
-    let canonicalized_nquads =
-        ssi_json_ld::urdna2015::normalize(stripped_dataset.iter().map(Quad::as_quad_ref))
+    let canonicalized =
+        ssi_rdf::urdna2015::normalize(stripped.iter().map(|q| q.as_lexical_quad_ref()))
             .into_nquads();
 
-    Ok(canonicalized_nquads)
+    Ok(canonicalized)
 }
 
 #[cfg(test)]
