@@ -46,22 +46,23 @@ impl IntegritySigner {
         iref::UriBuf::new(did_doc.id.into_bytes()).map_err(|e| anyhow!("invalid issuer URI: {e:?}"))
     }
 
-    /// Picks a VC 2.0-compatible cryptosuite for the signer's key curve.
+    /// Picks the cryptosuite for the signer's key curve.
     ///
-    /// `AnySuite::pick` returns v1-era suites (`Ed25519Signature2018`,
-    /// `EcdsaSecp256r1Signature2019`, `EcdsaSecp256k1Signature2019`) whose
-    /// proof terms live in the `https://w3id.org/security/v2` context — that
-    /// doesn't ship with `JsonCredential` v2's default `@context`. The rdfc
-    /// suites below are v2-native and align with the W3C VC-DI specs.
+    /// Uses the v1-era suites (`Ed25519Signature2018`,
+    /// `EcdsaSecp256r1Signature2019`, `EcdsaSecp256k1Signature2019`) to keep
+    /// the on-the-wire proof shape compatible with downstream verifiers
+    /// built against ssi 0.7-era output. Their proof terms live in the
+    /// `https://w3id.org/security/v2` context, which `build_unsigned` adds
+    /// to the credential's `@context`.
     pub fn suite(&self) -> Result<AnySuite> {
         let did_doc = self.inner.get_did_doc();
         let jwk = jwk_from_did_doc(&did_doc)?;
         match jwk.get_algorithm() {
-            Some(ssi::jwk::Algorithm::EdDSA) => Ok(AnySuite::EdDsaRdfc2022),
-            Some(ssi::jwk::Algorithm::ES256) => Ok(AnySuite::EcdsaRdfc2019),
+            Some(ssi::jwk::Algorithm::EdDSA) => Ok(AnySuite::Ed25519Signature2018),
+            Some(ssi::jwk::Algorithm::ES256) => Ok(AnySuite::EcdsaSecp256r1Signature2019),
             Some(ssi::jwk::Algorithm::ES256K) => Ok(AnySuite::EcdsaSecp256k1Signature2019),
             other => Err(anyhow!(
-                "no VC 2.0 cryptosuite for signer key algorithm: {other:?}"
+                "no VC cryptosuite for signer key algorithm: {other:?}"
             )),
         }
     }

@@ -163,6 +163,18 @@ fn build_unsigned(subject: &str, adapter: &IntegritySigner) -> Result<JsonCreden
     let mut credential = JsonCredential::new(Some(id), issuer, NonEmptyVec::new(subject_non_empty));
     credential.valid_from = Some(valid_from_xsd.into());
 
+    // The v1-era proof suites (Ed25519Signature2018, EcdsaSecp256r1Signature2019,
+    // EcdsaSecp256k1Signature2019) define their proof terms in
+    // `https://w3id.org/security/v2` — without it, JSON-LD expansion of the
+    // proof's `@type` fails. Adding the context here keeps both the v2 credential
+    // body and the v1-era proof spec-coherent.
+    credential
+        .context
+        .insert(ssi::json_ld::syntax::ContextEntry::IriRef(
+            iref::IriRefBuf::new("https://w3id.org/security/v2".to_string())
+                .map_err(|e| anyhow!("invalid security/v2 IRI: {e:?}"))?,
+        ));
+
     Ok(credential)
 }
 
@@ -184,10 +196,15 @@ async fn sign(unsigned: JsonCredential, adapter: IntegritySigner) -> Result<Sign
         Default::default(),
     );
 
-    suite
+    let signed = suite
         .sign(unsigned, &resolver, &adapter, proof_options)
         .await
-        .map_err(|e| anyhow!("signature failed: {e}"))
+        .map_err(|e| anyhow!("signature failed: {e}"))?;
+    log::trace!(
+        "Signed VC: {}",
+        serde_json::to_string_pretty(&signed).unwrap_or_default()
+    );
+    Ok(signed)
 }
 
 #[cfg(test)]
