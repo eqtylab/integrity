@@ -34,6 +34,13 @@ iref = "3.2"
 json-syntax = "0.12"
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 serde = { version = "1.0", features = ["derive"] }
+# ssi 0.7 (aliased) is kept exclusively for verifying VCs issued by
+# pre-ssi-0.16 versions of this repo: legacy VCs use a v2 `@context` with
+# v1-era `issuanceDate` plus undefined custom evidence terms, which ssi
+# 0.16's strict JSON-LD pipeline can't reproduce the canonical bytes for.
+# `verify_vc` dispatches to the legacy verifier on detection of that shape.
+ssi-legacy = { package = "ssi", version = "0.7", features = ["w3c", "http-did", "example-http-issuer", "ed25519", "secp256r1"] }
+did-method-key-legacy = { package = "did-method-key", version = "0.2.2" }
 uuid = { version = "1.4", features = ["v4", "serde"] }
 xsd-types = "0.9"
 
