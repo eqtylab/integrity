@@ -29,6 +29,7 @@ ssi = { version = "0.16", features = ["w3c", "ed25519", "secp256k1", "secp256r1"
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 chrono = { version = "0.4.37", features = ["serde"] }
 did-key = "0.2"
+integrity-jsonld = { path = "../integrity-jsonld", default-features = false }
 integrity-signer = { path = "../integrity-signer", default-features = false }
 iref = "3.2"
 json-syntax = "0.12"
