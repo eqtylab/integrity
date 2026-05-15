@@ -24,6 +24,7 @@ use crate::signer::{
 const DEFAULT_UNIX_AUTHORITY: &str = "x";
 const REGISTRATIONS_PATH: &str = "/v1/registrations";
 const SIGN_PATH: &str = "/v1/sign";
+const IDENTITY_ATTESTATION_PATH: &str = "/v1/identity-attestation";
 const SIGN_HASH_ALG: &str = "SHA256";
 const SIGN_ALGO: &str = "ECDSA";
 
@@ -70,6 +71,19 @@ struct SignResponse {
     public_key: String,
     did: String,
     binary_hash: String,
+}
+
+/// Evidence bundle for a VComp-notary-backed signer.
+///
+/// Analogous to [`crate::signer::YubikeyEvidenceBundle`]: the YubiKey variant
+/// carries attestation certificates, this carries the notary's identity
+/// manifest served at `GET /v1/identity-attestation`. The manifest schema is
+/// owned by the notary service, so it is carried opaquely (verbatim JSON) and
+/// new manifest fields require no changes to this crate or its consumers.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct VCompNotaryEvidenceBundle {
+    /// Identity-attestation manifest returned by the notary, verbatim.
+    pub manifest: Value,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -199,6 +213,24 @@ impl VCompNotarySigner {
         }
 
         Ok(signer)
+    }
+
+    /// Fetches the notary's identity-attestation manifest for this signer.
+    ///
+    /// Analogous to [`crate::signer::YubiKeySigner::evidence_bundle_sync`], but
+    /// the notary serves the evidence over the same socket used for `/v1/sign`,
+    /// so this call is async. Intended to be invoked once at DID registration
+    /// time and the result persisted alongside the key, not on a hot path.
+    pub async fn identity_attestation(&self) -> Result<VCompNotaryEvidenceBundle> {
+        let manifest = request_json(&self.url, Method::GET, IDENTITY_ATTESTATION_PATH, None)
+            .await
+            .context("failed to fetch VComp notary identity attestation")?;
+
+        if manifest.is_null() {
+            bail!("VComp notary returned an empty identity attestation manifest");
+        }
+
+        Ok(VCompNotaryEvidenceBundle { manifest })
     }
 
     /// Copies the signer's DID statements and blobs to the specified directories.
@@ -621,6 +653,17 @@ mod tests {
             }
         );
         assert_eq!(join_endpoint_path("/api", "/v1/sign"), "/api/v1/sign");
+    }
+
+    #[test]
+    fn identity_attestation_bundle_round_trips_opaque_manifest() {
+        let bundle = VCompNotaryEvidenceBundle {
+            manifest: json!({ "did": "did:key:zNotary", "claims": [1, 2, 3] }),
+        };
+        let encoded = serde_json::to_vec(&bundle).unwrap();
+        let decoded: VCompNotaryEvidenceBundle = serde_json::from_slice(&encoded).unwrap();
+        assert_eq!(bundle, decoded);
+        assert_eq!(decoded.manifest["did"], "did:key:zNotary");
     }
 
     #[test]

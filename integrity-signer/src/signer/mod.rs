@@ -40,7 +40,7 @@ pub use p256_signer::P256Signer;
 #[cfg(feature = "signer-secp256k1")]
 pub use secp256k1_signer::Secp256k1Signer;
 #[cfg(feature = "signer-vcomp-notary")]
-pub use vcomp_notary::VCompNotarySigner;
+pub use vcomp_notary::{VCompNotaryEvidenceBundle, VCompNotarySigner};
 #[cfg(feature = "signer-yubihsm")]
 pub use yubi_key::YubiHsmSigner;
 #[cfg(feature = "signer-yubikey")]
