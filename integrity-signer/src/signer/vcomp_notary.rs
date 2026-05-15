@@ -24,7 +24,7 @@ use crate::signer::{
 const DEFAULT_UNIX_AUTHORITY: &str = "x";
 const REGISTRATIONS_PATH: &str = "/v1/registrations";
 const SIGN_PATH: &str = "/v1/sign";
-const IDENTITY_ATTESTATION_PATH: &str = "/v1/identity-attestation";
+const IDENTITY_ATTESTATION_PATH: &str = "/v1/identity-attestations";
 const SIGN_HASH_ALG: &str = "SHA256";
 const SIGN_ALGO: &str = "ECDSA";
 
@@ -77,7 +77,7 @@ struct SignResponse {
 ///
 /// Analogous to [`crate::signer::YubikeyEvidenceBundle`]: the YubiKey variant
 /// carries attestation certificates, this carries the notary's identity
-/// manifest served at `GET /v1/identity-attestation`. The manifest schema is
+/// manifest served at `GET /v1/identity-attestations`. The manifest schema is
 /// owned by the notary service, so it is carried opaquely (verbatim JSON) and
 /// new manifest fields require no changes to this crate or its consumers.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
