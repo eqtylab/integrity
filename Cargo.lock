@@ -4267,6 +4267,7 @@ dependencies = [
  "did-key",
  "did-method-key 0.2.2",
  "env_logger",
+ "integrity-jsonld",
  "integrity-signer",
  "iref 3.2.2",
  "json-syntax 0.12.5",

@@ -19,7 +19,7 @@ use ssi::{
     claims::{
         data_integrity::{AnySuite, CryptographicSuite, DataIntegrity, ProofOptions},
         vc::v2::syntax::JsonCredential,
-        VerificationParameters,
+        SignatureEnvironment, VerificationParameters,
     },
     dids::{AnyDidMethod, VerificationMethodDIDResolver},
     verification_methods::{AnyMethod, ProofPurpose},
@@ -119,7 +119,8 @@ pub async fn verify_vc(vc_json: &str) -> Result<String> {
 
     let vc: SignedVc = serde_json::from_str(vc_json)?;
     let resolver = VerificationMethodDIDResolver::<_, AnyMethod>::new(AnyDidMethod::default());
-    let params = VerificationParameters::from_resolver(resolver);
+    let loader = integrity_jsonld::loader::loader(None)?;
+    let params = VerificationParameters::from_resolver(resolver).with_json_ld_loader(loader);
     let outcome = vc
         .verify(params)
         .await
@@ -285,8 +286,20 @@ async fn sign(unsigned: JsonCredential, adapter: IntegritySigner) -> Result<Sign
         Default::default(),
     );
 
+    let environment = SignatureEnvironment {
+        json_ld_loader: integrity_jsonld::loader::loader(None)?,
+        eip712_loader: (),
+    };
+
     suite
-        .sign(unsigned, &resolver, &adapter, proof_options)
+        .sign_with(
+            environment,
+            unsigned,
+            &resolver,
+            &adapter,
+            proof_options,
+            Default::default(),
+        )
         .await
         .map_err(|e| anyhow!("signature failed: {e}"))
 }
@@ -535,6 +548,60 @@ mod tests {
         assert!(
             result.is_ok(),
             "legacy VC verification should succeed: {:?}",
+            result.err()
+        );
+    }
+
+    /// User-supplied VC carrying a custom JSON-LD context
+    /// (`https://eqtylab.io/contexts/vcomp/v1`) and custom evidence terms
+    /// (`EqtyVCompNvidiaCcV0Evidence`, `report`, `certificateChain`) that are
+    /// only defined in that context. We sign with a fresh signer — rewriting
+    /// `issuer` to match (the original fixture's DID is unowned) — and
+    /// otherwise leave the VC as supplied. Expected to fail today because
+    /// ssi 0.16's static context loader can't resolve the custom URL, so
+    /// JSON-LD expansion of the evidence terms fails during canonicalization.
+    #[tokio::test]
+    async fn test_verify_vc_with_custom_context() {
+        let _ = env_logger::builder().is_test(true).try_init();
+
+        let signer = Ed25519Signer::create().unwrap();
+        let signer_type = SignerType::ED25519(signer);
+        let issuer_did = signer_type.get_did_doc().id;
+
+        let mut unsigned_value: Value = serde_json::from_str(
+            r#"{
+              "@context": [
+                "https://www.w3.org/ns/credentials/v2",
+                "https://w3id.org/security/v2",
+                "urn:cid:bafkr4ic7ydwk3rtoltyzx4zn3vvu3r7hpzxtmbzmnksotx7k5nbnwclf6m"
+              ],
+              "type": ["VerifiableCredential"],
+              "id": "urn:uuid:11111111-1111-1111-1111-111111111111",
+              "issuer": "did:key:z6Mkw2PvzC9DHXiYQHMDRwyxCCV9n4EDc6vqqp1uyi9nrwsP",
+              "validFrom": "2024-03-26T12:34:56Z",
+              "credentialSubject": {
+                "id": "urn:cid:bafkr4ibthuzk3zug7ghmx63yjqaiu6rx4hhfdv3453j5bodskgw57bx2ya"
+              },
+              "evidence": [
+                {
+                  "type": ["EqtyVCompNvidiaCcV0Evidence"],
+                  "report": "the report",
+                  "certificateChain": "certificate chain"
+                }
+              ]
+            }"#,
+        )
+        .unwrap();
+        unsigned_value["issuer"] = Value::String(issuer_did);
+
+        let unsigned: JsonCredential = serde_json::from_value(unsigned_value).unwrap();
+        let signed = sign_vc(unsigned, signer_type).await.unwrap();
+
+        let vc_json = serde_json::to_string(&signed).unwrap();
+        let result = verify_vc(&vc_json).await;
+        assert!(
+            result.is_ok(),
+            "VC verification should succeed: {:?}",
             result.err()
         );
     }
