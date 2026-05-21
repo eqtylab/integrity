@@ -33,6 +33,84 @@ use crate::signer_adapter::IntegritySigner;
 #[cfg(not(target_arch = "wasm32"))]
 pub type SignedVc = DataIntegrity<JsonCredential, AnySuite>;
 
+/// Build an unsigned `JsonCredential` with the EQTY-flavored `@context`
+/// bundle attached, ready to be passed to [`sign_vc`].
+///
+/// `@context` entries on the returned credential:
+///   - `https://www.w3.org/ns/credentials/v2` — added by
+///     `JsonCredential::default` (required by VC 2.0).
+///   - `https://w3id.org/security/v2` — defines Data-Integrity proof
+///     terms not covered by the v2 base context.
+///   - [`integrity_jsonld::ig_common_context_link`] (a urn:cid:… link
+///     to integrity-jsonld's common context) — defines the
+///     EQTY-namespaced terms used by VComp evidence and policy
+///     compliance VCs (`EqtyVComp*Evidence`, `report`,
+///     `certificateChain`, `policy`, `statements`, …). Pulled
+///     dynamically so callers automatically follow whichever bundle
+///     integrity-jsonld currently ships.
+///
+/// `subject` must be a JSON object. Bare-identifier callers should wrap
+/// as `serde_json::json!({"id": id})` before passing.
+///
+/// All evidence entries are deserialized into the default
+/// `MaybeIdentifiedTypedObject` evidence type, which keeps `type` typed
+/// and routes any extra keys (`report`, `certificateChain`, …) into
+/// `extra_properties`.
+#[cfg(not(target_arch = "wasm32"))]
+pub fn build_unsigned_with_eqty_contexts(
+    id: &str,
+    issuer_did: &str,
+    subject: Value,
+    valid_from: Option<DateTime<Utc>>,
+    valid_until: Option<DateTime<Utc>>,
+    evidence: Vec<Value>,
+) -> Result<JsonCredential> {
+    use iref::{IriRefBuf, UriBuf};
+    use ssi::{
+        claims::vc::syntax::{IdOr, MaybeIdentifiedTypedObject, NonEmptyObject, NonEmptyVec},
+        json_ld::syntax::ContextEntry,
+    };
+
+    let subject_non_empty: NonEmptyObject = serde_json::from_value(subject)
+        .map_err(|e| anyhow!("credential subject must be a non-empty JSON object: {e}"))?;
+
+    let id_uri = UriBuf::new(id.as_bytes().to_vec())
+        .map_err(|e| anyhow!("invalid credential id '{id}': {e:?}"))?;
+    let issuer_uri = UriBuf::new(issuer_did.as_bytes().to_vec())
+        .map_err(|e| anyhow!("invalid issuer DID '{issuer_did}': {e:?}"))?;
+
+    let mut credential = JsonCredential::new(
+        Some(id_uri),
+        IdOr::Id(issuer_uri),
+        NonEmptyVec::new(subject_non_empty),
+    );
+
+    if let Some(dt) = valid_from {
+        credential.valid_from = Some(xsd_types::DateTimeStamp::from(dt).into());
+    }
+    if let Some(dt) = valid_until {
+        credential.valid_until = Some(xsd_types::DateTimeStamp::from(dt).into());
+    }
+
+    let ig_common = integrity_jsonld::ig_common_context_link();
+    for extra in ["https://w3id.org/security/v2", ig_common.as_str()] {
+        credential.context.insert(ContextEntry::IriRef(
+            IriRefBuf::new(extra.to_string())
+                .map_err(|e| anyhow!("invalid context IRI '{extra}': {e:?}"))?,
+        ));
+    }
+
+    credential.evidence = evidence
+        .into_iter()
+        .map(|v| {
+            serde_json::from_value::<MaybeIdentifiedTypedObject>(v)
+                .map_err(|e| anyhow!("invalid evidence entry: {e}"))
+        })
+        .collect::<Result<Vec<_>>>()?;
+
+    Ok(credential)
+}
+
 /// Creates and signs a Verifiable Credential.
 ///
 /// # Arguments
@@ -640,6 +718,116 @@ mod tests {
             result.is_ok(),
             "legacy VC verification should succeed: {:?}",
             result.err()
+        );
+    }
+
+    /// Exercise `build_unsigned_with_eqty_contexts` end-to-end: build a
+    /// VComp-shaped VC (subject + custom EQTY evidence terms), sign it
+    /// with a fresh Ed25519 key, and verify. Verification going green
+    /// proves the EQTY context bundle covers everything in the signed
+    /// payload — i.e. the helper attaches the right contexts so callers
+    /// don't have to.
+    #[tokio::test]
+    async fn test_build_unsigned_with_eqty_contexts_vcomp_shape() {
+        let _ = env_logger::builder().is_test(true).try_init();
+
+        let signer = Ed25519Signer::create().unwrap();
+        let issuer_did = signer.did_doc.id.clone();
+        let signer_type = SignerType::ED25519(signer);
+
+        let unsigned = build_unsigned_with_eqty_contexts(
+            "urn:uuid:11111111-1111-1111-1111-111111111111",
+            &issuer_did,
+            serde_json::json!({ "id": "urn:cid:subject" }),
+            Some(
+                chrono::DateTime::parse_from_rfc3339("2024-03-26T12:34:56Z")
+                    .unwrap()
+                    .with_timezone(&Utc),
+            ),
+            None,
+            vec![serde_json::json!({
+                "type": ["EqtyVCompNvidiaCcV0Evidence"],
+                "report": "the report",
+                "certificateChain": "certificate chain",
+            })],
+        )
+        .expect("helper must build vcomp-shaped credential");
+
+        // Sanity-check the typed builder produced the fields we asked for
+        // before going to the signer (which would fail-loud if anything's
+        // off anyway).
+        assert_eq!(
+            unsigned.id.as_ref().map(|u| u.as_str()),
+            Some("urn:uuid:11111111-1111-1111-1111-111111111111")
+        );
+        assert_eq!(unsigned.evidence.len(), 1);
+
+        let signed = sign_vc(unsigned, signer_type).await.unwrap();
+        let signed_json = serde_json::to_string(&signed).unwrap();
+        verify_vc(&signed_json)
+            .await
+            .expect("vcomp-shape VC must verify with attached contexts");
+    }
+
+    /// Mirror the policy-compliance shape: subject is a struct-derived
+    /// JSON object with EQTY-namespaced keys (`policy`, `statements`),
+    /// `valid_until` set instead of `valid_from`, no evidence. Sign and
+    /// verify to prove the same context bundle covers this shape too.
+    #[tokio::test]
+    async fn test_build_unsigned_with_eqty_contexts_compliance_shape() {
+        let _ = env_logger::builder().is_test(true).try_init();
+
+        let signer = Ed25519Signer::create().unwrap();
+        let issuer_did = signer.did_doc.id.clone();
+        let signer_type = SignerType::ED25519(signer);
+
+        let subject = serde_json::json!({
+            "id": "urn:uuid:11111111-1111-1111-1111-111111111111",
+            "policy": "urn:cid:bafkr4ibthuzk3zug7ghmx63yjqaiu6rx4hhfdv3453j5bodskgw57bx2ya",
+            "statements": ["urn:cid:bagb6qaq6ebv5rcenbhret6apdolkskuht43bdyke4d2lzkldnvqqnizbpsjvu"],
+        });
+
+        let unsigned = build_unsigned_with_eqty_contexts(
+            "urn:uuid:22222222-2222-2222-2222-222222222222",
+            &issuer_did,
+            subject,
+            None,
+            Some(
+                chrono::DateTime::parse_from_rfc3339("2030-07-04T23:59:59Z")
+                    .unwrap()
+                    .with_timezone(&Utc),
+            ),
+            vec![],
+        )
+        .expect("helper must build compliance-shaped credential");
+
+        assert!(unsigned.valid_from.is_none());
+        assert!(unsigned.valid_until.is_some());
+        assert!(unsigned.evidence.is_empty());
+
+        let signed = sign_vc(unsigned, signer_type).await.unwrap();
+        let signed_json = serde_json::to_string(&signed).unwrap();
+        verify_vc(&signed_json)
+            .await
+            .expect("compliance-shape VC must verify with attached contexts");
+    }
+
+    /// A non-object subject (here a JSON string) is a programmer error;
+    /// the helper should surface that as a clear error rather than panic
+    /// or silently corrupt the credential.
+    #[test]
+    fn test_build_unsigned_with_eqty_contexts_rejects_non_object_subject() {
+        let result = build_unsigned_with_eqty_contexts(
+            "urn:uuid:33333333-3333-3333-3333-333333333333",
+            "did:key:z6MkmwihXQDhgNbWpwpWZ5NHygqC9PtHjVW62MM8ZJSggRD4",
+            serde_json::Value::String("urn:cid:not-an-object".to_string()),
+            None,
+            None,
+            vec![],
+        );
+        assert!(
+            result.is_err(),
+            "non-object subject must be rejected, got: {result:?}"
         );
     }
 }
