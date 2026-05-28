@@ -35,6 +35,9 @@ iref = "3.2"
 json-syntax = "0.12"
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 serde = { version = "1.0", features = ["derive"] }
+# Status-list checking (BitstringStatusList revocation/suspension). Pulled in
+# transitively by `ssi` already; pinned directly so we can use its public API.
+ssi-status = "0.8"
 # ssi 0.7 (aliased) is kept exclusively for verifying VCs issued by
 # pre-ssi-0.16 versions of this repo: legacy VCs use a v2 `@context` with
 # v1-era `issuanceDate` plus undefined custom evidence terms, which ssi

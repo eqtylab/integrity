@@ -186,9 +186,20 @@ pub async fn sign_vc(unsigned: JsonCredential, signer: SignerType) -> Result<Sig
 
 /// Verifies a signed VC's Data-Integrity proof.
 ///
-/// Returns a human-readable summary on success. Currently only checks the
-/// cryptographic proof; revocation-status checks (fetching status-list VCs
-/// and reading the bit) are a separate concern.
+/// **Cryptographic proof check only.** This function does not look at
+/// the `credentialStatus` field, never fetches a status-list credential,
+/// and never reads a revocation bit. To learn whether a credential has
+/// been revoked or suspended, call [`check_credential_status`]
+/// separately.
+///
+/// The split is deliberate. Proof verification here is offline (modulo
+/// DID resolution, which for `did:key` is also offline) and
+/// deterministic: it is purely a function of the input bytes plus the
+/// bundled JSON-LD contexts. Status checking necessarily fetches
+/// external bitstring lists over HTTP and so is treated as an opt-in
+/// operation with different failure modes and security posture.
+///
+/// Returns a human-readable summary on success.
 #[cfg(not(target_arch = "wasm32"))]
 pub async fn verify_vc(vc_json: &str) -> Result<String> {
     if is_legacy_vc(vc_json) {
@@ -205,6 +216,219 @@ pub async fn verify_vc(vc_json: &str) -> Result<String> {
         .map_err(|e| anyhow!("verification error: {e}"))?;
     outcome.map_err(|e| anyhow!("invalid VC proof: {e:?}"))?;
     Ok("VC verification result: ok".to_string())
+}
+
+/// Outcome of a credential-status check.
+///
+/// Each field is `None` when the credential carries no `credentialStatus`
+/// entry for that purpose, `Some(false)` when the status bit is clear, and
+/// `Some(true)` when set. If a credential has multiple entries for the
+/// same purpose (uncommon but spec-legal), their bits are OR'd — any one
+/// set marks the credential as revoked/suspended.
+#[cfg(not(target_arch = "wasm32"))]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CredentialStatus {
+    pub revoked: Option<bool>,
+    pub suspended: Option<bool>,
+}
+
+/// Reads the bits referenced by the credential's `credentialStatus`
+/// entries and reports whether revocation / suspension are set.
+///
+/// **Does not verify the input credential's own Data-Integrity proof.**
+/// By design — proof verification belongs to [`verify_vc`]. Status truth
+/// and signature truth are separate concerns; bundling them into one
+/// call would couple two independent failure modes ("revoked" vs
+/// "forged") and make the proof check implicit. Pair both functions
+/// when you need both answers.
+///
+/// For each `credentialStatus` entry, fetches the referenced
+/// `BitstringStatusListCredential`, **verifies that credential's own
+/// Data-Integrity proof**, confirms it was signed by `status_list_signer`,
+/// decodes the multibase/gzipped bitstring, and reads the bit at
+/// `statusListIndex`. The two purposes (`"revocation"`, `"suspension"`)
+/// are reported independently in the returned [`CredentialStatus`];
+/// multiple entries for the same purpose are OR'd (any set ⇒ revoked).
+///
+/// # Required: `status_list_signer`
+///
+/// The DID expected to have signed every fetched status-list credential
+/// — typically the issuer's DID, or the status server's DID if the
+/// issuer delegates status-list signing. We refuse to read a status
+/// from a list that is unsigned, signed by a DID other than
+/// `status_list_signer`, or whose proof doesn't verify. Without this
+/// pin, an attacker who can intercept the GET (DNS hijack, compromised
+/// CDN, MITM on a non-TLS hop) could substitute their own valid
+/// DID-signed bitstring and silently unflip the revocation bit. The
+/// comparison is on the controller DID — everything before `#` in the
+/// proof's `verificationMethod` IRI — so key rotation within the same
+/// DID document is accepted; a different controller is not.
+///
+/// # No-status / legacy / unsupported cases
+///
+/// - No `credentialStatus` field, `null`, or empty array → both fields
+///   `None`. (`status_list_signer` is ignored in this case.)
+/// - Legacy (pre-ssi-0.16) VCs → both fields `None`: revocable VCs are
+///   a post-VC-2.0 feature and legacy VCs by construction don't carry
+///   `credentialStatus`.
+/// - `"message"`-purpose entries are skipped (out of scope here).
+#[cfg(not(target_arch = "wasm32"))]
+pub async fn check_credential_status(
+    vc_json: &str,
+    status_list_signer: &str,
+) -> Result<CredentialStatus> {
+    check_credential_status_inner(vc_json, Some(status_list_signer), false).await
+}
+
+/// Test-only entrypoint behind [`check_credential_status`].
+///
+/// - `status_list_signer = Some(did)` enforces the signer pin documented
+///   on [`check_credential_status`].
+/// - `status_list_signer = None` skips the pin entirely. **Never** pass
+///   `None` outside tests: doing so accepts any valid DID-signed list,
+///   defeating the security invariant the public entrypoint exists to
+///   enforce.
+/// - `allow_unsecured = true` accepts status-list credentials that
+///   carry no proof at all (used so wiremock tests don't have to sign
+///   their fixtures). Implies trusting the transport; do not set in
+///   production.
+#[cfg(not(target_arch = "wasm32"))]
+async fn check_credential_status_inner(
+    vc_json: &str,
+    status_list_signer: Option<&str>,
+    allow_unsecured: bool,
+) -> Result<CredentialStatus> {
+    use ssi::claims::data_integrity::{self, AnySuite, DataIntegrity};
+    use ssi_status::{
+        bitstring_status_list::{
+            BitstringStatusListCredential, BitstringStatusListEntry, StatusPurpose as BsPurpose,
+        },
+        StatusMap,
+    };
+
+    if is_legacy_vc(vc_json) {
+        return Ok(CredentialStatus {
+            revoked: None,
+            suspended: None,
+        });
+    }
+
+    // Pull `credentialStatus` straight off the input JSON via serde. We
+    // deliberately do NOT route this through `ssi_status::AnyEntrySet`,
+    // because that path parses the whole credential as a
+    // `BitstringStatusListEntrySetCredential` and re-runs Data-Integrity
+    // proof verification on the input as a side effect — which would
+    // silently couple this function to `verify_vc`'s job. Status
+    // checking and proof verification are intentionally separate.
+    let v: Value =
+        serde_json::from_str(vc_json).map_err(|e| anyhow!("input is not valid JSON: {e}"))?;
+    let entries: Vec<BitstringStatusListEntry> = match v.get("credentialStatus") {
+        None | Some(Value::Null) => Vec::new(),
+        Some(Value::Array(arr)) => arr
+            .iter()
+            .map(|e| serde_json::from_value(e.clone()))
+            .collect::<std::result::Result<_, _>>()
+            .map_err(|e| anyhow!("malformed credentialStatus entry: {e}"))?,
+        Some(single) => vec![serde_json::from_value(single.clone())
+            .map_err(|e| anyhow!("malformed credentialStatus entry: {e}"))?],
+    };
+    if entries.is_empty() {
+        return Ok(CredentialStatus {
+            revoked: None,
+            suspended: None,
+        });
+    }
+
+    let resolver = VerificationMethodDIDResolver::<_, AnyMethod>::new(AnyDidMethod::default());
+    let loader = integrity_jsonld::loader::loader(None)?;
+    let verifier = VerificationParameters::from_resolver(resolver).with_json_ld_loader(loader);
+    let http = reqwest::Client::new();
+
+    let mut revoked: Option<bool> = None;
+    let mut suspended: Option<bool> = None;
+
+    for entry in &entries {
+        let slot = match entry.status_purpose {
+            BsPurpose::Revocation => &mut revoked,
+            BsPurpose::Suspension => &mut suspended,
+            BsPurpose::Message => continue,
+        };
+
+        let url = &entry.status_list_credential;
+        let bytes = http
+            .get(url.as_str())
+            .send()
+            .await
+            .map_err(|e| anyhow!("failed to GET status list at {url}: {e}"))?
+            .bytes()
+            .await
+            .map_err(|e| anyhow!("failed to read status list body from {url}: {e}"))?;
+
+        let vc: DataIntegrity<BitstringStatusListCredential, AnySuite> =
+            data_integrity::from_json_slice(&bytes)
+                .map_err(|e| anyhow!("malformed status list at {url}: {e}"))?;
+
+        if vc.proofs.is_empty() {
+            if !allow_unsecured {
+                bail!("status list at {url} is unsigned; refusing to trust it");
+            }
+        } else {
+            // Cryptographic verification first ...
+            vc.verify(&verifier)
+                .await
+                .map_err(|e| anyhow!("verification error for status list at {url}: {e}"))?
+                .map_err(|e| anyhow!("invalid status list proof at {url}: {e:?}"))?;
+
+            // ... then signer pinning: at least one proof must be from
+            // the DID the caller approved. Compare on the controller
+            // portion of the verificationMethod IRI (everything before
+            // `#`) so key-id rotations within the same DID document
+            // still pass.
+            if let Some(expected) = status_list_signer {
+                let signed_by_expected = vc.proofs.iter().any(|p| {
+                    let vm = p.verification_method.id().as_str();
+                    let controller = vm.split_once('#').map_or(vm, |(c, _)| c);
+                    controller == expected
+                });
+                if !signed_by_expected {
+                    let actual: Vec<&str> = vc
+                        .proofs
+                        .iter()
+                        .map(|p| p.verification_method.id().as_str())
+                        .collect();
+                    bail!(
+                        "status list at {url} not signed by expected DID `{expected}`; \
+                         verificationMethod(s): {actual:?}"
+                    );
+                }
+            }
+        }
+
+        let status_list = vc
+            .claims
+            .decode_status_list()
+            .map_err(|e| anyhow!("failed to decode status list bitstring at {url}: {e}"))?;
+
+        let bit = status_list
+            .get_entry(entry)
+            .map_err(|e| {
+                anyhow!(
+                    "invalid status size for entry at index {}: {e}",
+                    entry.status_list_index
+                )
+            })?
+            .ok_or_else(|| {
+                anyhow!(
+                    "status list index {} out of range for {url}",
+                    entry.status_list_index
+                )
+            })?;
+
+        let current = bit != 0;
+        *slot = Some(slot.unwrap_or(false) || current);
+    }
+
+    Ok(CredentialStatus { revoked, suspended })
 }
 
 /// Detect a legacy VC: a JSON document whose top-level `@context` references
@@ -829,5 +1053,236 @@ mod tests {
             result.is_err(),
             "non-object subject must be rejected, got: {result:?}"
         );
+    }
+
+    /// A VC with no `credentialStatus` field — the plain `issue_vc` path —
+    /// reports no statement about either purpose. The signer pin is
+    /// irrelevant here because no list is ever fetched; we pass a
+    /// placeholder DID to satisfy the required parameter.
+    #[tokio::test]
+    async fn test_check_credential_status_no_status_list() {
+        let _ = env_logger::builder().is_test(true).try_init();
+
+        let signer = Ed25519Signer::create().unwrap();
+        let signed = issue_vc(
+            "urn:cid:bafkr4ibthuzk3zug7ghmx63yjqaiu6rx4hhfdv3453j5bodskgw57bx2ya",
+            SignerType::ED25519(signer),
+        )
+        .await
+        .unwrap();
+        let vc_json = serde_json::to_string(&signed).unwrap();
+
+        let status = check_credential_status(&vc_json, "did:key:irrelevant-no-fetch-occurs")
+            .await
+            .unwrap();
+        assert_eq!(
+            status,
+            CredentialStatus {
+                revoked: None,
+                suspended: None
+            }
+        );
+    }
+
+    /// End-to-end: issue a revocable VC against a mocked status server,
+    /// serve unsigned all-zero status lists, and verify both bits read as
+    /// clear. Goes through the test-only inner helper so the in-test
+    /// status lists don't need a Data-Integrity proof or signer pin.
+    #[tokio::test]
+    async fn test_check_credential_status_clear_bits() {
+        let status = run_revocable_status_check(None).await.unwrap();
+        assert_eq!(
+            status,
+            CredentialStatus {
+                revoked: Some(false),
+                suspended: Some(false)
+            }
+        );
+    }
+
+    /// Same setup as the clear-bits test, but with the revocation list's
+    /// bit at the credential's `statusListIndex` flipped to 1.
+    #[tokio::test]
+    async fn test_check_credential_status_revoked() {
+        let status = run_revocable_status_check(Some(StatusBitToSet::Revocation))
+            .await
+            .unwrap();
+        assert_eq!(
+            status,
+            CredentialStatus {
+                revoked: Some(true),
+                suspended: Some(false)
+            }
+        );
+    }
+
+    /// And the symmetric case for suspension.
+    #[tokio::test]
+    async fn test_check_credential_status_suspended() {
+        let status = run_revocable_status_check(Some(StatusBitToSet::Suspension))
+            .await
+            .unwrap();
+        assert_eq!(
+            status,
+            CredentialStatus {
+                revoked: Some(false),
+                suspended: Some(true)
+            }
+        );
+    }
+
+    /// The public entrypoint must REJECT a status list with no proof —
+    /// otherwise an attacker who can intercept the GET could serve a
+    /// fresh, unsigned bitstring with the revocation bit cleared. Drive
+    /// the same wiremock topology, then call the public function (which
+    /// requires `allow_unsecured = false`) and expect an error.
+    #[tokio::test]
+    async fn test_check_credential_status_rejects_unsigned_status_list() {
+        let err = run_revocable_status_check_public(None, "did:key:irrelevant-will-fail-first")
+            .await
+            .unwrap_err();
+        let msg = format!("{err}");
+        assert!(
+            msg.contains("unsigned"),
+            "error should explain the rejection: {msg}"
+        );
+    }
+
+    #[derive(Clone, Copy)]
+    enum StatusBitToSet {
+        Revocation,
+        Suspension,
+    }
+
+    /// Drives the revocable-status flow against the test-only inner
+    /// helper (no signer pin, accepts unsigned lists).
+    async fn run_revocable_status_check(set: Option<StatusBitToSet>) -> Result<CredentialStatus> {
+        let (_server, vc_json) = setup_revocable_vc_against_mock(set).await;
+        check_credential_status_inner(&vc_json, None, true).await
+    }
+
+    /// Same setup, but call the PUBLIC entrypoint — i.e. the one that
+    /// requires a signed status list and a pinned signer. Used to assert
+    /// rejection of unsigned lists.
+    async fn run_revocable_status_check_public(
+        set: Option<StatusBitToSet>,
+        signer_did: &str,
+    ) -> Result<CredentialStatus> {
+        let (_server, vc_json) = setup_revocable_vc_against_mock(set).await;
+        check_credential_status(&vc_json, signer_did).await
+    }
+
+    /// Stands up the wiremock topology used by every status-check test:
+    /// (1) mock POST /credentials/status/allocate → returns the VC with
+    /// `credentialStatus` pointing back at the mock for two lists; (2)
+    /// mock GET /status-lists/{revocation,suspension} → returns unsigned
+    /// `BitstringStatusListCredential` JSON whose encoded list is either
+    /// all zeros or has the entry's bit set. Returns the running server
+    /// (kept alive by the caller's binding) and the serialized signed VC.
+    async fn setup_revocable_vc_against_mock(
+        set: Option<StatusBitToSet>,
+    ) -> (wiremock::MockServer, String) {
+        use ssi_status::bitstring_status_list::{SizedBitString, StatusSize};
+        use wiremock::{
+            matchers::{header, method, path},
+            Mock, MockServer, Request, Respond, ResponseTemplate,
+        };
+
+        const REVOCATION_INDEX: usize = 42;
+        const SUSPENSION_INDEX: usize = 43;
+
+        struct AllocateResponder {
+            server_uri: String,
+        }
+        impl Respond for AllocateResponder {
+            fn respond(&self, req: &Request) -> ResponseTemplate {
+                let mut vc: serde_json::Value = serde_json::from_slice(&req.body).unwrap();
+                vc["credentialStatus"] = serde_json::json!([
+                    {
+                        "id": format!("{}/status-lists/revocation#{REVOCATION_INDEX}", self.server_uri),
+                        "type": "BitstringStatusListEntry",
+                        "statusPurpose": "revocation",
+                        "statusListIndex": REVOCATION_INDEX.to_string(),
+                        "statusListCredential": format!("{}/status-lists/revocation", self.server_uri),
+                    },
+                    {
+                        "id": format!("{}/status-lists/suspension#{SUSPENSION_INDEX}", self.server_uri),
+                        "type": "BitstringStatusListEntry",
+                        "statusPurpose": "suspension",
+                        "statusListIndex": SUSPENSION_INDEX.to_string(),
+                        "statusListCredential": format!("{}/status-lists/suspension", self.server_uri),
+                    }
+                ]);
+                ResponseTemplate::new(200).set_body_json(vc)
+            }
+        }
+
+        fn status_list_body(server_uri: &str, purpose: &str, set_index: Option<usize>) -> String {
+            let status_size = StatusSize::try_from(1u8).unwrap();
+            let mut bs = SizedBitString::new_zeroed(status_size, 16_384);
+            if let Some(i) = set_index {
+                bs.set(i, 1).unwrap();
+            }
+            let encoded = bs.encode();
+            serde_json::json!({
+                "@context": ["https://www.w3.org/ns/credentials/v2"],
+                "id": format!("{server_uri}/status-lists/{purpose}"),
+                "type": ["VerifiableCredential", "BitstringStatusListCredential"],
+                "credentialSubject": {
+                    "type": "BitstringStatusList",
+                    "statusPurpose": purpose,
+                    "encodedList": encoded,
+                }
+            })
+            .to_string()
+        }
+
+        let _ = env_logger::builder().is_test(true).try_init();
+        let server = MockServer::start().await;
+        let server_uri = server.uri();
+
+        Mock::given(method("POST"))
+            .and(path("/credentials/status/allocate"))
+            .and(header("Authorization", "Bearer test-jwt"))
+            .respond_with(AllocateResponder {
+                server_uri: server_uri.clone(),
+            })
+            .mount(&server)
+            .await;
+
+        let revocation_set =
+            matches!(set, Some(StatusBitToSet::Revocation)).then_some(REVOCATION_INDEX);
+        let suspension_set =
+            matches!(set, Some(StatusBitToSet::Suspension)).then_some(SUSPENSION_INDEX);
+
+        Mock::given(method("GET"))
+            .and(path("/status-lists/revocation"))
+            .respond_with(ResponseTemplate::new(200).set_body_raw(
+                status_list_body(&server_uri, "revocation", revocation_set),
+                "application/vc+ld+json",
+            ))
+            .mount(&server)
+            .await;
+
+        Mock::given(method("GET"))
+            .and(path("/status-lists/suspension"))
+            .respond_with(ResponseTemplate::new(200).set_body_raw(
+                status_list_body(&server_uri, "suspension", suspension_set),
+                "application/vc+ld+json",
+            ))
+            .mount(&server)
+            .await;
+
+        let signer = Ed25519Signer::create().unwrap();
+        let signed = issue_revocable_vc(
+            "did:key:z6Mkw2PvzC9DHXiYQHMDRwyxCCV9n4EDc6vqqp1uyi9nrwsP",
+            SignerType::ED25519(signer),
+            &server_uri,
+            "test-jwt",
+        )
+        .await
+        .unwrap();
+        let vc_json = serde_json::to_string(&signed).unwrap();
+        (server, vc_json)
     }
 }
