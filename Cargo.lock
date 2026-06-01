@@ -4277,6 +4277,7 @@ dependencies = [
  "serde_json",
  "ssi 0.16.0",
  "ssi 0.7.0",
+ "ssi-status",
  "tokio",
  "uuid",
  "wiremock",
