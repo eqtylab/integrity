@@ -136,6 +136,10 @@ pub async fn issue_vc(subject: &str, signer: SignerType) -> Result<SignedVc> {
 ///
 /// The server's response shape (multi-entry `credentialStatus`) is now
 /// natively supported by `JsonCredential` v2.
+///
+/// This is a thin wrapper over [`allocate_credential_status`] (the
+/// allocate-and-augment step) followed by signing; callers holding a
+/// pre-built unsigned credential should reach for that helper directly.
 #[cfg(not(target_arch = "wasm32"))]
 pub async fn issue_revocable_vc(
     subject: &str,
@@ -147,6 +151,43 @@ pub async fn issue_revocable_vc(
 
     let adapter = IntegritySigner::new(signer);
     let unsigned = build_unsigned(subject, &adapter)?;
+    let allocated =
+        allocate_credential_status(unsigned, status_server_url, status_server_jwt).await?;
+    sign(allocated, adapter).await
+}
+
+/// Allocates credential-status slots for an already-built unsigned
+/// `JsonCredential` against a vc-status-server, returning the augmented
+/// unsigned credential.
+///
+/// This is the lower-level half of [`issue_revocable_vc`], exposed so
+/// callers who assemble their own credential — e.g. via
+/// [`build_unsigned_with_eqty_contexts`], or any other path that yields a
+/// [`Credential`] — can opt into revocability without going through the
+/// subject-string builder. It POSTs the serialized credential to
+/// `{status_server_url}/credentials/status/allocate` with
+/// `status_server_jwt` as a Bearer token; the server reserves a slot in
+/// its revocation and suspension bitstrings and echoes the credential
+/// back with the matching `credentialStatus` entries appended.
+///
+/// The returned credential is still **unsigned** — feed it straight into
+/// [`sign_vc`] to obtain a [`SignedVc`]. The server's response shape
+/// (multi-entry `credentialStatus`) is natively supported by
+/// `JsonCredential` v2, so the augmented credential round-trips through
+/// serde without manual JSON surgery.
+///
+/// # Errors
+///
+/// Returns an error if the credential can't be serialized, the HTTP
+/// request fails, the server responds non-2xx (its response body is
+/// surfaced verbatim), or the response body doesn't parse back as a
+/// `JsonCredential`.
+#[cfg(not(target_arch = "wasm32"))]
+pub async fn allocate_credential_status(
+    unsigned: JsonCredential,
+    status_server_url: &str,
+    status_server_jwt: &str,
+) -> Result<JsonCredential> {
     let unsigned_json = serde_json::to_string(&unsigned)?;
     log::trace!("Unsigned VC sent to status server: {unsigned_json}");
 
@@ -170,11 +211,8 @@ pub async fn issue_revocable_vc(
         bail!("status server allocate failed ({status}): {body}");
     }
 
-    let allocated: JsonCredential = serde_json::from_str(&body).map_err(|e| {
-        anyhow!("failed to parse allocated VC as JsonCredential: {e}. Body: {body}")
-    })?;
-
-    sign(allocated, adapter).await
+    serde_json::from_str(&body)
+        .map_err(|e| anyhow!("failed to parse allocated VC as JsonCredential: {e}. Body: {body}"))
 }
 
 /// Signs an already-built unsigned `JsonCredential`.
@@ -278,6 +316,212 @@ pub async fn check_credential_status(
     status_list_signer: &str,
 ) -> Result<CredentialStatus> {
     check_credential_status_inner(vc_json, Some(status_list_signer), false).await
+}
+
+/// Which status bit a [`update_credential_status`] write targets.
+///
+/// A deliberate local mirror of the two *writable* purposes. We don't
+/// re-export `ssi_status`'s `StatusPurpose` (which also carries a
+/// `Message` variant that has no meaning for a revoke/suspend write), so
+/// the crate's public surface stays free of `ssi` crate paths — matching
+/// the policy behind the local [`CredentialStatus`].
+#[cfg(not(target_arch = "wasm32"))]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StatusPurpose {
+    Revocation,
+    Suspension,
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+impl StatusPurpose {
+    /// The wire string the vc-status-server expects in `statusPurpose`,
+    /// and the value `credentialStatus` entries are matched against.
+    fn as_str(self) -> &'static str {
+        match self {
+            StatusPurpose::Revocation => "revocation",
+            StatusPurpose::Suspension => "suspension",
+        }
+    }
+}
+
+/// Flips a credential's revocation or suspension bit on the
+/// vc-status-server.
+///
+/// The write-side counterpart to [`check_credential_status`]: where that
+/// function fetches a bitstring and reads a bit, this asks the server that
+/// owns the bitstring to set or clear it. It POSTs to
+/// `{status_server_url}/credentials/status` with `status_server_jwt` as a
+/// Bearer token, identifying the credential by its top-level `id` and
+/// forwarding the matching `credentialStatus` entry verbatim so the server
+/// can cross-check it against the allocation it recorded at issuance.
+///
+/// `status = true` sets the bit (revoked / suspended); `status = false`
+/// clears it. Returns the server-confirmed resulting bit (from the
+/// `{"status": <bool>}` response) — which, for an idempotent no-op, equals
+/// the value you passed.
+///
+/// # Revocation is one-way
+///
+/// The server refuses to clear a `revocation` bit once set (it answers
+/// `409 revocation_irreversible`, surfaced here as an error). Suspension
+/// is freely reversible — see [`suspend_vc`] / [`unsuspend_vc`]. This
+/// asymmetry is why the purpose and `status` are explicit parameters
+/// rather than the API implying a symmetry the server doesn't honor.
+///
+/// # Entry selection
+///
+/// The credential must carry exactly one `credentialStatus` entry whose
+/// `statusPurpose` matches `purpose`. The whole entry object is forwarded
+/// as-is (the server reads only `type`, `statusPurpose`, `statusListIndex`
+/// and `statusListCredential` and ignores the rest, so the entry's `id`
+/// rides along harmlessly). It is an error if the credential has no `id`,
+/// no entry for the requested purpose, or more than one — a write can't
+/// guess which allocation to flip. Legacy (pre-ssi-0.16) VCs never carry
+/// `credentialStatus` and are rejected outright.
+///
+/// # Errors
+///
+/// Returns an error if `vc_json` isn't valid JSON, lacks a top-level
+/// `id`, is a legacy VC, has zero or multiple matching entries, the HTTP
+/// request fails, or the server responds non-2xx (its response body is
+/// surfaced verbatim, including the `{"error","message"}` payload).
+#[cfg(not(target_arch = "wasm32"))]
+pub async fn update_credential_status(
+    vc_json: &str,
+    purpose: StatusPurpose,
+    status: bool,
+    status_server_url: &str,
+    status_server_jwt: &str,
+) -> Result<bool> {
+    if is_legacy_vc(vc_json) {
+        bail!("legacy VCs do not carry credentialStatus; nothing to update");
+    }
+
+    let v: Value =
+        serde_json::from_str(vc_json).map_err(|e| anyhow!("input is not valid JSON: {e}"))?;
+
+    let credential_id = v
+        .get("id")
+        .and_then(Value::as_str)
+        .ok_or_else(|| anyhow!("credential has no top-level `id`; cannot update status"))?;
+
+    let purpose_str = purpose.as_str();
+    let entries: Vec<&Value> = match v.get("credentialStatus") {
+        None | Some(Value::Null) => Vec::new(),
+        Some(Value::Array(arr)) => arr.iter().collect(),
+        Some(single) => vec![single],
+    };
+    let mut matching = entries
+        .into_iter()
+        .filter(|e| e.get("statusPurpose").and_then(Value::as_str) == Some(purpose_str));
+    let entry = matching.next().ok_or_else(|| {
+        anyhow!("credential has no `{purpose_str}` credentialStatus entry to update")
+    })?;
+    if matching.next().is_some() {
+        bail!(
+            "credential has multiple `{purpose_str}` credentialStatus entries; \
+             refusing to guess which to update"
+        );
+    }
+
+    let body = serde_json::json!({
+        "credentialId": credential_id,
+        "credentialStatus": entry,
+        "status": status,
+    });
+
+    let url = format!(
+        "{}/credentials/status",
+        status_server_url.trim_end_matches('/')
+    );
+    log::debug!(
+        "Updating credential status for '{credential_id}' ({purpose_str}={status}) via {url}"
+    );
+
+    let resp = reqwest::Client::new()
+        .post(&url)
+        .bearer_auth(status_server_jwt)
+        .json(&body)
+        .send()
+        .await?;
+
+    let http_status = resp.status();
+    let resp_body = resp.text().await?;
+    log::trace!("Status server response ({http_status}): {resp_body}");
+
+    if !http_status.is_success() {
+        bail!("status server update failed ({http_status}): {resp_body}");
+    }
+
+    let parsed: Value = serde_json::from_str(&resp_body)
+        .map_err(|e| anyhow!("failed to parse status update response: {e}. Body: {resp_body}"))?;
+    parsed
+        .get("status")
+        .and_then(Value::as_bool)
+        .ok_or_else(|| anyhow!("status update response missing boolean `status`: {resp_body}"))
+}
+
+/// Revokes a credential — sets its `revocation` bit on the
+/// vc-status-server. One-way: a revoked credential can't be un-revoked.
+///
+/// Convenience wrapper over [`update_credential_status`]. See it for
+/// entry-selection rules and errors.
+#[cfg(not(target_arch = "wasm32"))]
+pub async fn revoke_vc(
+    vc_json: &str,
+    status_server_url: &str,
+    status_server_jwt: &str,
+) -> Result<bool> {
+    update_credential_status(
+        vc_json,
+        StatusPurpose::Revocation,
+        true,
+        status_server_url,
+        status_server_jwt,
+    )
+    .await
+}
+
+/// Suspends a credential — sets its `suspension` bit on the
+/// vc-status-server. Reversible via [`unsuspend_vc`].
+///
+/// Convenience wrapper over [`update_credential_status`]. See it for
+/// entry-selection rules and errors.
+#[cfg(not(target_arch = "wasm32"))]
+pub async fn suspend_vc(
+    vc_json: &str,
+    status_server_url: &str,
+    status_server_jwt: &str,
+) -> Result<bool> {
+    update_credential_status(
+        vc_json,
+        StatusPurpose::Suspension,
+        true,
+        status_server_url,
+        status_server_jwt,
+    )
+    .await
+}
+
+/// Un-suspends a credential — clears its `suspension` bit on the
+/// vc-status-server.
+///
+/// Convenience wrapper over [`update_credential_status`]. See it for
+/// entry-selection rules and errors.
+#[cfg(not(target_arch = "wasm32"))]
+pub async fn unsuspend_vc(
+    vc_json: &str,
+    status_server_url: &str,
+    status_server_jwt: &str,
+) -> Result<bool> {
+    update_credential_status(
+        vc_json,
+        StatusPurpose::Suspension,
+        false,
+        status_server_url,
+        status_server_jwt,
+    )
+    .await
 }
 
 /// Test-only entrypoint behind [`check_credential_status`].
@@ -782,6 +1026,233 @@ mod tests {
         assert!(
             msg.contains("sub mismatch"),
             "error should include body: {msg}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_allocate_credential_status_appends_entries() {
+        use wiremock::{
+            matchers::{header, method, path},
+            Mock, MockServer, Request, Respond, ResponseTemplate,
+        };
+
+        struct AllocateResponder;
+        impl Respond for AllocateResponder {
+            fn respond(&self, req: &Request) -> ResponseTemplate {
+                let mut vc: serde_json::Value = serde_json::from_slice(&req.body).unwrap();
+                vc["credentialStatus"] = serde_json::json!([
+                    {
+                        "id": "https://status.example/status-lists/abc#42",
+                        "type": "BitstringStatusListEntry",
+                        "statusPurpose": "revocation",
+                        "statusListIndex": "42",
+                        "statusListCredential": "https://status.example/status-lists/abc"
+                    },
+                    {
+                        "id": "https://status.example/status-lists/abc#43",
+                        "type": "BitstringStatusListEntry",
+                        "statusPurpose": "suspension",
+                        "statusListIndex": "43",
+                        "statusListCredential": "https://status.example/status-lists/abc"
+                    }
+                ]);
+                ResponseTemplate::new(200).set_body_json(vc)
+            }
+        }
+
+        let _ = env_logger::builder().is_test(true).try_init();
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/credentials/status/allocate"))
+            .and(header("Authorization", "Bearer test-jwt"))
+            .respond_with(AllocateResponder)
+            .mount(&server)
+            .await;
+
+        let signer = Ed25519Signer::create().unwrap();
+        let issuer_did = signer.did_doc.id.clone();
+
+        // The motivating caller: a hand-assembled unsigned credential that
+        // never touched `issue_revocable_vc`'s subject-string path.
+        let unsigned = build_unsigned_with_eqty_contexts(
+            "urn:uuid:11111111-1111-1111-1111-111111111111",
+            &issuer_did,
+            serde_json::json!({ "id": "did:example:holder" }),
+            None,
+            None,
+            vec![],
+        )
+        .unwrap();
+
+        let allocated = allocate_credential_status(unsigned, &server.uri(), "test-jwt")
+            .await
+            .unwrap();
+        assert_eq!(
+            allocated.credential_status.len(),
+            2,
+            "helper returns the augmented credential with both entries"
+        );
+
+        // And the augmented credential still signs through the existing path.
+        let signed = sign_vc(allocated, SignerType::ED25519(signer))
+            .await
+            .unwrap();
+        assert!(!signed.proofs.is_empty(), "SignedVc should have a proof");
+    }
+
+    #[tokio::test]
+    async fn test_update_credential_status_revoke() {
+        use wiremock::{
+            matchers::{body_partial_json, header, method, path},
+            Mock, ResponseTemplate,
+        };
+
+        // Standard topology: a revocable VC whose `credentialStatus` points
+        // at `{server}/status-lists/{purpose}`, revocation index 42.
+        let (server, vc_json) = setup_revocable_vc_against_mock(None).await;
+        let vc_id = serde_json::from_str::<serde_json::Value>(&vc_json).unwrap()["id"]
+            .as_str()
+            .unwrap()
+            .to_string();
+
+        Mock::given(method("POST"))
+            .and(path("/credentials/status"))
+            .and(header("Authorization", "Bearer test-jwt"))
+            .and(body_partial_json(serde_json::json!({
+                "credentialId": vc_id,
+                "credentialStatus": {
+                    "type": "BitstringStatusListEntry",
+                    "statusPurpose": "revocation",
+                    "statusListIndex": "42",
+                    "statusListCredential": format!("{}/status-lists/revocation", server.uri()),
+                },
+                "status": true
+            })))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_json(serde_json::json!({ "status": true })),
+            )
+            .mount(&server)
+            .await;
+
+        let revoked = revoke_vc(&vc_json, &server.uri(), "test-jwt")
+            .await
+            .unwrap();
+        assert!(revoked, "server-confirmed bit should be true");
+    }
+
+    #[tokio::test]
+    async fn test_update_credential_status_propagates_server_error() {
+        use wiremock::{
+            matchers::{method, path},
+            Mock, ResponseTemplate,
+        };
+
+        let (server, vc_json) = setup_revocable_vc_against_mock(None).await;
+        Mock::given(method("POST"))
+            .and(path("/credentials/status"))
+            .respond_with(ResponseTemplate::new(409).set_body_string(
+                r#"{"error":"revocation_irreversible","message":"revocation status cannot be cleared once set"}"#,
+            ))
+            .mount(&server)
+            .await;
+
+        let err = update_credential_status(
+            &vc_json,
+            StatusPurpose::Revocation,
+            false,
+            &server.uri(),
+            "test-jwt",
+        )
+        .await
+        .unwrap_err();
+        let msg = format!("{err}");
+        assert!(msg.contains("409"), "error should mention status: {msg}");
+        assert!(
+            msg.contains("revocation_irreversible"),
+            "error should include body: {msg}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_update_credential_status_no_matching_entry() {
+        let _ = env_logger::builder().is_test(true).try_init();
+
+        // A plain (non-revocable) VC carries no `credentialStatus`.
+        let signer = Ed25519Signer::create().unwrap();
+        let signed = issue_vc(
+            "did:key:z6Mkw2PvzC9DHXiYQHMDRwyxCCV9n4EDc6vqqp1uyi9nrwsP",
+            SignerType::ED25519(signer),
+        )
+        .await
+        .unwrap();
+        let vc_json = serde_json::to_string(&signed).unwrap();
+
+        // URL is never contacted — the error happens before any HTTP.
+        let err = revoke_vc(&vc_json, "http://127.0.0.1:1", "test-jwt")
+            .await
+            .unwrap_err();
+        assert!(
+            format!("{err}").contains("no `revocation` credentialStatus entry"),
+            "got: {err}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_suspend_vc() {
+        use wiremock::{
+            matchers::{body_partial_json, method, path},
+            Mock, ResponseTemplate,
+        };
+
+        let (server, vc_json) = setup_revocable_vc_against_mock(None).await;
+        Mock::given(method("POST"))
+            .and(path("/credentials/status"))
+            .and(body_partial_json(serde_json::json!({
+                "credentialStatus": {
+                    "statusPurpose": "suspension",
+                    "statusListIndex": "43",
+                    "statusListCredential": format!("{}/status-lists/suspension", server.uri()),
+                },
+                "status": true
+            })))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_json(serde_json::json!({ "status": true })),
+            )
+            .mount(&server)
+            .await;
+
+        let suspended = suspend_vc(&vc_json, &server.uri(), "test-jwt")
+            .await
+            .unwrap();
+        assert!(suspended, "server-confirmed suspension bit should be true");
+    }
+
+    #[tokio::test]
+    async fn test_unsuspend_vc() {
+        use wiremock::{
+            matchers::{body_partial_json, method, path},
+            Mock, ResponseTemplate,
+        };
+
+        let (server, vc_json) = setup_revocable_vc_against_mock(None).await;
+        Mock::given(method("POST"))
+            .and(path("/credentials/status"))
+            .and(body_partial_json(serde_json::json!({
+                "credentialStatus": { "statusPurpose": "suspension", "statusListIndex": "43" },
+                "status": false
+            })))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_json(serde_json::json!({ "status": false })),
+            )
+            .mount(&server)
+            .await;
+
+        let suspended = unsuspend_vc(&vc_json, &server.uri(), "test-jwt")
+            .await
+            .unwrap();
+        assert!(
+            !suspended,
+            "server-confirmed suspension bit should be false"
         );
     }
 
