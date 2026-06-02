@@ -41,13 +41,14 @@ pub type SignedVc = DataIntegrity<JsonCredential, AnySuite>;
 ///     `JsonCredential::default` (required by VC 2.0).
 ///   - `https://w3id.org/security/v2` — defines Data-Integrity proof
 ///     terms not covered by the v2 base context.
-///   - [`integrity_jsonld::ig_common_context_link`] (a urn:cid:… link
-///     to integrity-jsonld's common context) — defines the
-///     EQTY-namespaced terms used by VComp evidence and policy
-///     compliance VCs (`EqtyVComp*Evidence`, `report`,
-///     `certificateChain`, `policy`, `statements`, …). Pulled
-///     dynamically so callers automatically follow whichever bundle
-///     integrity-jsonld currently ships.
+///   - `{"@vocab": "https://eqtylab.io/terms/"}` — an inline vocabulary
+///     mapping for the EQTY-namespaced terms used by VComp evidence and
+///     policy compliance VCs (`EqtyVComp*Evidence`, `report`,
+///     `certificateChain`, `policy`, `statements`, …). Using `@vocab`
+///     rather than a fetched/CID-pinned context document keeps the VC
+///     self-describing: any term not already defined by the v2/security
+///     contexts expands under this namespace, so no external schema is
+///     required to canonicalize or verify.
 ///
 /// `subject` must be a JSON object. Bare-identifier callers should wrap
 /// as `serde_json::json!({"id": id})` before passing.
@@ -92,13 +93,24 @@ pub fn build_unsigned_with_eqty_contexts(
         credential.valid_until = Some(xsd_types::DateTimeStamp::from(dt).into());
     }
 
-    let ig_common = integrity_jsonld::ig_common_context_link();
-    for extra in ["https://w3id.org/security/v2", ig_common.as_str()] {
-        credential.context.insert(ContextEntry::IriRef(
-            IriRefBuf::new(extra.to_string())
-                .map_err(|e| anyhow!("invalid context IRI '{extra}': {e:?}"))?,
-        ));
-    }
+    // `https://w3id.org/security/v2` — Data-Integrity proof terms not
+    // covered by the v2 base context.
+    credential.context.insert(ContextEntry::IriRef(
+        IriRefBuf::new("https://w3id.org/security/v2".to_string())
+            .map_err(|e| anyhow!("invalid context IRI: {e:?}"))?,
+    ));
+
+    // EQTY-namespaced terms (`EqtyVComp*Evidence`, `report`,
+    // `certificateChain`, `policy`, `statements`, …) are mapped with an
+    // inline `@vocab` instead of a CID-pinned context document, so the VC
+    // is self-describing and needs no external schema to canonicalize.
+    // Terms already defined by the v2/security contexts keep their
+    // mappings; anything else expands under this namespace.
+    let eqty_vocab: ContextEntry = serde_json::from_value(serde_json::json!({
+        "@vocab": "https://eqtylab.io/terms/"
+    }))
+    .map_err(|e| anyhow!("failed to build EQTY @vocab context entry: {e}"))?;
+    credential.context.insert(eqty_vocab);
 
     credential.evidence = evidence
         .into_iter()
@@ -1379,6 +1391,54 @@ mod tests {
         );
     }
 
+    /// Backward-compat guard: VCs issued *before* the switch to an inline
+    /// `@vocab` carry the IG-common context as a `urn:cid:` link — exactly
+    /// what `build_unsigned_with_eqty_contexts` used to attach. The JSON-LD
+    /// loader still ships that context document, so `verify_vc` must keep
+    /// verifying such credentials. Build one the old way (CID context plus
+    /// EQTY subject terms `policy`/`statements`), sign, and verify.
+    #[tokio::test]
+    async fn test_verify_vc_with_ig_common_cid_context() {
+        let _ = env_logger::builder().is_test(true).try_init();
+
+        let signer = Ed25519Signer::create().unwrap();
+        let signer_type = SignerType::ED25519(signer);
+        let issuer_did = signer_type.get_did_doc().id;
+
+        let cid_context = integrity_jsonld::ig_common_context_link();
+        let mut unsigned_value: Value = serde_json::json!({
+            "@context": [
+                "https://www.w3.org/ns/credentials/v2",
+                "https://w3id.org/security/v2",
+                cid_context.clone(),
+            ],
+            "type": ["VerifiableCredential"],
+            "id": "urn:uuid:44444444-4444-4444-4444-444444444444",
+            "issuer": "placeholder",
+            "validFrom": "2024-03-26T12:34:56Z",
+            "credentialSubject": {
+                "id": "urn:cid:bafkr4ibthuzk3zug7ghmx63yjqaiu6rx4hhfdv3453j5bodskgw57bx2ya",
+                "policy": "urn:cid:bafkr4ibthuzk3zug7ghmx63yjqaiu6rx4hhfdv3453j5bodskgw57bx2ya",
+                "statements": ["urn:cid:bagb6qaq6ebv5rcenbhret6apdolkskuht43bdyke4d2lzkldnvqqnizbpsjvu"],
+            },
+        });
+        unsigned_value["issuer"] = Value::String(issuer_did);
+
+        let unsigned: JsonCredential = serde_json::from_value(unsigned_value).unwrap();
+        let signed = sign_vc(unsigned, signer_type).await.unwrap();
+        let vc_json = serde_json::to_string(&signed).unwrap();
+
+        // Precondition: the VC really carries the urn:cid: context, not @vocab.
+        assert!(
+            vc_json.contains(&cid_context),
+            "test VC must carry the IG-common urn:cid: context: {vc_json}"
+        );
+
+        verify_vc(&vc_json)
+            .await
+            .expect("VC carrying the IG-common urn:cid: context must still verify");
+    }
+
     /// Second user-supplied legacy fixture: Ed25519-signed, no evidence,
     /// minimal v2-with-issuanceDate shape. Confirms the legacy path also
     /// handles the simpler proof-suite-without-evidence variant.
@@ -1456,6 +1516,19 @@ mod tests {
             Some("urn:uuid:11111111-1111-1111-1111-111111111111")
         );
         assert_eq!(unsigned.evidence.len(), 1);
+
+        // EQTY terms are carried by an inline `@vocab`, not a urn:cid:
+        // context document.
+        let ctx = serde_json::to_value(&unsigned.context).unwrap();
+        assert_eq!(
+            ctx,
+            serde_json::json!([
+                "https://www.w3.org/ns/credentials/v2",
+                "https://w3id.org/security/v2",
+                { "@vocab": "https://eqtylab.io/terms/" }
+            ]),
+            "EQTY context must be an inline @vocab with no urn:cid: entry"
+        );
 
         let signed = sign_vc(unsigned, signer_type).await.unwrap();
         let signed_json = serde_json::to_string(&signed).unwrap();
