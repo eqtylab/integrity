@@ -53,6 +53,9 @@ pub type SignedVc = DataIntegrity<JsonCredential, AnySuite>;
 /// `subject` must be a JSON object. Bare-identifier callers should wrap
 /// as `serde_json::json!({"id": id})` before passing.
 ///
+/// `credential_type`, when provided, is appended to the credential's
+/// `type` array alongside the default `VerifiableCredential` entry.
+///
 /// All evidence entries are deserialized into the default
 /// `MaybeIdentifiedTypedObject` evidence type, which keeps `type` typed
 /// and routes any extra keys (`report`, `certificateChain`, …) into
@@ -62,6 +65,7 @@ pub fn build_unsigned_with_eqty_contexts(
     id: &str,
     issuer_did: &str,
     subject: Value,
+    credential_type: Option<&str>,
     valid_from: Option<DateTime<Utc>>,
     valid_until: Option<DateTime<Utc>>,
     evidence: Vec<Value>,
@@ -85,6 +89,23 @@ pub fn build_unsigned_with_eqty_contexts(
         IdOr::Id(issuer_uri),
         NonEmptyVec::new(subject_non_empty),
     );
+
+    if let Some(credential_type) = credential_type {
+        let mut credential_json = serde_json::to_value(&credential)?;
+        let types = credential_json
+            .get_mut("type")
+            .and_then(Value::as_array_mut)
+            .ok_or_else(|| anyhow!("credential type must serialize as an array"))?;
+
+        if !types
+            .iter()
+            .any(|value| value.as_str() == Some(credential_type))
+        {
+            types.push(Value::String(credential_type.to_string()));
+        }
+
+        credential = serde_json::from_value(credential_json)?;
+    }
 
     if let Some(dt) = valid_from {
         credential.valid_from = Some(xsd_types::DateTimeStamp::from(dt).into());
@@ -1092,6 +1113,7 @@ mod tests {
             serde_json::json!({ "id": "did:example:holder" }),
             None,
             None,
+            None,
             vec![],
         )
         .unwrap();
@@ -1494,6 +1516,7 @@ mod tests {
             "urn:uuid:11111111-1111-1111-1111-111111111111",
             &issuer_did,
             serde_json::json!({ "id": "urn:cid:subject" }),
+            Some("EqtyVCompCredential"),
             Some(
                 chrono::DateTime::parse_from_rfc3339("2024-03-26T12:34:56Z")
                     .unwrap()
@@ -1516,6 +1539,10 @@ mod tests {
             Some("urn:uuid:11111111-1111-1111-1111-111111111111")
         );
         assert_eq!(unsigned.evidence.len(), 1);
+        assert_eq!(
+            serde_json::to_value(&unsigned).unwrap()["type"],
+            serde_json::json!(["VerifiableCredential", "EqtyVCompCredential"])
+        );
 
         // EQTY terms are carried by an inline `@vocab`, not a urn:cid:
         // context document.
@@ -1560,6 +1587,7 @@ mod tests {
             &issuer_did,
             subject,
             None,
+            None,
             Some(
                 chrono::DateTime::parse_from_rfc3339("2030-07-04T23:59:59Z")
                     .unwrap()
@@ -1589,6 +1617,7 @@ mod tests {
             "urn:uuid:33333333-3333-3333-3333-333333333333",
             "did:key:z6MkmwihXQDhgNbWpwpWZ5NHygqC9PtHjVW62MM8ZJSggRD4",
             serde_json::Value::String("urn:cid:not-an-object".to_string()),
+            None,
             None,
             None,
             vec![],
