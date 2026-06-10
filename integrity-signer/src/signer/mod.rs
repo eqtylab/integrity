@@ -15,9 +15,12 @@ pub mod ed25519_signer;
 #[cfg(any(
     feature = "signer-p256",
     feature = "signer-vcomp-notary",
-    feature = "signer-yubikey"
+    feature = "signer-yubikey",
+    feature = "signer-notary-inproc"
 ))]
 pub(crate) mod p256_jwk;
+#[cfg(feature = "signer-notary-inproc")]
+pub mod notary_inproc;
 #[cfg(feature = "signer-p256")]
 pub mod p256_signer;
 #[cfg(feature = "signer-secp256k1")]
@@ -35,6 +38,8 @@ pub use akv_signer::{AkvConfig, AkvSigner};
 pub use auth_service_signer::AuthServiceSigner;
 #[cfg(feature = "signer-ed25519")]
 pub use ed25519_signer::Ed25519Signer;
+#[cfg(feature = "signer-notary-inproc")]
+pub use notary_inproc::{InProcSignFn, NotaryInProcSigner, SignFuture};
 #[cfg(feature = "signer-p256")]
 pub use p256_signer::P256Signer;
 #[cfg(feature = "signer-secp256k1")]
@@ -73,6 +78,11 @@ pub enum SignerType {
     AuthService(AuthServiceSigner),
     #[cfg(feature = "signer-vcomp-notary")]
     VCompNotarySigner(VCompNotarySigner),
+    /// In-process keystore-backed signer. Carries a closure, so it is never
+    /// (de)serialized — constructed at runtime by the notary host only.
+    #[cfg(feature = "signer-notary-inproc")]
+    #[serde(skip)]
+    NotaryInProc(NotaryInProcSigner),
     #[cfg(feature = "signer-akv")]
     AKV(AkvSigner),
     #[cfg(feature = "signer-yubihsm")]
@@ -94,6 +104,8 @@ impl fmt::Display for SignerType {
             Self::AuthService(_) => write!(_f, "auth_service"),
             #[cfg(feature = "signer-vcomp-notary")]
             Self::VCompNotarySigner(_) => write!(_f, "vcomp_notary"),
+            #[cfg(feature = "signer-notary-inproc")]
+            Self::NotaryInProc(_) => write!(_f, "notary_inproc"),
             #[cfg(feature = "signer-akv")]
             Self::AKV(_) => write!(_f, "azure_key_vault"),
             #[cfg(feature = "signer-yubihsm")]
@@ -106,6 +118,7 @@ impl fmt::Display for SignerType {
                 feature = "signer-p256",
                 feature = "signer-auth-service",
                 feature = "signer-vcomp-notary",
+                feature = "signer-notary-inproc",
                 feature = "signer-akv",
                 feature = "signer-yubihsm",
                 feature = "signer-yubikey"
@@ -128,6 +141,8 @@ impl SignerType {
             Self::AuthService(signer) => signer.sign(_data).await,
             #[cfg(feature = "signer-vcomp-notary")]
             Self::VCompNotarySigner(signer) => signer.sign(_data).await,
+            #[cfg(feature = "signer-notary-inproc")]
+            Self::NotaryInProc(signer) => signer.sign(_data).await,
             #[cfg(feature = "signer-akv")]
             Self::AKV(signer) => signer.sign(_data).await,
             #[cfg(feature = "signer-yubihsm")]
@@ -140,6 +155,7 @@ impl SignerType {
                 feature = "signer-p256",
                 feature = "signer-auth-service",
                 feature = "signer-vcomp-notary",
+                feature = "signer-notary-inproc",
                 feature = "signer-akv",
                 feature = "signer-yubihsm",
                 feature = "signer-yubikey"
@@ -160,6 +176,8 @@ impl SignerType {
             Self::AuthService(signer) => signer.did_doc.clone(),
             #[cfg(feature = "signer-vcomp-notary")]
             Self::VCompNotarySigner(signer) => signer.did_doc.clone(),
+            #[cfg(feature = "signer-notary-inproc")]
+            Self::NotaryInProc(signer) => signer.did_doc.clone(),
             #[cfg(feature = "signer-akv")]
             Self::AKV(signer) => signer.did_doc.clone(),
             #[cfg(feature = "signer-yubihsm")]
@@ -172,6 +190,7 @@ impl SignerType {
                 feature = "signer-p256",
                 feature = "signer-auth-service",
                 feature = "signer-vcomp-notary",
+                feature = "signer-notary-inproc",
                 feature = "signer-akv",
                 feature = "signer-yubihsm",
                 feature = "signer-yubikey"

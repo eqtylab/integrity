@@ -81,6 +81,7 @@ signer-p256 = ["signer", "integrity-signer/signer-p256", "integrity-vc?/signer-p
 signer-secp256k1 = ["signer", "integrity-signer/signer-secp256k1", "integrity-vc?/signer-secp256k1"]
 signer-auth-service = ["signer", "integrity-signer/signer-auth-service", "integrity-vc?/signer-auth-service"]
 signer-vcomp-notary = ["signer", "integrity-signer/signer-vcomp-notary", "integrity-vc?/signer-vcomp-notary"]
+signer-notary-inproc = ["signer", "integrity-signer/signer-notary-inproc"]
 signer-akv = ["signer", "integrity-signer/signer-akv", "integrity-vc?/signer-akv"]
 signer-yubihsm = ["signer", "integrity-signer/signer-yubihsm", "integrity-vc?/signer-yubihsm"]
 signer-yubikey = ["signer", "integrity-signer/signer-yubikey", "integrity-vc?/signer-yubikey"]

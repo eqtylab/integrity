@@ -7,6 +7,9 @@ edition = "2021"
 default = []
 signer-ed25519 = []
 signer-p256 = []
+# In-process keystore-backed signer (no network round-trip). Reuses the
+# P-256 JWK helpers to derive a DID from a compressed public key.
+signer-notary-inproc = []
 signer-secp256k1 = []
 signer-auth-service = ["dep:reqwest", "dep:sha2"]
 signer-vcomp-notary = [
@@ -28,6 +31,7 @@ signer-slh-dsa = ["dep:slh-dsa"]
 signer-all = [
   "signer-ed25519",
   "signer-p256",
+  "signer-notary-inproc",
   "signer-secp256k1",
   "signer-auth-service",
   "signer-vcomp-notary",
