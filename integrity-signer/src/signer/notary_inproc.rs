@@ -43,6 +43,11 @@ pub struct NotaryInProcSigner {
     pub public_key: String,
     /// In-process signing callback.
     sign_fn: InProcSignFn,
+    /// The notary's identity-attestation manifest for this binary's key (the
+    /// key-provenance chain `EK → AK → SK → process key`), supplied by the host.
+    /// Carried opaquely (schema owned by the notary service) and emitted as the
+    /// request's identity attestation. `None` if the host did not provide one.
+    identity_attestation: Option<serde_json::Value>,
 }
 
 impl fmt::Debug for NotaryInProcSigner {
@@ -64,7 +69,19 @@ impl NotaryInProcSigner {
             did_doc,
             public_key: hex::encode(compressed_sec1),
             sign_fn,
+            identity_attestation: None,
         })
+    }
+
+    /// Attach the notary's key-provenance manifest (see field docs). Builder.
+    pub fn with_identity_attestation(mut self, manifest: Option<serde_json::Value>) -> Self {
+        self.identity_attestation = manifest;
+        self
+    }
+
+    /// The attached key-provenance manifest, if any.
+    pub fn identity_attestation(&self) -> Option<&serde_json::Value> {
+        self.identity_attestation.as_ref()
     }
 }
 
