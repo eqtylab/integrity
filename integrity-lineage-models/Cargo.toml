@@ -19,7 +19,7 @@ log = "0.4"
 nquads-syntax = "0.19"
 rdf-types = "0.22"
 serde = { version = "1.0", features = ["derive"] }
-serde_jcs = "0.1.0"
+serde_jcs = "0.2.0"
 serde_json = "1.0"
 ssi = { version = "0.16", features = ["w3c", "ed25519", "secp256k1", "secp256r1"] }
 utoipa = { version = "3", features = ["axum_extras", "openapi_extensions"] }

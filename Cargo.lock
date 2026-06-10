@@ -2241,7 +2241,7 @@ dependencies = [
  "json-patch",
  "reqwest 0.11.27",
  "serde",
- "serde_jcs",
+ "serde_jcs 0.1.0",
  "serde_json",
  "sha2 0.10.9",
  "ssi-dids-core",
@@ -2261,7 +2261,7 @@ dependencies = [
  "async-trait",
  "iref 3.2.2",
  "multibase 0.8.0",
- "serde_jcs",
+ "serde_jcs 0.1.0",
  "serde_json",
  "ssi-crypto 0.2.1",
  "ssi-dids-core",
@@ -4104,7 +4104,7 @@ dependencies = [
  "log",
  "postcard",
  "serde",
- "serde_jcs",
+ "serde_jcs 0.2.0",
  "serde_json",
  "tokio",
 ]
@@ -4195,7 +4195,7 @@ dependencies = [
  "nquads-syntax",
  "rdf-types 0.22.5",
  "serde",
- "serde_jcs",
+ "serde_jcs 0.2.0",
  "serde_json",
  "ssi 0.16.0",
  "tokio",
@@ -7296,6 +7296,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "serde_jcs"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d3a60f3fda61525e439ef6d67422118f11e986566997d9021c56867ad814a0aa"
+dependencies = [
+ "ryu-js",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "serde_json"
 version = "1.0.149"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8141,7 +8152,7 @@ dependencies = [
  "linked-data",
  "rdf-types 0.22.5",
  "serde",
- "serde_jcs",
+ "serde_jcs 0.1.0",
  "serde_json",
  "thiserror 1.0.69",
 ]
@@ -8238,7 +8249,7 @@ dependencies = [
  "rand 0.8.5",
  "rsa 0.6.1",
  "serde",
- "serde_jcs",
+ "serde_jcs 0.1.0",
  "serde_json",
  "simple_asn1",
  "ssi-claims-core",
@@ -8359,7 +8370,7 @@ dependencies = [
  "p256 0.13.2",
  "rdf-types 0.12.19",
  "serde",
- "serde_jcs",
+ "serde_jcs 0.1.0",
  "serde_json",
  "sha2 0.10.9",
  "sha3",
