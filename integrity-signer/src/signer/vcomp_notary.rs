@@ -68,9 +68,13 @@ struct RegistrationResponse {
 #[derive(Debug, Deserialize)]
 struct SignResponse {
     signature: String,
-    public_key: String,
-    did: String,
-    binary_hash: String,
+    // optional: the CoCo notary omits these; the desktop notary returns them
+    #[serde(default)]
+    public_key: Option<String>,
+    #[serde(default)]
+    did: Option<String>,
+    #[serde(default)]
+    binary_hash: Option<String>,
 }
 
 /// Evidence bundle for a VComp-notary-backed signer.
@@ -233,6 +237,19 @@ impl VCompNotarySigner {
         Ok(VCompNotaryEvidenceBundle { manifest })
     }
 
+    /// Attestation from the CoCo notary's /v1/did_registration (desktop uses /v1/identity-attestations).
+    pub async fn legacy_identity_attestation(&self) -> Result<VCompNotaryEvidenceBundle> {
+        let manifest = request_json(&self.url, Method::GET, "/v1/did_registration", None)
+            .await
+            .context("failed to fetch VComp notary DID registration manifest")?;
+
+        if manifest.is_null() {
+            bail!("VComp notary returned an empty DID registration manifest");
+        }
+
+        Ok(VCompNotaryEvidenceBundle { manifest })
+    }
+
     /// Copies the signer's DID statements and blobs to the specified directories.
     ///
     /// # Arguments
@@ -319,25 +336,28 @@ impl Signer for VCompNotarySigner {
         let response: SignResponse =
             serde_json::from_value(response).context("invalid VComp notary sign response")?;
 
-        if response.did.trim() != self.did_doc.id {
-            bail!(
-                "notary sign response DID `{}` does not match signer DID `{}`",
-                response.did,
-                self.did_doc.id
-            );
+        if let Some(response_did) = response.did.as_deref() {
+            if response_did.trim() != self.did_doc.id {
+                bail!(
+                    "notary sign response DID `{}` does not match signer DID `{}`",
+                    response_did,
+                    self.did_doc.id
+                );
+            }
         }
 
-        let response_public_key = normalize_public_key_hex(&response.public_key)?;
-        if let Some(public_key) = self.public_key.as_deref() {
-            if response_public_key != public_key {
+        if let (Some(response_public_key), Some(public_key)) =
+            (response.public_key.as_deref(), self.public_key.as_deref())
+        {
+            if normalize_public_key_hex(response_public_key)? != public_key {
                 bail!("notary sign response public key does not match signer public key");
             }
         }
 
-        if let Some(binary_hash) = self.binary_hash.as_deref() {
-            let response_binary_hash =
-                normalize_hash_hex("binary_hash", &response.binary_hash, 32)?;
-            if response_binary_hash != binary_hash {
+        if let (Some(response_binary_hash), Some(binary_hash)) =
+            (response.binary_hash.as_deref(), self.binary_hash.as_deref())
+        {
+            if normalize_hash_hex("binary_hash", response_binary_hash, 32)? != binary_hash {
                 bail!("notary sign response binary hash does not match signer registration");
             }
         }
