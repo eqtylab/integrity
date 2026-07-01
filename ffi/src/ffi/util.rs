@@ -126,7 +126,7 @@ pub(crate) fn write_bool(out: *mut bool, value: bool, name: &str) -> FfiResult<(
     Ok(())
 }
 
-pub(crate) fn write_ig_bytes(out: *mut IgBytes, mut value: Vec<u8>, name: &str) -> FfiResult<()> {
+pub(crate) fn write_ig_bytes(out: *mut IgBytes, value: Vec<u8>, name: &str) -> FfiResult<()> {
     if out.is_null() {
         return Err(FfiError::new(
             IgStatus::NullPointer,
@@ -134,6 +134,17 @@ pub(crate) fn write_ig_bytes(out: *mut IgBytes, mut value: Vec<u8>, name: &str) 
         ));
     }
 
+    if value.is_empty() {
+        unsafe {
+            *out = IgBytes {
+                ptr: std::ptr::null_mut(),
+                len: 0,
+            };
+        }
+        return Ok(());
+    }
+
+    let mut value = value.into_boxed_slice();
     let bytes = IgBytes {
         ptr: value.as_mut_ptr(),
         len: value.len(),

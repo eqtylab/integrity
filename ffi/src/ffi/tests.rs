@@ -505,7 +505,7 @@ fn ffi_lineage_statement_create_did_regular_smoke() {
 #[test]
 fn ffi_versions_smoke() {
     assert_eq!(super::version::ig_abi_version_major(), 0);
-    assert_eq!(super::version::ig_abi_version_minor(), 2);
+    assert_eq!(super::version::ig_abi_version_minor(), 3);
 
     let mut err_out = ptr::null_mut();
     let mut version_ptr = ptr::null_mut();
@@ -513,5 +513,5 @@ fn ffi_versions_smoke() {
     assert_ok(status, err_out);
 
     let version = take_owned_c_string(version_ptr);
-    assert_eq!(version, "0.2.0");
+    assert_eq!(version, "0.3.0");
 }

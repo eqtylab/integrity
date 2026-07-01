@@ -6,7 +6,7 @@ use crate::ffi::{
 };
 
 const ABI_VERSION_MAJOR: u32 = 0;
-const ABI_VERSION_MINOR: u32 = 2;
+const ABI_VERSION_MINOR: u32 = 3;
 const ABI_VERSION_PATCH: u32 = 0;
 
 #[no_mangle]

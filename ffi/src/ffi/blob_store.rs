@@ -521,6 +521,8 @@ fn free_ig_bytes(bytes: IgBytes) {
     }
 
     unsafe {
-        drop(Vec::from_raw_parts(bytes.ptr, bytes.len, bytes.len));
+        drop(Box::from_raw(std::ptr::slice_from_raw_parts_mut(
+            bytes.ptr, bytes.len,
+        )));
     }
 }
