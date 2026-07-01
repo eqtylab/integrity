@@ -214,6 +214,103 @@ fn ffi_blob_store_local_fs_roundtrip() {
         super::ig_bytes_free(out_blob);
     }
 
+    let batch_blob_a = b"ffi batch blob a";
+    let batch_blob_b = b"ffi batch blob b";
+    let put_requests = [
+        blob_store::IgBlobPutRequest {
+            blob_ptr: batch_blob_a.as_ptr(),
+            blob_len: batch_blob_a.len(),
+            multicodec_code: 0x55,
+            expected_cid_or_null: ptr::null(),
+        },
+        blob_store::IgBlobPutRequest {
+            blob_ptr: batch_blob_b.as_ptr(),
+            blob_len: batch_blob_b.len(),
+            multicodec_code: 0x55,
+            expected_cid_or_null: ptr::null(),
+        },
+    ];
+    let mut put_results_ptr = ptr::null_mut();
+    let mut put_results_len = 0;
+    let status = blob_store::ig_blob_store_put_many(
+        runtime_handle,
+        store_handle,
+        put_requests.as_ptr(),
+        put_requests.len(),
+        &mut put_results_ptr,
+        &mut put_results_len,
+        &mut err_out,
+    );
+    assert_ok(status, err_out);
+    assert_eq!(put_results_len, 2);
+    let put_results = unsafe { std::slice::from_raw_parts(put_results_ptr, put_results_len) };
+    let batch_cids = put_results
+        .iter()
+        .map(|result| {
+            unsafe { CStr::from_ptr(result.cid) }
+                .to_str()
+                .expect("valid cid")
+                .to_owned()
+        })
+        .collect::<Vec<_>>();
+    unsafe {
+        blob_store::ig_blob_store_put_results_free(put_results_ptr, put_results_len);
+    }
+
+    let batch_cids_c = batch_cids
+        .iter()
+        .map(|cid| cstring(cid))
+        .collect::<Vec<_>>();
+    let batch_cid_ptrs = batch_cids_c
+        .iter()
+        .map(|cid| cid.as_ptr())
+        .collect::<Vec<_>>();
+
+    let mut exists_results_ptr = ptr::null_mut();
+    let mut exists_results_len = 0;
+    let status = blob_store::ig_blob_store_exists_many(
+        runtime_handle,
+        store_handle,
+        batch_cid_ptrs.as_ptr(),
+        batch_cid_ptrs.len(),
+        &mut exists_results_ptr,
+        &mut exists_results_len,
+        &mut err_out,
+    );
+    assert_ok(status, err_out);
+    assert_eq!(exists_results_len, 2);
+    let exists_results =
+        unsafe { std::slice::from_raw_parts(exists_results_ptr, exists_results_len) };
+    assert!(exists_results.iter().all(|result| result.exists));
+    unsafe {
+        blob_store::ig_blob_store_exists_results_free(exists_results_ptr, exists_results_len);
+    }
+
+    let mut get_results_ptr = ptr::null_mut();
+    let mut get_results_len = 0;
+    let status = blob_store::ig_blob_store_get_many(
+        runtime_handle,
+        store_handle,
+        batch_cid_ptrs.as_ptr(),
+        batch_cid_ptrs.len(),
+        &mut get_results_ptr,
+        &mut get_results_len,
+        &mut err_out,
+    );
+    assert_ok(status, err_out);
+    assert_eq!(get_results_len, 2);
+    let get_results = unsafe { std::slice::from_raw_parts(get_results_ptr, get_results_len) };
+    assert!(get_results.iter().all(|result| result.found));
+    let first_batch_blob =
+        unsafe { std::slice::from_raw_parts(get_results[0].blob.ptr, get_results[0].blob.len) };
+    let second_batch_blob =
+        unsafe { std::slice::from_raw_parts(get_results[1].blob.ptr, get_results[1].blob.len) };
+    assert_eq!(first_batch_blob, batch_blob_a);
+    assert_eq!(second_batch_blob, batch_blob_b);
+    unsafe {
+        blob_store::ig_blob_store_get_results_free(get_results_ptr, get_results_len);
+    }
+
     blob_store::ig_blob_store_free(store_handle);
     runtime::ig_runtime_free(runtime_handle);
     let _ = std::fs::remove_dir_all(tmp_dir);

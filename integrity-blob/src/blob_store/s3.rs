@@ -1,7 +1,7 @@
 use anyhow::Result;
 use async_trait::async_trait;
 use aws_config::meta::region::RegionProviderChain;
-use aws_sdk_s3::{config::Region, types::Object, Client};
+use aws_sdk_s3::{config::Region, Client};
 use log::{debug, trace};
 
 use crate::blob_store::{calc_and_validate_cid, BlobStore};
@@ -56,32 +56,27 @@ impl BlobStore for S3 {
             .clone()
             .ok_or_else(|| anyhow::anyhow!("Client not initialized"))?;
 
-        let mut response = client
-            .list_objects_v2()
-            .bucket(self.bucket.to_owned())
-            .prefix(self.folder.to_owned())
-            .max_keys(50)
-            .into_paginator()
-            .send();
-
         trace!("Searching for {}", cid);
-        while let Some(result) = response.next().await {
-            match result {
-                Ok(output) => {
-                    for object in output.contents() {
-                        if search_objects(object, cid, &self.folder) {
-                            return Ok(true);
-                        }
-                    }
+
+        let key = format!("{}{}", self.folder, cid);
+        let object = client
+            .head_object()
+            .bucket(&self.bucket)
+            .key(key)
+            .send()
+            .await;
+
+        match object {
+            Ok(_) => Ok(true),
+            Err(err) => {
+                let err = err.into_service_error();
+                if err.is_not_found() {
+                    return Ok(false);
                 }
-                Err(err) => {
-                    println!("{err:?}");
-                    return Err(anyhow::anyhow!("Error listing objects"));
-                }
+
+                Err(err.into())
             }
         }
-
-        Ok(false)
     }
 
     /// Get a blob from the store
@@ -139,17 +134,6 @@ impl BlobStore for S3 {
 
         trace!("Upload complete");
         Ok(cid)
-    }
-}
-
-fn search_objects(object: &Object, cid: &str, folder: &str) -> bool {
-    trace!(" - {}", object.key().unwrap_or("Unknown"));
-    match object.key() {
-        Some(key) => {
-            let key = key.strip_prefix(folder).unwrap_or("");
-            key == cid
-        }
-        None => false,
     }
 }
 

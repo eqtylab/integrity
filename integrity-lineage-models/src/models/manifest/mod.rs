@@ -176,27 +176,29 @@ pub async fn resolve_blobs(
                                     return blobs;
                                 };
 
-                            for file_cid in iroh_map.values() {
-                                match blob_store.get(file_cid).await {
-                                    Ok(Some(file_blob)) => {
-                                        blobs.push((
-                                            file_cid.clone(),
-                                            BASE64.encode(&file_blob),
-                                        ));
-                                    }
-                                    Ok(None) => {
-                                        log::warn!(
-                                            "Blob '{file_cid}' (file blob in iroh collection '{cid}') was not found in blob store"
-                                        );
-                                    }
-                                    Err(e) => {
-                                        log::error!(
-                                            "Error connecting to blob store to get blob '{file_cid}': {e}"
-                                        );
+                            let file_cids = iroh_map.values().cloned().collect::<Vec<_>>();
+                            match blob_store.get_many(file_cids).await {
+                                Ok(file_blobs) => {
+                                    for file_blob in file_blobs {
+                                        match file_blob.blob {
+                                            Some(blob) => {
+                                                blobs.push((file_blob.cid, BASE64.encode(&blob)));
+                                            }
+                                            None => {
+                                                log::warn!(
+                                                    "Blob '{}' (file blob in iroh collection '{cid}') was not found in blob store",
+                                                    file_blob.cid
+                                                );
+                                            }
+                                        }
                                     }
                                 }
+                                Err(e) => {
+                                    log::error!(
+                                        "Error connecting to blob store to get file blobs in iroh collection '{cid}': {e}"
+                                    );
+                                }
                             }
-
                             blobs
                         } else {
                             vec![(cid.clone(), BASE64.encode(&blob))]
