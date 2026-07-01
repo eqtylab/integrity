@@ -29,11 +29,14 @@ iroh-blake3 = "1.4.5"
 # Optional backends
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies.aws-config]
 version = "1.0.3"
-features = ["behavior-version-latest"]
+default-features = false
+features = ["behavior-version-latest", "default-https-client", "rt-tokio", "credentials-process", "sso"]
 optional = true
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies.aws-sdk-s3]
 version = "1.5.0"
+default-features = false
+features = ["behavior-version-latest", "default-https-client", "rt-tokio", "sigv4a"]
 optional = true
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies.azure_storage]

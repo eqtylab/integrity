@@ -8,7 +8,7 @@ use std::{
 use anyhow::{bail, Result};
 use bytes::Bytes;
 use cid::{multihash::MultihashGeneric, Cid};
-use iroh_bytes::format::collection::Collection;
+use iroh_blobs::format::collection::Collection;
 use log::{debug, trace};
 use serde::{Deserialize, Serialize};
 

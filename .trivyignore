@@ -5,3 +5,8 @@
 # quinn-proto 0.10.6 — DoS via crafted QUIC Initial packet. Only affects QUIC servers;
 # we use quinn-proto as a client via reqwest HTTP/3. Not exploitable.
 CVE-2026-31812
+
+# hickory-net/proto — NSEC3 DNSSEC validation loop. Iroh pins hickory 0.26 beta,
+# but uses hickory-resolver without DNSSEC validation features, which the advisory
+# requires for reachability.
+GHSA-3v94-mw7p-v465
