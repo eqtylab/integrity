@@ -30,6 +30,28 @@ typedef struct IgBytes {
     size_t len;
 } IgBytes;
 
+typedef struct IgBlobPutRequest {
+    const uint8_t *blob_ptr;
+    size_t blob_len;
+    uint64_t multicodec_code;
+    const char *expected_cid_or_null;
+} IgBlobPutRequest;
+
+typedef struct IgBlobPutResult {
+    char *cid;
+} IgBlobPutResult;
+
+typedef struct IgBlobGetResult {
+    char *cid;
+    IgBytes blob;
+    bool found;
+} IgBlobGetResult;
+
+typedef struct IgBlobExistsResult {
+    char *cid;
+    bool exists;
+} IgBlobExistsResult;
+
 void ig_string_free(char *s);
 void ig_error_free(char *err);
 void ig_bytes_free(IgBytes bytes);
@@ -379,6 +401,36 @@ IgStatus ig_blob_store_put(
     char **out_cid,
     char **err_out
 );
+IgStatus ig_blob_store_exists_many(
+    const IgRuntimeHandle *runtime,
+    const IgBlobStoreHandle *store,
+    const char *const *cids,
+    size_t cids_len,
+    IgBlobExistsResult **out_results,
+    size_t *out_results_len,
+    char **err_out
+);
+IgStatus ig_blob_store_get_many(
+    const IgRuntimeHandle *runtime,
+    const IgBlobStoreHandle *store,
+    const char *const *cids,
+    size_t cids_len,
+    IgBlobGetResult **out_results,
+    size_t *out_results_len,
+    char **err_out
+);
+IgStatus ig_blob_store_put_many(
+    const IgRuntimeHandle *runtime,
+    const IgBlobStoreHandle *store,
+    const IgBlobPutRequest *blobs,
+    size_t blobs_len,
+    IgBlobPutResult **out_results,
+    size_t *out_results_len,
+    char **err_out
+);
+void ig_blob_store_exists_results_free(IgBlobExistsResult *results, size_t results_len);
+void ig_blob_store_get_results_free(IgBlobGetResult *results, size_t results_len);
+void ig_blob_store_put_results_free(IgBlobPutResult *results, size_t results_len);
 
 IgStatus ig_lineage_manifest_generate(
     const IgRuntimeHandle *runtime,

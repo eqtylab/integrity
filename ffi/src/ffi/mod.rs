@@ -59,9 +59,8 @@ pub unsafe extern "C" fn ig_error_free(err: *mut c_char) {
 }
 
 /// # Safety
-/// `bytes.ptr` must point to a heap allocation created by this library, with
-/// an allocation capacity equal to `bytes.len`, and must not be freed
-/// previously.
+/// `bytes.ptr` must point to a boxed byte slice created by this library and
+/// must not have been freed previously.
 #[no_mangle]
 pub unsafe extern "C" fn ig_bytes_free(bytes: IgBytes) {
     if bytes.ptr.is_null() {
@@ -69,6 +68,8 @@ pub unsafe extern "C" fn ig_bytes_free(bytes: IgBytes) {
     }
 
     unsafe {
-        drop(Vec::from_raw_parts(bytes.ptr, bytes.len, bytes.len));
+        drop(Box::from_raw(std::ptr::slice_from_raw_parts_mut(
+            bytes.ptr, bytes.len,
+        )));
     }
 }

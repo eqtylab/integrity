@@ -46,7 +46,7 @@ The workspace includes a stable C ABI surface in `ffi/src/ffi/` for SDK bindings
   - Release memory with `ig_string_free`, `ig_error_free`, `ig_bytes_free`
   - Release handles with their corresponding `*_free` function
 
-The current ABI version is `0.2.0`.
+The current ABI version is `0.3.0`.
 
 ### Native Artifact Releases
 
@@ -59,7 +59,7 @@ GitHub Actions can publish prebuilt native FFI artifacts for each supported syst
 
 Workflow: `.github/workflows/release-native-ffi.yml`
 
-- Push a version tag like `v0.2.0` to build and attach release assets to that GitHub Release.
+- Push a version tag like `v0.3.0` to build and attach release assets to that GitHub Release.
 - Use `workflow_dispatch` to run the build matrix and collect workflow artifacts without publishing a Release.
 
 Build native FFI artifacts locally:

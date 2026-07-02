@@ -4,8 +4,7 @@ use anyhow::{anyhow, bail, Result};
 use bytes::Bytes;
 use cid::{multihash::MultihashGeneric, Cid};
 use integrity_blob::BlobStore;
-use iroh_base::hash::Hash;
-use iroh_bytes::hashseq::HashSeq;
+use iroh_blobs::{hashseq::HashSeq, Hash};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
@@ -88,7 +87,7 @@ fn hashmap_from_iroh_collection_blobs(
         .pop_front()
         .ok_or_else(|| anyhow!("No meta hash found"))?;
 
-    let meta_blob_hash = iroh_blake3::hash(&meta_blob).into();
+    let meta_blob_hash = Hash::from(iroh_blake3::hash(&meta_blob).as_bytes());
 
     if meta_hash != meta_blob_hash {
         bail!("Meta hash mismatch: {meta_hash} != {meta_blob_hash}");

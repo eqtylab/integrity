@@ -176,27 +176,10 @@ pub async fn resolve_blobs(
                                     return blobs;
                                 };
 
-                            for file_cid in iroh_map.values() {
-                                match blob_store.get(file_cid).await {
-                                    Ok(Some(file_blob)) => {
-                                        blobs.push((
-                                            file_cid.clone(),
-                                            BASE64.encode(&file_blob),
-                                        ));
-                                    }
-                                    Ok(None) => {
-                                        log::warn!(
-                                            "Blob '{file_cid}' (file blob in iroh collection '{cid}') was not found in blob store"
-                                        );
-                                    }
-                                    Err(e) => {
-                                        log::error!(
-                                            "Error connecting to blob store to get blob '{file_cid}': {e}"
-                                        );
-                                    }
-                                }
-                            }
-
+                            let file_cids = iroh_map.values().cloned().collect::<Vec<_>>();
+                            blobs.extend(
+                                resolve_iroh_file_blobs(&cid, file_cids, blob_store.clone()).await,
+                            );
                             blobs
                         } else {
                             vec![(cid.clone(), BASE64.encode(&blob))]
@@ -222,6 +205,38 @@ pub async fn resolve_blobs(
 
     log::debug!("Resolved {} blobs.", blobs.len());
     Ok(blobs)
+}
+
+async fn resolve_iroh_file_blobs(
+    collection_cid: &str,
+    file_cids: Vec<String>,
+    blob_store: Arc<dyn BlobStore + Send + Sync>,
+) -> Vec<(String, String)> {
+    let concurrency_limit = blob_store.batch_concurrency_limit().max(1);
+
+    stream::iter(file_cids)
+        .map(|file_cid| {
+            let blob_store = blob_store.clone();
+            async move {
+                match blob_store.get(&file_cid).await {
+                    Ok(Some(file_blob)) => Some((file_cid, BASE64.encode(&file_blob))),
+                    Ok(None) => {
+                        log::warn!(
+                            "Blob '{file_cid}' (file blob in iroh collection '{collection_cid}') was not found in blob store"
+                        );
+                        None
+                    }
+                    Err(e) => {
+                        log::error!("Error connecting to blob store to get blob '{file_cid}': {e}");
+                        None
+                    }
+                }
+            }
+        })
+        .buffer_unordered(concurrency_limit)
+        .filter_map(|blob| async move { blob })
+        .collect()
+        .await
 }
 
 fn get_contexts_for_manifest(statements: &[Statement]) -> Result<HashMap<String, Value>> {
