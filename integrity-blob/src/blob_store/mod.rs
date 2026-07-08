@@ -110,6 +110,8 @@ pub trait BlobStore {
             .filter(|cid| seen.insert(cid.clone()))
             .collect::<Vec<_>>();
 
+        log::trace!("Getting Blobs: {cids:?}");
+
         let concurrency_limit = self.batch_concurrency_limit().max(1);
         let mut results = stream::iter(cids.into_iter().enumerate())
             .map(|(index, cid)| async move {
