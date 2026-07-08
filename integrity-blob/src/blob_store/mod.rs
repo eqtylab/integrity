@@ -88,9 +88,9 @@ pub trait BlobStore {
     async fn exists_many(
         &self,
         cids: Vec<String>,
-        concurrency: Option<usize>,
+        concurrency_limit: Option<usize>,
     ) -> Result<Vec<BlobExistsResult>> {
-        let concurrency_limit = concurrency
+        let concurrency_limit = concurrency_limit
             .unwrap_or_else(|| self.batch_concurrency_limit())
             .max(1);
         let mut results = stream::iter(cids.into_iter().enumerate())
@@ -109,7 +109,7 @@ pub trait BlobStore {
     async fn get_many(
         &self,
         cids: Vec<String>,
-        concurrency: Option<usize>,
+        concurrency_limit: Option<usize>,
     ) -> Result<Vec<BlobGetResult>> {
         let mut seen = HashSet::new();
 
@@ -122,7 +122,7 @@ pub trait BlobStore {
 
         log::trace!("Getting Blobs: {cids:?}");
 
-        let concurrency_limit = concurrency
+        let concurrency_limit = concurrency_limit
             .unwrap_or_else(|| self.batch_concurrency_limit())
             .max(1);
         let mut results = stream::iter(cids.into_iter().enumerate())
