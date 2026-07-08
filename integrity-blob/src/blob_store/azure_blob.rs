@@ -62,7 +62,7 @@ impl BlobStore for AzureBlob {
         let client = self
             .client
             .clone()
-            .ok_or(anyhow!("client not initalized"))?;
+            .ok_or(anyhow!("client not initialized"))?;
 
         match client
             .blob_client(self.container.as_str(), cid)
