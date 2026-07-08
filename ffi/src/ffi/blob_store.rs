@@ -255,7 +255,7 @@ pub extern "C" fn ig_blob_store_exists_many(
         let cids = c_string_slice(cids, cids_len, "cids")?;
         validate_result_array_out(out_results, out_results_len, "out_results")?;
 
-        let results = map_anyhow(runtime.block_on(store.store.exists_many(cids)))?
+        let results = map_anyhow(runtime.block_on(store.store.exists_many(cids, None)))?
             .into_iter()
             .map(|result| {
                 Ok(IgBlobExistsResult {
@@ -285,7 +285,7 @@ pub extern "C" fn ig_blob_store_get_many(
         let cids = c_string_slice(cids, cids_len, "cids")?;
         validate_result_array_out(out_results, out_results_len, "out_results")?;
 
-        let results = map_anyhow(runtime.block_on(store.store.get_many(cids)))?
+        let results = map_anyhow(runtime.block_on(store.store.get_many(cids, None)))?
             .into_iter()
             .map(|result| {
                 let mut blob = IgBytes::default();
@@ -324,7 +324,7 @@ pub extern "C" fn ig_blob_store_put_many(
         let blobs = blob_put_slice(blobs, blobs_len, "blobs")?;
         validate_result_array_out(out_results, out_results_len, "out_results")?;
 
-        let results = map_anyhow(runtime.block_on(store.store.put_many(blobs)))?
+        let results = map_anyhow(runtime.block_on(store.store.put_many(blobs, None)))?
             .into_iter()
             .map(|result| {
                 Ok(IgBlobPutResult {

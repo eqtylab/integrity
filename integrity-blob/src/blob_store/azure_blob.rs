@@ -2,7 +2,7 @@ use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use azure_storage::{prelude::*, ErrorKind};
 use azure_storage_blobs::prelude::*;
-use log::trace;
+use log::{debug, trace, warn};
 
 use crate::blob_store::{calc_and_validate_cid, BlobStore};
 
@@ -59,7 +59,10 @@ impl BlobStore for AzureBlob {
 
     /// Get a blob from the store
     async fn get(&self, cid: &str) -> Result<Option<Vec<u8>>> {
-        let client = self.client.clone().ok_or(anyhow!("client not init"))?;
+        let client = self
+            .client
+            .clone()
+            .ok_or(anyhow!("client not initialized"))?;
 
         match client
             .blob_client(self.container.as_str(), cid)
@@ -67,15 +70,31 @@ impl BlobStore for AzureBlob {
             .await
         {
             Ok(content) => Ok(Some(content)),
-            Err(e) => {
-                if let ErrorKind::HttpResponse { status, .. } = e.kind() {
-                    if status.is_client_error() {
-                        log::debug!("Client error downloading blob '{cid}'. (HTTP 4xx).");
-                        return Ok(None);
-                    }
+            Err(e) => match e.kind() {
+                ErrorKind::HttpResponse { status, error_code } if u16::from(*status) == 404 => {
+                    debug!(
+                        "Blob '{cid}' not found in Azure Blob Storage. status=404 error_code={}",
+                        error_code.as_deref().unwrap_or("unknown")
+                    );
+                    Ok(None)
                 }
-                Err(e.into())
-            }
+                ErrorKind::HttpResponse { status, error_code } => {
+                    let status_code = u16::from(*status);
+                    warn!(
+                            "Azure Blob Storage returned an HTTP error downloading blob '{cid}'. status={} error_code={} error={e}",
+                            status_code,
+                            error_code.as_deref().unwrap_or("unknown")
+                        );
+                    Err(e.into())
+                }
+                kind => {
+                    warn!(
+                            "Azure Blob Storage returned a non-HTTP error downloading blob '{cid}'. kind={} error={e}",
+                            kind
+                        );
+                    Err(e.into())
+                }
+            },
         }
     }
 
