@@ -85,8 +85,14 @@ pub trait BlobStore {
         DEFAULT_BATCH_CONCURRENCY_LIMIT
     }
 
-    async fn exists_many(&self, cids: Vec<String>) -> Result<Vec<BlobExistsResult>> {
-        let concurrency_limit = self.batch_concurrency_limit().max(1);
+    async fn exists_many(
+        &self,
+        cids: Vec<String>,
+        concurrency: Option<usize>,
+    ) -> Result<Vec<BlobExistsResult>> {
+        let concurrency_limit = concurrency
+            .unwrap_or_else(|| self.batch_concurrency_limit())
+            .max(1);
         let mut results = stream::iter(cids.into_iter().enumerate())
             .map(|(index, cid)| async move {
                 let exists = self.exists(&cid).await?;
@@ -100,7 +106,11 @@ pub trait BlobStore {
         Ok(results.into_iter().map(|(_, result)| result).collect())
     }
 
-    async fn get_many(&self, cids: Vec<String>) -> Result<Vec<BlobGetResult>> {
+    async fn get_many(
+        &self,
+        cids: Vec<String>,
+        concurrency: Option<usize>,
+    ) -> Result<Vec<BlobGetResult>> {
         let mut seen = HashSet::new();
 
         // Remove common non-CID strings & duplicates
@@ -112,7 +122,9 @@ pub trait BlobStore {
 
         log::trace!("Getting Blobs: {cids:?}");
 
-        let concurrency_limit = self.batch_concurrency_limit().max(1);
+        let concurrency_limit = concurrency
+            .unwrap_or_else(|| self.batch_concurrency_limit())
+            .max(1);
         let mut results = stream::iter(cids.into_iter().enumerate())
             .map(|(index, cid)| async move {
                 let blob = self.get(&cid).await?;
@@ -126,8 +138,14 @@ pub trait BlobStore {
         Ok(results.into_iter().map(|(_, result)| result).collect())
     }
 
-    async fn put_many(&self, blobs: Vec<BlobPut>) -> Result<Vec<BlobPutResult>> {
-        let concurrency_limit = self.batch_concurrency_limit().max(1);
+    async fn put_many(
+        &self,
+        blobs: Vec<BlobPut>,
+        concurrency: Option<usize>,
+    ) -> Result<Vec<BlobPutResult>> {
+        let concurrency_limit = concurrency
+            .unwrap_or_else(|| self.batch_concurrency_limit())
+            .max(1);
         let mut results = stream::iter(blobs.into_iter().enumerate())
             .map(|(index, blob)| async move {
                 let BlobPut {
@@ -234,18 +252,21 @@ mod tests {
             let store = TestBlobStore::default();
 
             let put_results = store
-                .put_many(vec![
-                    BlobPut {
-                        blob: b"one".to_vec(),
-                        multicodec_code: 0x55,
-                        cid: Some("cid-one".to_owned()),
-                    },
-                    BlobPut {
-                        blob: b"two".to_vec(),
-                        multicodec_code: 0x55,
-                        cid: Some("cid-two".to_owned()),
-                    },
-                ])
+                .put_many(
+                    vec![
+                        BlobPut {
+                            blob: b"one".to_vec(),
+                            multicodec_code: 0x55,
+                            cid: Some("cid-one".to_owned()),
+                        },
+                        BlobPut {
+                            blob: b"two".to_vec(),
+                            multicodec_code: 0x55,
+                            cid: Some("cid-two".to_owned()),
+                        },
+                    ],
+                    None,
+                )
                 .await
                 .unwrap();
 
@@ -262,11 +283,14 @@ mod tests {
             );
 
             let get_results = store
-                .get_many(vec![
-                    "cid-two".to_owned(),
-                    "missing".to_owned(),
-                    "cid-one".to_owned(),
-                ])
+                .get_many(
+                    vec![
+                        "cid-two".to_owned(),
+                        "missing".to_owned(),
+                        "cid-one".to_owned(),
+                    ],
+                    None,
+                )
                 .await
                 .unwrap();
             assert_eq!(
@@ -288,11 +312,14 @@ mod tests {
             );
 
             let exists_results = store
-                .exists_many(vec![
-                    "missing".to_owned(),
-                    "cid-one".to_owned(),
-                    "cid-two".to_owned(),
-                ])
+                .exists_many(
+                    vec![
+                        "missing".to_owned(),
+                        "cid-one".to_owned(),
+                        "cid-two".to_owned(),
+                    ],
+                    None,
+                )
                 .await
                 .unwrap();
             assert_eq!(
