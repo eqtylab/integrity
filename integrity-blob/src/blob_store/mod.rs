@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 #[cfg(any(
     feature = "blob-local",
     all(not(target_arch = "wasm32"), feature = "blob-azure"),
@@ -99,6 +101,15 @@ pub trait BlobStore {
     }
 
     async fn get_many(&self, cids: Vec<String>) -> Result<Vec<BlobGetResult>> {
+        let mut seen = HashSet::new();
+
+        // Remove common non-CID strings & duplicates
+        let cids = cids
+            .into_iter()
+            .filter(|cid| !cid.starts_with("urn:uuid:") && !cid.starts_with("did:key:"))
+            .filter(|cid| seen.insert(cid.clone()))
+            .collect::<Vec<_>>();
+
         let concurrency_limit = self.batch_concurrency_limit().max(1);
         let mut results = stream::iter(cids.into_iter().enumerate())
             .map(|(index, cid)| async move {
