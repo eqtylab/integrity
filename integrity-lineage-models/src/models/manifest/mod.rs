@@ -262,7 +262,7 @@ fn get_contexts_for_manifest(statements: &[Statement]) -> Result<HashMap<String,
                 context,
             )?;
         } else {
-            log::error!("Static context not found for linked context: {context_link}");
+            log::warn!("Static context not found for linked context: {context_link}");
         }
     }
 
