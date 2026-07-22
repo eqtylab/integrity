@@ -11,6 +11,7 @@ tokio-tests = ["dep:tokio"]
 anyhow = { version = "1", features = ["backtrace"] }
 cid = { version = "0.10", default-features = false, features = ["std"] }
 futures = "0.3"
+include_dir = "0.7"
 iref = "3.2"
 json-ld = "0.21"
 json-syntax = "0.12"

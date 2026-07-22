@@ -80,18 +80,18 @@ The project uses [Just](https://github.com/casey/just) for common development ta
 
 ```present just --list
 Available recipes:
-    build                  # Build the project for native target
-    build-wasm             # Build WebAssembly package with wasm-pack
-    ci                     # Run all CI checks (format, build, lint, test)
-    fix                    # Auto-fix clippy warnings where possible
-    fmt                    # Format Rust code using rustfmt
-    fmt-check              # Check if code is formatted correctly without modifying files
-    lint                   # Run clippy lints to check code quality
-    lint-docs              # Check that all public items have documentation
-    pre-commit             # Run all prek pre-commit hooks on all files
-    readme-check           # Check if README.md is up to date with auto-generated content
-    readme-update          # Update README.md with auto-generated content (Justfile commands, etc.)
-    test                   # Run unit tests with cargo
-    test-wasm              # Run WASM tests in Node.js and browsers (Chrome, Firefox) Note: for macOS test Safari with --safari
-    update-static-contexts # Rebuild static JSON-LD context files
+    build                    # Build the project for native target
+    build-wasm               # Build WebAssembly package with wasm-pack
+    ci                       # Run all CI checks (format, build, lint, test)
+    fix                      # Auto-fix clippy warnings where possible
+    fmt                      # Format Rust code using rustfmt
+    fmt-check                # Check if code is formatted correctly without modifying files
+    lint                     # Run clippy lints to check code quality
+    lint-docs                # Check that all public items have documentation
+    pre-commit               # Run all prek pre-commit hooks on all files
+    readme-check             # Check if README.md is up to date with auto-generated content
+    readme-update            # Update README.md with auto-generated content (Justfile commands, etc.)
+    sync-credential-contexts # Vendor JSON-LD contexts from the eqtylab/credentials repo (set CREDENTIALS_REF to pin)
+    test                     # Run unit tests with cargo
+    test-wasm                # Run WASM tests in Node.js and browsers (Chrome, Firefox) Note: for macOS test Safari with --safari
 ```

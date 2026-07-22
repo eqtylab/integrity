@@ -41,6 +41,8 @@
             cargo
             chromedriver
             geckodriver
+            gh
+            jq
             just
             openssl
             pcsclite
