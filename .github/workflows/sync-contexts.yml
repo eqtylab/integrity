@@ -1,0 +1,91 @@
+name: Sync Credential Contexts
+
+# Vendors the JSON-LD context files from eqtylab/credentials into
+# integrity-jsonld/static_contexts so credentials can be verified offline.
+#
+# New/updated contexts are picked up automatically by loader.rs (which embeds
+# the whole static_contexts/ tree via include_dir!), so the PR this opens only
+# ever changes data files — no Rust changes are needed.
+#
+# Note: the PR is opened with the default GITHUB_TOKEN, so by design its
+# pull_request event does NOT trigger ci-check.yml. The build step below guards
+# against a malformed or embed-breaking context, and CI runs on merge to main.
+# If CI checks on the PR itself are wanted, open it with a PAT instead.
+
+on:
+  schedule:
+    - cron: '0 6 * * *'  # daily 06:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: true
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install Nix
+        uses: eqtylab-actions/install-nix-action@v31
+        with:
+          nix_path: nixpkgs=channel:nixos-unstable
+
+      - name: Cachix
+        uses: eqtylab-actions/cachix-action@v14
+        with:
+          name: eqtylab
+          authToken: "${{ secrets.CACHIX_AUTH_TOKEN }}"
+          skipPush: true
+        continue-on-error: true
+
+      - name: Checkout integrity repo
+        uses: eqtylab-actions/checkout@v4
+
+      - name: Rust Cache
+        uses: eqtylab-actions/rust-cache@v2
+
+      - name: Sync contexts
+        # eqtylab/credentials is private, so the default GITHUB_TOKEN can't read
+        # it; use the read PAT already used elsewhere for private eqtylab repos.
+        # gh is preinstalled on GitHub runners (the script uses it directly).
+        env:
+          GH_TOKEN: ${{ secrets.VBUILD_ACTION_READ_PAT }}
+        run: nix develop . -c just sync-credential-contexts
+
+      - name: Build guard
+        # Ensure the newly synced contexts embed and parse before committing.
+        run: nix develop . -c cargo build -p integrity-jsonld
+
+      - name: Open pull request for changes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          branch="chore/sync-credential-contexts"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Stage first so newly added context files (not just edits) are detected.
+          git add integrity-jsonld/static_contexts/https
+          if git diff --cached --quiet; then
+            echo "No context changes; nothing to open a PR for."
+            exit 0
+          fi
+
+          # Evergreen branch: force-push so an already-open PR just updates in place.
+          git switch -C "$branch"
+          git commit -m "chore: sync credential JSON-LD contexts from eqtylab/credentials"
+          git push --force origin "$branch"
+
+          open_prs="$(gh pr list --head "$branch" --state open --json number --jq 'length' || echo 0)"
+          if [ "${open_prs:-0}" -gt 0 ]; then
+            echo "PR already open for $branch; updated it via force-push."
+          else
+            gh pr create --base main --head "$branch" \
+              --title "chore: sync credential JSON-LD contexts" \
+              --body "Automated sync of JSON-LD contexts from eqtylab/credentials by the sync-contexts workflow. This PR auto-updates until merged."
+          fi

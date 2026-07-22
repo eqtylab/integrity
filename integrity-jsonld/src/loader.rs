@@ -1,10 +1,24 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, path::Path};
 
 use anyhow::Result;
+use include_dir::{include_dir, Dir, DirEntry};
 use once_cell::sync::OnceCell;
 use ssi_json_ld::ContextLoader;
 
 type ContextMap = HashMap<String, &'static str>;
+
+/// All static JSON-LD context documents, embedded at compile time.
+///
+/// The directory tree is the source of truth: each file's lookup URI is derived
+/// from its path (see [`uri_for_path`]), so adding a new context is just a matter
+/// of dropping a file in the right sub-directory — no Rust changes required.
+///
+/// - `cid/<CID>` files are keyed by `urn:cid:<CID>`.
+/// - `https/<host>/<path>` files are keyed by `https://<host>/<path>`.
+///
+/// A `build.rs` emits `cargo:rerun-if-changed` for this tree so edits are picked
+/// up on incremental builds.
+static STATIC_CONTEXTS_DIR: Dir<'static> = include_dir!("$CARGO_MANIFEST_DIR/static_contexts");
 
 /// Get JSON-LD context loader, pre-loaded with our static contexts plus the
 /// W3C contexts ssi already ships with.
@@ -43,273 +57,99 @@ pub fn static_contexts() -> Result<&'static ContextMap> {
 }
 
 fn build_static_contexts() -> Result<ContextMap> {
-    // TODO: clean this up so it can be defined cleaner
-    // (non-trivial bit is generating the string in include_str since it's a macro)
-    let urn_cid_links: ContextMap = [
-        // latest
-        (
-            "urn:cid:bafkr4icploa577ziqnb57jlpoj7l2hi5kgt3knxpdtunlttjd3q33zeqpy".to_owned(),
-            {
-                let json = include_str!(
-                    "../static_contexts/cid/bafkr4icploa577ziqnb57jlpoj7l2hi5kgt3knxpdtunlttjd3q33zeqpy"
-                );
-                validate_json_string(json)?;
-                json
-            },
-        ),
-        (
-            "urn:cid:bafkr4ic7ydwk3rtoltyzx4zn3vvu3r7hpzxtmbzmnksotx7k5nbnwclf6m".to_owned(),
-            {
-                let json = include_str!(
-                    "../static_contexts/cid/bafkr4ic7ydwk3rtoltyzx4zn3vvu3r7hpzxtmbzmnksotx7k5nbnwclf6m"
-                );
-                validate_json_string(json)?;
-                json
-            },
-        ),
-        (
-            "urn:cid:bafkr4ibtc72t26blsnipjniwpoawtopufixoe7bbloqk7ko65cizgnhgnq".to_owned(),
-            {
-                let json = include_str!(
-                    "../static_contexts/cid/bafkr4ibtc72t26blsnipjniwpoawtopufixoe7bbloqk7ko65cizgnhgnq"
-                );
-                validate_json_string(json)?;
-                json
-            },
-        ),
-        (
-            "urn:cid:bafkr4ihgnzvmiaoyfeil6p56pbznofd7d4gy5qxm75rxiiy6xty6zu4up4".to_owned(),
-            {
-                let json = include_str!(
-                    "../static_contexts/cid/bafkr4ihgnzvmiaoyfeil6p56pbznofd7d4gy5qxm75rxiiy6xty6zu4up4"
-                );
-                validate_json_string(json)?;
-                json
-            },
-        ),
-        // keep old contexts for backward compatability with statements generated with old sdk versions
-        (
-            "urn:cid:bafkr4ieddazlnl77lxwrygp5ky2sabfdpcowgrdr2nthd6hkhr2vcxciry".to_owned(),
-            {
-                let json = include_str!(
-                    "../static_contexts/cid/bafkr4ieddazlnl77lxwrygp5ky2sabfdpcowgrdr2nthd6hkhr2vcxciry"
-                );
-                validate_json_string(json)?;
-                json
-            },
-        ),
-        (
-            "urn:cid:bafkr4iegfox4fmrwmjwyhnmc4rxegbzeosob5iom3tb6pejhzbekw4xk6y".to_owned(),
-            {
-                let json = include_str!(
-                    "../static_contexts/cid/bafkr4iegfox4fmrwmjwyhnmc4rxegbzeosob5iom3tb6pejhzbekw4xk6y"
-                );
-                validate_json_string(json)?;
-                json
-            },
-        ),
-        (
-            "urn:cid:bafkr4ib6mu2ldimhdotyqo3kocz5nhl5kbcvbhtll2lf57vmdjg6rg4tbu".to_owned(),
-            {
-                let json = include_str!(
-                    "../static_contexts/cid/bafkr4ib6mu2ldimhdotyqo3kocz5nhl5kbcvbhtll2lf57vmdjg6rg4tbu"
-                );
-                validate_json_string(json)?;
-                json
-            },
-        ),
-        (
-            "urn:cid:bafkr4iavz5hgvy4uayvzvzle7gtsbn3u76pfhndzkvh3jefksqmltme56m".to_owned(),
-            {
-                let json = include_str!(
-                    "../static_contexts/cid/bafkr4iavz5hgvy4uayvzvzle7gtsbn3u76pfhndzkvh3jefksqmltme56m"
-                );
-                validate_json_string(json)?;
-                json
-            },
-        ),
-        (
-            "urn:cid:bafkr4iagb4u7jqlwqrftw4mn3l634wmgatmpvvzqgntgxaaerzljhggvdu".to_owned(),
-            {
-                let json = include_str!(
-                    "../static_contexts/cid/bafkr4iagb4u7jqlwqrftw4mn3l634wmgatmpvvzqgntgxaaerzljhggvdu"
-                );
-                validate_json_string(json)?;
-                json
-            },
-        ),
-        (
-            "urn:cid:bafkr4icpymetiq3cic3yyeolnwqcgwc56dt6mrcbl6tkoaadfvwy2dhaue".to_owned(),
-            {
-                let json = include_str!(
-                    "../static_contexts/cid/bafkr4icpymetiq3cic3yyeolnwqcgwc56dt6mrcbl6tkoaadfvwy2dhaue"
-                );
-                validate_json_string(json)?;
-                json
-            },
-        ),
-        (
-            "urn:cid:bafkr4ifqh6sdsrgtos7kcukyoi4d3vsdrk3gwxuwgzs5d7pojrlzaecamy".to_owned(),
-            {
-                let json = include_str!(
-                    "../static_contexts/cid/bafkr4ifqh6sdsrgtos7kcukyoi4d3vsdrk3gwxuwgzs5d7pojrlzaecamy"
-                );
-                validate_json_string(json)?;
-                json
-            },
-        ),
-        (
-            "urn:cid:bafkr4ib46vg45fimlp4shjfmh26t6uiny663obgmseircwt3bd2nqx34mu".to_owned(),
-            {
-                let json = include_str!(
-                    "../static_contexts/cid/bafkr4ib46vg45fimlp4shjfmh26t6uiny663obgmseircwt3bd2nqx34mu"
-                );
-                validate_json_string(json)?;
-                json
-            },
-        ),
-        (
-            "urn:cid:bafkr4ibb27ow5o2yukccjjyrcunsk6jw4muacuk22cny7qdlw5wkfwxl2u".to_owned(),
-            {
-                let json = include_str!(
-                    "../static_contexts/cid/bafkr4ibb27ow5o2yukccjjyrcunsk6jw4muacuk22cny7qdlw5wkfwxl2u"
-                );
-                validate_json_string(json)?;
-                json
-            },
-        ),
-        (
-            "urn:cid:bafkr4iep2pf2ha545wx44pzkutrfp2okwk4ks6fetcje77kbegomsb3qpy".to_owned(),
-            {
-                let json = include_str!(
-                    "../static_contexts/cid/bafkr4iep2pf2ha545wx44pzkutrfp2okwk4ks6fetcje77kbegomsb3qpy"
-                );
-                validate_json_string(json)?;
-                json
-            },
-        ),
-        (
-            "urn:cid:bafkr4ibcfbpprpgyqjyu2v4wddq66aeytknnlma2qd2gx3gelqhzkzc3pq".to_owned(),
-            {
-                let json = include_str!(
-                    "../static_contexts/cid/bafkr4ibcfbpprpgyqjyu2v4wddq66aeytknnlma2qd2gx3gelqhzkzc3pq"
-                );
-                validate_json_string(json)?;
-                json
-            },
-        ),
-        (
-            "urn:cid:bafkr4igip7ytxczqn27sokrcaeg7bcrny6xqpucrjthmeskmw6rj5fo63a".to_owned(),
-            {
-                let json = include_str!(
-                    "../static_contexts/cid/bafkr4igip7ytxczqn27sokrcaeg7bcrny6xqpucrjthmeskmw6rj5fo63a"
-                );
-                validate_json_string(json)?;
-                json
-            },
-        ),
-        (
-            "urn:cid:bafkr4icpqn6xq6ekukybpd6bq4g2whdfjw7wnhigygrngcxdi423mlwafq".to_owned(),
-            {
-                let json = include_str!(
-                    "../static_contexts/cid/bafkr4icpqn6xq6ekukybpd6bq4g2whdfjw7wnhigygrngcxdi423mlwafq"
-                );
-                validate_json_string(json)?;
-                json
-            },
-        ),
-        (
-            "urn:cid:bafkr4id5nmgxqdkosw4uvnrgqrqvczisyroglzxx4s7paaml3ngxlipbk4".to_owned(),
-            {
-                let json = include_str!(
-                    "../static_contexts/cid/bafkr4id5nmgxqdkosw4uvnrgqrqvczisyroglzxx4s7paaml3ngxlipbk4"
-                );
-                validate_json_string(json)?;
-                json
-            },
-        ),
-        (
-            "urn:cid:bafkr4iawq2vpvr64eopcgqfw3zgs3znpkmynlmyzbip7v3ip4mx2cqkxya".to_owned(),
-            {
-                let json = include_str!(
-                    "../static_contexts/cid/bafkr4iawq2vpvr64eopcgqfw3zgs3znpkmynlmyzbip7v3ip4mx2cqkxya"
-                );
-                validate_json_string(json)?;
-                json
-            },
-        ),
-        (
-            "urn:cid:bafkr4icp6axdwtsb6hcio5r2unypijfuwlp66jqci2zr2hbcvqumbxkieu".to_owned(),
-            {
-                let json = include_str!(
-                    "../static_contexts/cid/bafkr4icp6axdwtsb6hcio5r2unypijfuwlp66jqci2zr2hbcvqumbxkieu"
-                );
-                validate_json_string(json)?;
-                json
-            },
-        ),
-        (
-            "urn:cid:bafkr4iavlckcavxdnqnn7kfwkvpxeffnclp5odzxv4sgwwiuvq3jofxwyi".to_owned(),
-            {
-                let json = include_str!(
-                    "../static_contexts/cid/bafkr4iavlckcavxdnqnn7kfwkvpxeffnclp5odzxv4sgwwiuvq3jofxwyi"
-                );
-                validate_json_string(json)?;
-                json
-            },
-        ),
-        (
-            "urn:cid:bafkr4ich3kfqujikgzf6op6olv7wd6rnxfhvjbxkunccpq3d226hchjbs4".to_owned(),
-            {
-                let json = include_str!(
-                    "../static_contexts/cid/bafkr4ich3kfqujikgzf6op6olv7wd6rnxfhvjbxkunccpq3d226hchjbs4"
-                );
-                validate_json_string(json)?;
-                json
-            },
-        ),
-        (
-            "urn:cid:bafkr4iabnkikpzzyfflv7fjphyggja6uwwi3224u24pmmzmgyfsprdex4q".to_owned(),
-            {
-                let json = include_str!(
-                    "../static_contexts/cid/bafkr4iabnkikpzzyfflv7fjphyggja6uwwi3224u24pmmzmgyfsprdex4q"
-                );
-                validate_json_string(json)?;
-                json
-            },
-        ),
-        (
-            "urn:cid:bafkr4ihfxf47x5w7geqgsmjzcu3xpkxvidwqqj4jzersgb5nk4iu7vho7a".to_owned(),
-            {
-                let json = include_str!(
-                    "../static_contexts/cid/bafkr4ihfxf47x5w7geqgsmjzcu3xpkxvidwqqj4jzersgb5nk4iu7vho7a"
-                );
-                validate_json_string(json)?;
-                json
-            },
-        ),
-        (
-            "urn:cid:bafkr4ihuzdhq2mma2z7352s47nfnjntprcqfsjas4wfb72bcl3tbw5goji".to_owned(),
-            {
-                let json = include_str!(
-                    "../static_contexts/cid/bafkr4ihuzdhq2mma2z7352s47nfnjntprcqfsjas4wfb72bcl3tbw5goji"
-                );
-                validate_json_string(json)?;
-                json
-            },
-        ),
-    ]
-    .into_iter()
-    .collect();
-
-    // The W3C/security contexts the old code shipped are now provided by
+    // The W3C/security contexts the old code shipped are provided by
     // ssi_json_ld's built-in StaticLoader (CREDENTIALS_V1, CREDENTIALS_V2,
-    // SECURITY_V1, SECURITY_V2, DID_V1, ...). No need to re-add them here.
-    Ok(urn_cid_links)
+    // SECURITY_V1, SECURITY_V2, DID_V1, ...), so they are not embedded here.
+    let mut map = ContextMap::new();
+    collect_contexts(&STATIC_CONTEXTS_DIR, &mut map)?;
+    Ok(map)
+}
+
+/// Recursively walk the embedded context tree, mapping each context file to its
+/// lookup URI.
+fn collect_contexts(dir: &'static Dir<'static>, map: &mut ContextMap) -> Result<()> {
+    for entry in dir.entries() {
+        match entry {
+            DirEntry::Dir(subdir) => collect_contexts(subdir, map)?,
+            DirEntry::File(file) => {
+                let Some(uri) = uri_for_path(file.path()) else {
+                    continue;
+                };
+                let json = file.contents_utf8().ok_or_else(|| {
+                    anyhow::anyhow!("context file is not valid UTF-8: {}", file.path().display())
+                })?;
+                validate_json_string(json)?;
+                map.insert(uri, json);
+            }
+        }
+    }
+
+    Ok(())
+}
+
+/// Derive a context's lookup URI from its path within `static_contexts/`.
+///
+/// - `cid/<CID>` -> `urn:cid:<CID>`
+/// - `https/<host>/<path>` -> `https://<host>/<path>`
+/// - anything else -> `None` (only these two families are embedded)
+fn uri_for_path(path: &Path) -> Option<String> {
+    // `include_dir` always uses `/` separators, regardless of platform.
+    let path = path.to_str()?;
+
+    if let Some(cid) = path.strip_prefix("cid/") {
+        // CIDs live directly under cid/ and have no further path segments.
+        return (!cid.contains('/')).then(|| format!("urn:cid:{cid}"));
+    }
+
+    path.strip_prefix("https/")
+        .map(|rest| format!("https://{rest}"))
 }
 
 fn validate_json_string(s: &str) -> Result<()> {
     let _ = serde_json::from_str::<serde_json::Value>(s)?;
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn embeds_cid_and_url_contexts() {
+        let contexts = static_contexts().expect("static contexts build");
+
+        // The full set of content-addressed contexts is still embedded.
+        assert_eq!(
+            contexts
+                .keys()
+                .filter(|k| k.starts_with("urn:cid:"))
+                .count(),
+            25,
+            "expected all 25 urn:cid: contexts to be embedded"
+        );
+
+        // A representative CID context (also returned by `ig_common_context_link`).
+        assert!(contexts
+            .contains_key("urn:cid:bafkr4icploa577ziqnb57jlpoj7l2hi5kgt3knxpdtunlttjd3q33zeqpy"));
+
+        // The URL-addressed contexts vendored from eqtylab/credentials.
+        assert!(contexts.contains_key("https://eqtylab.io/contexts/component-attestation.jsonld"));
+        assert!(contexts.contains_key("https://eqtylab.io/contexts/identity-attestation.jsonld"));
+    }
+
+    #[test]
+    fn derives_uris_from_paths() {
+        assert_eq!(
+            uri_for_path(Path::new("cid/bafkr4iabc")).as_deref(),
+            Some("urn:cid:bafkr4iabc")
+        );
+        assert_eq!(
+            uri_for_path(Path::new("https/eqtylab.io/contexts/foo.jsonld")).as_deref(),
+            Some("https://eqtylab.io/contexts/foo.jsonld")
+        );
+        // Non-context paths are ignored.
+        assert_eq!(uri_for_path(Path::new("cid/nested/file")), None);
+        assert_eq!(uri_for_path(Path::new("README.md")), None);
+    }
 }
