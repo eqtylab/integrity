@@ -14,11 +14,7 @@ pub mod common;
 pub mod data_statement;
 pub use data_statement::DataStatement;
 pub mod did_statement;
-pub use did_statement::{
-    DidStatement, DidStatementEqtyVCompAmdSevV1, DidStatementEqtyVCompAzureV1,
-    DidStatementEqtyVCompCustomV1, DidStatementEqtyVCompDockerV1, DidStatementEqtyVCompIntelTdxV0,
-    DidStatementRegular,
-};
+pub use did_statement::{DidStatement, DidStatementRegular};
 /// DSSE (Dead Simple Signing Envelope) statement for signed credentials
 pub mod dsse_statement;
 pub use dsse_statement::DsseStatement;

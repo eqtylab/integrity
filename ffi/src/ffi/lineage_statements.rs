@@ -13,16 +13,10 @@ use crate::{
     lineage::models::{
         dsse::Envelope as LineageDsseEnvelope,
         statements::{
-            common::{UrnCidWithSha256, UrnCidWithSha384},
-            did_statement::{
-                DidStatementEqtyVCompAmdSevV1, DidStatementEqtyVCompAzureV1,
-                DidStatementEqtyVCompCustomV1, DidStatementEqtyVCompDockerV1,
-                DidStatementEqtyVCompIntelTdxV0, DidStatementRegular,
-            },
-            extract_statement_id, extract_statement_type, AssociationStatement, AssociationType,
-            ComputationStatement, DataStatement, DsseStatement, EntityStatement,
-            GovernanceStatement, MetadataStatement, SigstoreBundleStatement, Statement,
-            StatementTrait, StorageStatement, VcStatement,
+            did_statement::DidStatementRegular, extract_statement_id, extract_statement_type,
+            AssociationStatement, AssociationType, ComputationStatement, DataStatement,
+            DsseStatement, EntityStatement, GovernanceStatement, MetadataStatement,
+            SigstoreBundleStatement, Statement, StatementTrait, StorageStatement, VcStatement,
         },
     },
     sigstore_bundle::SigstoreBundle,
@@ -45,40 +39,6 @@ fn parse_statement(statement_json: String) -> Result<Statement, FfiError> {
         FfiError::new(
             IgStatus::JsonError,
             format!("failed to parse statement json: {e}"),
-        )
-    })
-}
-
-fn decode_hex_vec(
-    hex_value: Option<String>,
-    field_name: &str,
-) -> Result<Option<Vec<u8>>, FfiError> {
-    match hex_value {
-        Some(value) => {
-            let bytes = hex::decode(value).map_err(|e| {
-                FfiError::new(
-                    IgStatus::InvalidInput,
-                    format!("failed to decode {field_name} hex: {e}"),
-                )
-            })?;
-            Ok(Some(bytes))
-        }
-        None => Ok(None),
-    }
-}
-
-fn decode_hex_arr<const N: usize>(value: String, field_name: &str) -> Result<[u8; N], FfiError> {
-    let bytes = hex::decode(value).map_err(|e| {
-        FfiError::new(
-            IgStatus::InvalidInput,
-            format!("failed to decode {field_name} hex: {e}"),
-        )
-    })?;
-
-    bytes.try_into().map_err(|_| {
-        FfiError::new(
-            IgStatus::InvalidInput,
-            format!("{field_name} must decode to {N} bytes"),
         )
     })
 }
@@ -187,78 +147,6 @@ struct VcCreateRequest {
 #[serde(rename_all = "camelCase")]
 struct DidRegularCreateRequest {
     did: String,
-    registered_by: String,
-    timestamp: Option<String>,
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct DidAmdSevV1CreateRequest {
-    did: String,
-    measurement: Option<String>,
-    sev_mode: String,
-    num_cpu_cores: u32,
-    cpu_type: String,
-    ovmf: UrnCidWithSha256,
-    kernel: UrnCidWithSha256,
-    initrd: UrnCidWithSha256,
-    append: UrnCidWithSha256,
-    registered_by: String,
-    timestamp: Option<String>,
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct DidAzureV1CreateRequest {
-    did: String,
-    pcr11: Option<String>,
-    firmware: Option<String>,
-    uki: Option<String>,
-    kernel: Option<UrnCidWithSha384>,
-    initrd: Option<UrnCidWithSha384>,
-    append: Option<UrnCidWithSha384>,
-    rootfs: Option<UrnCidWithSha256>,
-    registered_by: String,
-    timestamp: Option<String>,
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct DidCustomV1CreateRequest {
-    did: String,
-    value: Value,
-    registered_by: String,
-    timestamp: Option<String>,
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct DockerImage {
-    name: String,
-    sha256: String,
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct DidDockerV1CreateRequest {
-    did: String,
-    image: Vec<DockerImage>,
-    compose: String,
-    operated_by: String,
-    executed_on: String,
-    registered_by: String,
-    timestamp: Option<String>,
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct DidIntelTdxV0CreateRequest {
-    did: String,
-    measurements: Vec<String>,
-    ovmf: Option<UrnCidWithSha384>,
-    kernel: Option<UrnCidWithSha384>,
-    initrd: Option<UrnCidWithSha384>,
-    append: Option<UrnCidWithSha384>,
     registered_by: String,
     timestamp: Option<String>,
 }
@@ -551,170 +439,6 @@ pub extern "C" fn ig_lineage_statement_create_did_regular(
 
         let statement = map_anyhow(runtime.block_on(DidStatementRegular::create(
             request.did,
-            request.registered_by,
-            request.timestamp,
-        )))?;
-
-        let statement_json = map_anyhow(serde_json::to_string(&statement).map_err(Into::into))?;
-        write_c_string(out_statement_json, statement_json, "out_statement_json")
-    })
-}
-
-#[no_mangle]
-pub extern "C" fn ig_lineage_statement_create_did_amdsev_v1(
-    runtime: *const IgRuntimeHandle,
-    request_json: *const c_char,
-    out_statement_json: *mut *mut c_char,
-    err_out: *mut *mut c_char,
-) -> IgStatus {
-    run_ffi(err_out, || {
-        let runtime = as_ref(runtime, "runtime")?;
-        let request_json = cstr_to_string(request_json, "request_json")?;
-        let request: DidAmdSevV1CreateRequest =
-            parse_request(request_json, "did amdsev v1 request")?;
-
-        let measurement = match request.measurement {
-            Some(value) => Some(decode_hex_arr::<32>(value, "measurement")?),
-            None => None,
-        };
-
-        let statement = map_anyhow(runtime.block_on(DidStatementEqtyVCompAmdSevV1::create(
-            request.did,
-            measurement,
-            request.sev_mode,
-            request.num_cpu_cores,
-            request.cpu_type,
-            request.ovmf,
-            request.kernel,
-            request.initrd,
-            request.append,
-            request.registered_by,
-            request.timestamp,
-        )))?;
-
-        let statement_json = map_anyhow(serde_json::to_string(&statement).map_err(Into::into))?;
-        write_c_string(out_statement_json, statement_json, "out_statement_json")
-    })
-}
-
-#[no_mangle]
-pub extern "C" fn ig_lineage_statement_create_did_azure_v1(
-    runtime: *const IgRuntimeHandle,
-    request_json: *const c_char,
-    out_statement_json: *mut *mut c_char,
-    err_out: *mut *mut c_char,
-) -> IgStatus {
-    run_ffi(err_out, || {
-        let runtime = as_ref(runtime, "runtime")?;
-        let request_json = cstr_to_string(request_json, "request_json")?;
-        let request: DidAzureV1CreateRequest = parse_request(request_json, "did azure v1 request")?;
-
-        let pcr11 = decode_hex_vec(request.pcr11, "pcr11")?;
-        let firmware = decode_hex_vec(request.firmware, "firmware")?;
-
-        let statement = map_anyhow(runtime.block_on(DidStatementEqtyVCompAzureV1::create(
-            request.did,
-            pcr11,
-            firmware,
-            request.uki,
-            request.kernel,
-            request.initrd,
-            request.append,
-            request.rootfs,
-            request.registered_by,
-            request.timestamp,
-        )))?;
-
-        let statement_json = map_anyhow(serde_json::to_string(&statement).map_err(Into::into))?;
-        write_c_string(out_statement_json, statement_json, "out_statement_json")
-    })
-}
-
-#[no_mangle]
-pub extern "C" fn ig_lineage_statement_create_did_custom_v1(
-    runtime: *const IgRuntimeHandle,
-    request_json: *const c_char,
-    out_statement_json: *mut *mut c_char,
-    err_out: *mut *mut c_char,
-) -> IgStatus {
-    run_ffi(err_out, || {
-        let runtime = as_ref(runtime, "runtime")?;
-        let request_json = cstr_to_string(request_json, "request_json")?;
-        let request: DidCustomV1CreateRequest =
-            parse_request(request_json, "did custom v1 request")?;
-
-        let statement = map_anyhow(runtime.block_on(DidStatementEqtyVCompCustomV1::create(
-            request.did,
-            request.value,
-            request.registered_by,
-            request.timestamp,
-        )))?;
-
-        let statement_json = map_anyhow(serde_json::to_string(&statement).map_err(Into::into))?;
-        write_c_string(out_statement_json, statement_json, "out_statement_json")
-    })
-}
-
-#[no_mangle]
-pub extern "C" fn ig_lineage_statement_create_did_docker_v1(
-    runtime: *const IgRuntimeHandle,
-    request_json: *const c_char,
-    out_statement_json: *mut *mut c_char,
-    err_out: *mut *mut c_char,
-) -> IgStatus {
-    run_ffi(err_out, || {
-        let runtime = as_ref(runtime, "runtime")?;
-        let request_json = cstr_to_string(request_json, "request_json")?;
-        let request: DidDockerV1CreateRequest =
-            parse_request(request_json, "did docker v1 request")?;
-
-        let image = request
-            .image
-            .into_iter()
-            .map(|entry| (entry.name, entry.sha256))
-            .collect();
-
-        let statement = map_anyhow(runtime.block_on(DidStatementEqtyVCompDockerV1::create(
-            request.did,
-            image,
-            request.compose,
-            request.operated_by,
-            request.executed_on,
-            request.registered_by,
-            request.timestamp,
-        )))?;
-
-        let statement_json = map_anyhow(serde_json::to_string(&statement).map_err(Into::into))?;
-        write_c_string(out_statement_json, statement_json, "out_statement_json")
-    })
-}
-
-#[no_mangle]
-pub extern "C" fn ig_lineage_statement_create_did_inteltdx_v0(
-    runtime: *const IgRuntimeHandle,
-    request_json: *const c_char,
-    out_statement_json: *mut *mut c_char,
-    err_out: *mut *mut c_char,
-) -> IgStatus {
-    run_ffi(err_out, || {
-        let runtime = as_ref(runtime, "runtime")?;
-        let request_json = cstr_to_string(request_json, "request_json")?;
-        let request: DidIntelTdxV0CreateRequest =
-            parse_request(request_json, "did inteltdx v0 request")?;
-
-        let measurements = request
-            .measurements
-            .into_iter()
-            .map(|value| decode_hex_arr::<48>(value, "measurement"))
-            .collect::<Result<Vec<_>, _>>()?;
-
-        let statement = map_anyhow(runtime.block_on(DidStatementEqtyVCompIntelTdxV0::create(
-            request.did,
-            measurements,
-            request.ovmf,
-            request.kernel,
-            request.initrd,
-            request.append,
             request.registered_by,
             request.timestamp,
         )))?;
