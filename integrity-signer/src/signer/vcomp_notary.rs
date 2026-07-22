@@ -31,7 +31,7 @@ pub struct VCompNotarySigner {
     /// DID of the execution environment
     pub executed_on: Option<String>,
     /// DID registration statements from the notary
-    pub did_statements: Option<HashMap<String, serde_json::Value>>,
+    pub credentials: Option<HashMap<String, serde_json::Value>>,
     /// Binary blobs associated with DID registration
     pub did_blobs: Option<HashMap<String, Vec<u8>>>,
 }
@@ -114,7 +114,7 @@ impl VCompNotarySigner {
             did_doc,
             operated_by,
             executed_on,
-            did_statements: manifest["statements"].as_object().map(|obj| {
+            credentials: manifest["statements"].as_object().map(|obj| {
                 obj.iter()
                     .map(|(k, v)| (k.clone(), v.clone()))
                     .collect::<HashMap<String, serde_json::Value>>()
@@ -148,7 +148,7 @@ impl VCompNotarySigner {
     ///
     /// `Ok(())` on success, or an error if writing fails.
     pub fn copy_data(&self, statement_dir: PathBuf, blob_dir: PathBuf) -> Result<()> {
-        if let Some(statements) = self.did_statements.clone() {
+        if let Some(statements) = self.credentials.clone() {
             fs::create_dir_all(&statement_dir).ok();
             for (cid, content) in statements {
                 let cid = strip_urn_cid(&cid);
