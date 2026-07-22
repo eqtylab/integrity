@@ -284,36 +284,6 @@ IgStatus ig_lineage_statement_create_did_regular(
     char **out_statement_json,
     char **err_out
 );
-IgStatus ig_lineage_statement_create_did_amdsev_v1(
-    const IgRuntimeHandle *runtime,
-    const char *request_json,
-    char **out_statement_json,
-    char **err_out
-);
-IgStatus ig_lineage_statement_create_did_azure_v1(
-    const IgRuntimeHandle *runtime,
-    const char *request_json,
-    char **out_statement_json,
-    char **err_out
-);
-IgStatus ig_lineage_statement_create_did_custom_v1(
-    const IgRuntimeHandle *runtime,
-    const char *request_json,
-    char **out_statement_json,
-    char **err_out
-);
-IgStatus ig_lineage_statement_create_did_docker_v1(
-    const IgRuntimeHandle *runtime,
-    const char *request_json,
-    char **out_statement_json,
-    char **err_out
-);
-IgStatus ig_lineage_statement_create_did_inteltdx_v0(
-    const IgRuntimeHandle *runtime,
-    const char *request_json,
-    char **out_statement_json,
-    char **err_out
-);
 IgStatus ig_lineage_statement_compute_cid(
     const IgRuntimeHandle *runtime,
     const char *statement_json,
