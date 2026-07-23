@@ -61,7 +61,8 @@ jobs:
           veracode-api-id: ${{ secrets.VERACODE_API_ID }}
           veracode-api-key: ${{ secrets.VERACODE_API_KEY }}
           rl-scanner: false
-          exclude-dirs: .vbuild-actions
+          # vendor/openssl-src/openssl/external is build-only Perl bundled by OpenSSL (GPL-1.0), not shipped in any built artifact
+          exclude-dirs: .vbuild-actions vendor/openssl-src/openssl/external
 
   # Main branch scans: Full attestation in TEE
   security-scan-main:
@@ -111,10 +112,14 @@ jobs:
           artifact-name: scan-provenance
           results-artifact-name: scan-results
           license-scanning: true
-          ignored-licenses: Apache-with-LLVM-Exception,blessing
+          # LGPL-2.1 (libusb) reaches integrity only via yubihsm's optional `usb` feature, dynamically linked here.
+          # BSD-Source-Code and Rijndael-3.0 are permissive licenses on OpenSSL's SEED/AES reference implementations
+          # that Trivy has no policy entry for. All three are compatible with Apache-2.0.
+          ignored-licenses: Apache-with-LLVM-Exception,blessing,LGPL-2.1-only,LGPL-2.1-or-later,BSD-Source-Code,Rijndael-3.0
           cargo-vendor: true
           veracode: true
           veracode-api-id: ${{ secrets.VERACODE_API_ID }}
           veracode-api-key: ${{ secrets.VERACODE_API_KEY }}
           rl-scanner: false
-          exclude-dirs: .vbuild-actions
+          # vendor/openssl-src/openssl/external is build-only Perl bundled by OpenSSL (GPL-1.0), not shipped in any built artifact
+          exclude-dirs: .vbuild-actions vendor/openssl-src/openssl/external
