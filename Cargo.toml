@@ -15,6 +15,17 @@ members = [
 ]
 resolver = "2"
 
+# `ssi-vc` 0.2.1 is a transitive dependency of `ssi` 0.7, which integrity-vc
+# keeps (aliased as `ssi-legacy`) solely to verify pre-ssi-0.16 legacy VCs.
+# The published 0.2.1 can't be used as-is: it pins `reqwest = "0.11"`, which
+# would drag an obsolete hyper/rustls HTTP stack into the graph as a separate
+# copy, and its source predates lifetime rules enforced by our Rust toolchain.
+# This vendored copy makes exactly three minimal edits vs. crates.io 0.2.1:
+#   - bump reqwest 0.11 -> 0.13 so it shares the reqwest already in the tree
+#     (eliminating the old 0.11 stack entirely)
+#   - add two explicit lifetimes (src/lib.rs, src/revocation.rs) so it compiles
+# `ssi` 0.7 requires the 0.2.x API, so upgrading ssi-vc isn't an option; a
+# patched vendored copy is the only way to apply these changes.
 [patch.crates-io]
 ssi-vc = { path = "vendor/ssi-vc-0.2.1" }
 
