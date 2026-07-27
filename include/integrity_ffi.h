@@ -115,14 +115,6 @@ IgStatus ig_signer_akv_create(
     char **out_did,
     char **err_out
 );
-IgStatus ig_signer_yubihsm_create(
-    uint16_t auth_key_id,
-    uint16_t signing_key_id,
-    const char *password,
-    IgSignerHandle **out_signer,
-    char **out_did,
-    char **err_out
-);
 IgStatus ig_signer_save(
     const IgSignerHandle *signer,
     const char *folder,

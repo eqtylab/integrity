@@ -1,6 +1,6 @@
 //! Adapter that plugs `integrity_signer::SignerType` into ssi 0.16's
-//! `Signer<M>` / `MessageSigner<A>` machinery so any of our 8 signer backends
-//! (Ed25519/P-256/secp256k1 in-memory + AKV/YubiKey/YubiHSM/AuthService/
+//! `Signer<M>` / `MessageSigner<A>` machinery so any of our 7 signer backends
+//! (Ed25519/P-256/secp256k1 in-memory + AKV/YubiKey/AuthService/
 //! VCompNotary/SLH-DSA) can drive a `ssi-data-integrity` cryptosuite.
 //!
 //! Our backends expose `async fn sign(&[u8]) -> Result<[u8; 64]>`; ssi 0.16

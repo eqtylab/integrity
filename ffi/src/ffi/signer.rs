@@ -18,8 +18,6 @@ use crate::signer::P256Signer;
 use crate::signer::Secp256k1Signer;
 #[cfg(feature = "signer-vcomp-notary")]
 use crate::signer::VCompNotarySigner;
-#[cfg(feature = "signer-yubihsm")]
-use crate::signer::YubiHsmSigner;
 #[cfg(feature = "signer-akv")]
 use crate::signer::{AkvConfig, AkvSigner};
 use crate::{
@@ -241,24 +239,6 @@ pub extern "C" fn ig_signer_akv_create(
 
         let signer = map_anyhow(runtime.block_on(AkvSigner::create(&config, key_name)))?;
         write_signer(out_signer, out_did, SignerType::AKV(signer))
-    })
-}
-
-#[no_mangle]
-#[cfg(feature = "signer-yubihsm")]
-pub extern "C" fn ig_signer_yubihsm_create(
-    auth_key_id: u16,
-    signing_key_id: u16,
-    password: *const c_char,
-    out_signer: *mut *mut IgSignerHandle,
-    out_did: *mut *mut c_char,
-    err_out: *mut *mut c_char,
-) -> IgStatus {
-    run_ffi(err_out, || {
-        let password = cstr_to_string(password, "password")?;
-
-        let signer = map_anyhow(YubiHsmSigner::create(auth_key_id, signing_key_id, password))?;
-        write_signer(out_signer, out_did, SignerType::YubiHsm2Signer(signer))
     })
 }
 
