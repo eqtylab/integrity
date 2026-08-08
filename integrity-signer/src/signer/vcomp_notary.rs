@@ -1,6 +1,6 @@
 use std::{collections::HashMap, fs, path::PathBuf};
 
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, bail, Context, Result};
 use async_trait::async_trait;
 use base64::engine::{general_purpose::STANDARD as BASE64, Engine};
 use did_key::{DIDCore, Document, Generate, P256KeyPair};
@@ -225,15 +225,38 @@ impl Signer for VCompNotarySigner {
         debug!("REQ: {req:?}");
         let mut res = sender.send_request(req).await?;
 
+        let status = res.status();
         let bytes = res.body_mut().collect().await?.to_bytes();
-        let v: Value = serde_json::from_slice(&bytes)?;
+
+        // A notary that answers but declines to sign is an ordinary runtime
+        // condition — it is restarting, its pod observer has not settled, the
+        // caller is not authorised. Panicking here takes down whichever worker
+        // thread happened to be signing, which in a proxy means the whole
+        // request pipeline dies instead of the one request failing.
+        if !status.is_success() {
+            bail!(
+                "VComp Notary returned {status} for /v1/sign: {}",
+                String::from_utf8_lossy(&bytes)
+            );
+        }
+
+        let v: Value = serde_json::from_slice(&bytes).with_context(|| {
+            format!(
+                "VComp Notary /v1/sign response is not JSON: {}",
+                String::from_utf8_lossy(&bytes)
+            )
+        })?;
 
         let sig_hex = v
             .get("signature")
             .and_then(|s| s.as_str())
-            .expect("missing signature");
-        let sig = hex::decode(sig_hex).expect("invalid hex");
-        let sig: [u8; 64] = sig.try_into().expect("signature not 64 bytes");
+            .ok_or_else(|| anyhow!("VComp Notary /v1/sign response has no `signature` field"))?;
+        let sig = hex::decode(sig_hex)
+            .with_context(|| "VComp Notary `signature` field is not hex".to_owned())?;
+        let sig_len = sig.len();
+        let sig: [u8; 64] = sig.try_into().map_err(|_| {
+            anyhow!("VComp Notary signature must be 64 bytes (r||s), got {sig_len}")
+        })?;
 
         Ok(sig)
     }
