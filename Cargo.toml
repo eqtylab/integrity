@@ -15,6 +15,9 @@ members = [
 ]
 resolver = "2"
 
+[workspace.package]
+version = "0.0.12"
+
 # `ssi-vc` 0.2.1 is a transitive dependency of `ssi` 0.7, which integrity-vc
 # keeps (aliased as `ssi-legacy`) solely to verify pre-ssi-0.16 legacy VCs.
 # The published 0.2.1 can't be used as-is: it pins `reqwest = "0.11"`, which
@@ -31,7 +34,7 @@ ssi-vc = { path = "vendor/ssi-vc-0.2.1" }
 
 [package]
 name = "integrity"
-version = "0.0.1"
+version.workspace = true
 edition = "2021"
 
 [lib]

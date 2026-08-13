@@ -1472,19 +1472,6 @@ dependencies = [
 
 [[package]]
 name = "cid"
-version = "0.10.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fd94671561e36e4e7de75f753f577edafb0e7c05d6e4547229fdf7938fbcd2c3"
-dependencies = [
- "core2",
- "multibase 0.9.2",
- "multihash 0.18.1",
- "serde",
- "unsigned-varint 0.7.2",
-]
-
-[[package]]
-name = "cid"
 version = "0.11.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "21a304f95f84d169a6f31c4d0a30d784643aaa0bbc9c1e449a2c23e963ec4971"
@@ -4335,7 +4322,7 @@ dependencies = [
 
 [[package]]
 name = "integrity"
-version = "0.0.1"
+version = "0.0.12"
 dependencies = [
  "anyhow",
  "base64 0.21.7",
@@ -4359,7 +4346,7 @@ dependencies = [
 
 [[package]]
 name = "integrity-blob"
-version = "0.0.1"
+version = "0.0.12"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -4369,7 +4356,7 @@ dependencies = [
  "azure_storage_blobs",
  "blake3",
  "bytes",
- "cid 0.10.1",
+ "cid 0.11.3",
  "futures-executor",
  "futures-util",
  "google-cloud-storage",
@@ -4379,12 +4366,12 @@ dependencies = [
 
 [[package]]
 name = "integrity-cid"
-version = "0.0.1"
+version = "0.0.12"
 dependencies = [
  "anyhow",
  "blake3",
  "bytes",
- "cid 0.10.1",
+ "cid 0.11.3",
  "ignore",
  "integrity-blob",
  "iroh-blake3",
@@ -4399,7 +4386,7 @@ dependencies = [
 
 [[package]]
 name = "integrity-dsse"
-version = "0.0.1"
+version = "0.0.12"
 dependencies = [
  "anyhow",
  "base64 0.21.7",
@@ -4410,7 +4397,7 @@ dependencies = [
 
 [[package]]
 name = "integrity-ffi"
-version = "0.0.1"
+version = "0.0.12"
 dependencies = [
  "anyhow",
  "hex",
@@ -4426,11 +4413,11 @@ dependencies = [
 
 [[package]]
 name = "integrity-intoto-attestation"
-version = "0.0.1"
+version = "0.0.12"
 dependencies = [
  "anyhow",
  "base64 0.21.7",
- "cid 0.10.1",
+ "cid 0.11.3",
  "did-key",
  "hex",
  "integrity-signer",
@@ -4441,11 +4428,11 @@ dependencies = [
 
 [[package]]
 name = "integrity-jsonld"
-version = "0.0.1"
+version = "0.0.12"
 dependencies = [
  "anyhow",
  "blake3",
- "cid 0.10.1",
+ "cid 0.11.3",
  "futures",
  "include_dir",
  "iref 3.2.2",
@@ -4465,13 +4452,13 @@ dependencies = [
 
 [[package]]
 name = "integrity-lineage-models"
-version = "0.0.1"
+version = "0.0.12"
 dependencies = [
  "anyhow",
  "base64 0.21.7",
  "blake3",
  "chrono",
- "cid 0.10.1",
+ "cid 0.11.3",
  "futures",
  "hex",
  "integrity-blob",
@@ -4493,11 +4480,11 @@ dependencies = [
 
 [[package]]
 name = "integrity-model-signing"
-version = "0.0.1"
+version = "0.0.12"
 dependencies = [
  "anyhow",
  "bs58 0.5.1",
- "cid 0.10.1",
+ "cid 0.11.3",
  "hex",
  "integrity-blob",
  "integrity-cid",
@@ -4512,7 +4499,7 @@ dependencies = [
 
 [[package]]
 name = "integrity-signer"
-version = "0.0.1"
+version = "0.0.12"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -4540,7 +4527,7 @@ dependencies = [
 
 [[package]]
 name = "integrity-sigstore"
-version = "0.0.1"
+version = "0.0.12"
 dependencies = [
  "serde",
  "serde_json",
@@ -4548,7 +4535,7 @@ dependencies = [
 
 [[package]]
 name = "integrity-vc"
-version = "0.0.1"
+version = "0.0.12"
 dependencies = [
  "anyhow",
  "chrono",
@@ -5986,17 +5973,6 @@ dependencies = [
  "serde-big-array",
  "sha2 0.10.9",
  "sha3",
- "unsigned-varint 0.7.2",
-]
-
-[[package]]
-name = "multihash"
-version = "0.18.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cfd8a792c1694c6da4f68db0a9d707c72bd260994da179e6030a5dcee00bb815"
-dependencies = [
- "core2",
- "multihash-derive",
  "unsigned-varint 0.7.2",
 ]
 

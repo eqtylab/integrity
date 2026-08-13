@@ -1,5 +1,5 @@
 use anyhow::Result;
-use cid::{multihash::MultihashGeneric, Cid};
+use cid::{multihash::Multihash as MultihashGeneric, Cid};
 
 use crate::multicodec;
 type Multihash = MultihashGeneric<64>;

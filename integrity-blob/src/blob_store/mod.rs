@@ -15,7 +15,7 @@ use async_trait::async_trait;
     all(not(target_arch = "wasm32"), feature = "blob-gcs"),
     all(not(target_arch = "wasm32"), feature = "blob-s3"),
 ))]
-use cid::{multihash::MultihashGeneric, Cid};
+use cid::{multihash::Multihash as MultihashGeneric, Cid};
 use futures_util::{stream, StreamExt, TryStreamExt};
 
 #[cfg(all(not(target_arch = "wasm32"), feature = "blob-azure"))]

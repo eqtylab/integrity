@@ -1,5 +1,5 @@
 use anyhow::Result;
-use cid::{multihash::MultihashGeneric, Cid};
+use cid::{multihash::Multihash as MultihashGeneric, Cid};
 
 type Multihash = MultihashGeneric<64>;
 

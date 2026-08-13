@@ -7,7 +7,7 @@ use std::{
 
 use anyhow::{bail, Result};
 use bytes::Bytes;
-use cid::{multihash::MultihashGeneric, Cid};
+use cid::{multihash::Multihash as MultihashGeneric, Cid};
 use iroh_blobs::format::collection::Collection;
 use log::{debug, trace};
 use serde::{Deserialize, Serialize};
