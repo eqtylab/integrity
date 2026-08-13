@@ -1,6 +1,6 @@
 [package]
 name = "integrity-jsonld"
-version = "0.0.1"
+version.workspace = true
 edition = "2021"
 
 [features]
@@ -9,7 +9,7 @@ tokio-tests = ["dep:tokio"]
 
 [dependencies]
 anyhow = { version = "1", features = ["backtrace"] }
-cid = { version = "0.10", default-features = false, features = ["std"] }
+cid = { version = "0.11", default-features = false, features = ["std"] }
 futures = "0.3"
 include_dir = "0.7"
 iref = "3.2"

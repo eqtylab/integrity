@@ -2,7 +2,7 @@ use std::{collections::HashMap, sync::Arc};
 
 use anyhow::{anyhow, bail, Result};
 use bytes::Bytes;
-use cid::{multihash::MultihashGeneric, Cid};
+use cid::{multihash::Multihash as MultihashGeneric, Cid};
 use integrity_blob::BlobStore;
 use iroh_blobs::{hashseq::HashSeq, Hash};
 use serde::{Deserialize, Serialize};

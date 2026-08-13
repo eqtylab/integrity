@@ -9,7 +9,7 @@ use std::{
 use anchor::Anchor;
 use anyhow::{anyhow, Result};
 use base64::engine::{general_purpose::STANDARD as BASE64, Engine};
-use cid::{multihash::MultihashGeneric, Cid};
+use cid::{multihash::Multihash as MultihashGeneric, Cid};
 use futures::{stream, stream::StreamExt};
 use integrity_blob::BlobStore;
 use integrity_cid::collection::hashmap_for_iroh_collection;

@@ -6,7 +6,7 @@ pub mod nquads;
 pub mod to_nquads;
 
 use anyhow::Result;
-use cid::{multihash::MultihashGeneric, Cid};
+use cid::{multihash::Multihash as MultihashGeneric, Cid};
 use serde_json::Value;
 
 use crate::{nquads::canonicalize_nquads, to_nquads::jsonld_to_nquads};
