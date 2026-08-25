@@ -1,6 +1,9 @@
 #[cfg(not(target_arch = "wasm32"))]
 mod signer_adapter;
 
+#[cfg(not(target_arch = "wasm32"))]
+use std::collections::HashMap;
+
 use anyhow::Result;
 #[cfg(not(target_arch = "wasm32"))]
 use anyhow::{anyhow, bail};
@@ -24,8 +27,6 @@ use ssi::{
     dids::{AnyDidMethod, VerificationMethodDIDResolver},
     verification_methods::{AnyMethod, ProofPurpose},
 };
-#[cfg(not(target_arch = "wasm32"))]
-use std::collections::HashMap;
 
 #[cfg(not(target_arch = "wasm32"))]
 use crate::signer_adapter::IntegritySigner;
