@@ -68,7 +68,7 @@ async fn lifecycle(subject: &str, signer: SignerType, url: &str, jwt: &str) -> R
     println!("{}", serde_json::to_string_pretty(&signed)?);
 
     println!();
-    match vc::verify_vc(&signed_json).await {
+    match vc::verify_vc(&signed_json, None).await {
         Ok(msg) => println!("verify: {msg}"),
         Err(e) => println!("verify failed: {e}"),
     }

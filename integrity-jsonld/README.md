@@ -16,13 +16,22 @@ The whole `static_contexts/` tree is embedded at compile time (via `include_dir!
   - Verifiable metadata schemas for the Integrity Fabric
 
 - **`https/<host>/<path>`** — URL-addressed contexts mirrored on disk under a path that
-  reconstructs their URL, keyed as `https://<host>/<path>`. For example
-  `https/eqtylab.io/contexts/component-attestation.jsonld` is served (conceptually) at
-  `https://eqtylab.io/contexts/component-attestation.jsonld`. These are vendored from the
-  [`eqtylab/credentials`](https://github.com/eqtylab/credentials) repo (see below).
+  reconstructs their URL, keyed as `https://<host>/<path>`. Supported, but **empty today**:
+  contexts addressed by URL are supplied by the caller instead (see below).
 
 W3C standard contexts (Verifiable Credentials v1/v2, DID v1, Security v1/v2) are **not**
 stored here — `ssi_json_ld`'s built-in static loader provides them at runtime.
+
+### Caller-supplied contexts
+
+`loader()` takes an optional `HashMap<String, String>` of context URL to context document,
+merged over the embedded set so a caller's entry wins on collision. Anything vendored here is
+frozen at the version of this crate you depend on, so a vocabulary that is still evolving
+belongs on that argument rather than in this tree — otherwise using a new term means cutting a
+release of this crate first.
+
+Nothing is ever fetched over the network. A context that is neither embedded nor supplied is a
+hard error, which keeps canonicalization a pure function of its inputs.
 
 ### Usage
 
@@ -53,17 +62,6 @@ file in the right place — **no Rust changes are needed**:
 - A new URL-addressed context: add `static_contexts/https/<host>/<path>.jsonld` (resolvable
   as `https://<host>/<path>.jsonld`).
 
-The URL-addressed contexts from the `eqtylab/credentials` repo are kept in sync by fetching
-them straight from that repo. Because it is private, this needs GitHub auth — `gh auth login`
-locally, or `$GH_TOKEN` in CI:
-
-```bash
-# Fetch the latest contexts (uses `gh`, or falls back to a shallow `git clone`)
-just sync-credential-contexts
-
-# Pin to a specific ref instead of the default branch
-CREDENTIALS_REF=some-tag just sync-credential-contexts
-```
-
-The [`sync-contexts`](../.github/workflows/sync-contexts.yml) GitHub Action also runs this
-daily and commits any changes.
+Embed a context here only when it is genuinely immutable — a content-addressed document is,
+by construction. For anything served at a URL that may still gain terms, prefer passing it to
+`loader()` at call time so the two never drift.

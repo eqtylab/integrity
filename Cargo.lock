@@ -4322,7 +4322,7 @@ dependencies = [
 
 [[package]]
 name = "integrity"
-version = "0.0.12"
+version = "0.0.13"
 dependencies = [
  "anyhow",
  "base64 0.21.7",
@@ -4346,7 +4346,7 @@ dependencies = [
 
 [[package]]
 name = "integrity-blob"
-version = "0.0.12"
+version = "0.0.13"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -4366,7 +4366,7 @@ dependencies = [
 
 [[package]]
 name = "integrity-cid"
-version = "0.0.12"
+version = "0.0.13"
 dependencies = [
  "anyhow",
  "blake3",
@@ -4386,7 +4386,7 @@ dependencies = [
 
 [[package]]
 name = "integrity-dsse"
-version = "0.0.12"
+version = "0.0.13"
 dependencies = [
  "anyhow",
  "base64 0.21.7",
@@ -4397,7 +4397,7 @@ dependencies = [
 
 [[package]]
 name = "integrity-ffi"
-version = "0.0.12"
+version = "0.0.13"
 dependencies = [
  "anyhow",
  "hex",
@@ -4413,7 +4413,7 @@ dependencies = [
 
 [[package]]
 name = "integrity-intoto-attestation"
-version = "0.0.12"
+version = "0.0.13"
 dependencies = [
  "anyhow",
  "base64 0.21.7",
@@ -4428,7 +4428,7 @@ dependencies = [
 
 [[package]]
 name = "integrity-jsonld"
-version = "0.0.12"
+version = "0.0.13"
 dependencies = [
  "anyhow",
  "blake3",
@@ -4452,7 +4452,7 @@ dependencies = [
 
 [[package]]
 name = "integrity-lineage-models"
-version = "0.0.12"
+version = "0.0.13"
 dependencies = [
  "anyhow",
  "base64 0.21.7",
@@ -4480,7 +4480,7 @@ dependencies = [
 
 [[package]]
 name = "integrity-model-signing"
-version = "0.0.12"
+version = "0.0.13"
 dependencies = [
  "anyhow",
  "bs58 0.5.1",
@@ -4499,7 +4499,7 @@ dependencies = [
 
 [[package]]
 name = "integrity-signer"
-version = "0.0.12"
+version = "0.0.13"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -4527,7 +4527,7 @@ dependencies = [
 
 [[package]]
 name = "integrity-sigstore"
-version = "0.0.12"
+version = "0.0.13"
 dependencies = [
  "serde",
  "serde_json",
@@ -4535,7 +4535,7 @@ dependencies = [
 
 [[package]]
 name = "integrity-vc"
-version = "0.0.12"
+version = "0.0.13"
 dependencies = [
  "anyhow",
  "chrono",

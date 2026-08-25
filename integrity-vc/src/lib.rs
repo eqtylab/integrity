@@ -24,6 +24,8 @@ use ssi::{
     dids::{AnyDidMethod, VerificationMethodDIDResolver},
     verification_methods::{AnyMethod, ProofPurpose},
 };
+#[cfg(not(target_arch = "wasm32"))]
+use std::collections::HashMap;
 
 #[cfg(not(target_arch = "wasm32"))]
 use crate::signer_adapter::IntegritySigner;
@@ -157,7 +159,9 @@ pub async fn issue_vc(subject: &str, signer: SignerType) -> Result<SignedVc> {
     let adapter = IntegritySigner::new(signer);
     let unsigned = build_unsigned(subject, &adapter)?;
     log::trace!("Unsigned VC: {}", serde_json::to_string_pretty(&unsigned)?);
-    sign(unsigned, adapter).await
+    // `build_unsigned` only ever attaches the W3C base contexts, so there is
+    // nothing here a caller could need to supply.
+    sign(unsigned, adapter, None).await
 }
 
 /// Creates and signs a revocable Verifiable Credential.
@@ -186,7 +190,7 @@ pub async fn issue_revocable_vc(
     let unsigned = build_unsigned(subject, &adapter)?;
     let allocated =
         allocate_credential_status(unsigned, status_server_url, status_server_jwt).await?;
-    sign(allocated, adapter).await
+    sign(allocated, adapter, None).await
 }
 
 /// Allocates credential-status slots for an already-built unsigned
@@ -249,10 +253,20 @@ pub async fn allocate_credential_status(
 }
 
 /// Signs an already-built unsigned `JsonCredential`.
+///
+/// `contexts` maps a context URL to the JSON-LD context document served
+/// there, for any `@context` entry this library does not already bundle.
+/// Signing canonicalizes the credential, so every context it references
+/// has to resolve — an unknown one is a hard error, never a silent skip.
+/// A credential using only the W3C base contexts can pass `None`.
 #[cfg(not(target_arch = "wasm32"))]
-pub async fn sign_vc(unsigned: JsonCredential, signer: SignerType) -> Result<SignedVc> {
+pub async fn sign_vc(
+    unsigned: JsonCredential,
+    signer: SignerType,
+    contexts: Option<HashMap<String, String>>,
+) -> Result<SignedVc> {
     let adapter = IntegritySigner::new(signer);
-    sign(unsigned, adapter).await
+    sign(unsigned, adapter, contexts).await
 }
 
 /// Verifies a signed VC's Data-Integrity proof.
@@ -266,20 +280,29 @@ pub async fn sign_vc(unsigned: JsonCredential, signer: SignerType) -> Result<Sig
 /// The split is deliberate. Proof verification here is offline (modulo
 /// DID resolution, which for `did:key` is also offline) and
 /// deterministic: it is purely a function of the input bytes plus the
-/// bundled JSON-LD contexts. Status checking necessarily fetches
+/// contexts available to it. Status checking necessarily fetches
 /// external bitstring lists over HTTP and so is treated as an opt-in
 /// operation with different failure modes and security posture.
 ///
+/// `contexts` maps a context URL to the JSON-LD context document served
+/// there, for any `@context` entry this library does not already bundle.
+/// Nothing is fetched on your behalf: a credential referencing a context
+/// that is neither bundled nor supplied fails rather than verifying
+/// against a partial vocabulary. It is ignored for pre-ssi-0.16 credentials,
+/// which resolve against their own pinned documents.
+///
 /// Returns a human-readable summary on success.
 #[cfg(not(target_arch = "wasm32"))]
-pub async fn verify_vc(vc_json: &str) -> Result<String> {
+pub async fn verify_vc(vc_json: &str, contexts: Option<HashMap<String, String>>) -> Result<String> {
     if is_legacy_vc(vc_json) {
+        // `contexts` deliberately does not reach the legacy path; see
+        // `verify_legacy_vc`.
         return verify_legacy_vc(vc_json).await;
     }
 
     let vc: SignedVc = serde_json::from_str(vc_json)?;
     let resolver = VerificationMethodDIDResolver::<_, AnyMethod>::new(AnyDidMethod::default());
-    let loader = integrity_jsonld::loader::loader(None)?;
+    let loader = integrity_jsonld::loader::loader(contexts)?;
     let params = VerificationParameters::from_resolver(resolver).with_json_ld_loader(loader);
     let outcome = vc
         .verify(params)
@@ -617,6 +640,9 @@ async fn check_credential_status_inner(
     }
 
     let resolver = VerificationMethodDIDResolver::<_, AnyMethod>::new(AnyDidMethod::default());
+    // No caller contexts here on purpose: this loader verifies the status-list
+    // credential fetched from the status server, not the caller's VC. Status
+    // lists are W3C-shaped and never carry a caller's vocabulary.
     let loader = integrity_jsonld::loader::loader(None)?;
     let verifier = VerificationParameters::from_resolver(resolver).with_json_ld_loader(loader);
     let http = reqwest::Client::new();
@@ -746,6 +772,14 @@ fn is_legacy_vc(vc_json: &str) -> bool {
 /// Cargo unifies ssi-contexts to 0.1.10 in our build because ssi 0.16's
 /// chain requires `>=0.1.10`, so we can't pin downward — but we CAN feed
 /// 0.1.5's content directly to the loader for the legacy path only.
+///
+/// Takes no caller-supplied contexts. This path exists only to verify
+/// credentials issued before the switch to ssi 0.16, and its loader starts
+/// empty and is filled solely from [`legacy_context_overrides`] — pinned to the
+/// exact bytes those credentials were signed against. Admitting anything else
+/// could change the canonicalized output and break a credential already in the
+/// wild, and no legacy credential references a vocabulary a caller would need
+/// to supply.
 #[cfg(not(target_arch = "wasm32"))]
 async fn verify_legacy_vc(vc_json: &str) -> Result<String> {
     use did_method_key_legacy::DIDKey;
@@ -848,7 +882,11 @@ fn build_unsigned(subject: &str, adapter: &IntegritySigner) -> Result<JsonCreden
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-async fn sign(unsigned: JsonCredential, adapter: IntegritySigner) -> Result<SignedVc> {
+async fn sign(
+    unsigned: JsonCredential,
+    adapter: IntegritySigner,
+    contexts: Option<HashMap<String, String>>,
+) -> Result<SignedVc> {
     log::debug!("Signing VC");
     let suite = adapter.suite()?;
     let vm_iri = adapter.verification_method_iri()?;
@@ -866,7 +904,7 @@ async fn sign(unsigned: JsonCredential, adapter: IntegritySigner) -> Result<Sign
     );
 
     let environment = SignatureEnvironment {
-        json_ld_loader: integrity_jsonld::loader::loader(None)?,
+        json_ld_loader: integrity_jsonld::loader::loader(contexts)?,
         eip712_loader: (),
     };
 
@@ -938,7 +976,7 @@ mod tests {
         let signed = issue_vc(subject, signer_type).await.unwrap();
 
         let vc_json = serde_json::to_string(&signed).unwrap();
-        let result = verify_vc(&vc_json).await;
+        let result = verify_vc(&vc_json, None).await;
         assert!(
             result.is_ok(),
             "Credential verification should succeed: {:?}",
@@ -1128,7 +1166,7 @@ mod tests {
         );
 
         // And the augmented credential still signs through the existing path.
-        let signed = sign_vc(allocated, SignerType::ED25519(signer))
+        let signed = sign_vc(allocated, SignerType::ED25519(signer), None)
             .await
             .unwrap();
         assert!(!signed.proofs.is_empty(), "SignedVc should have a proof");
@@ -1301,7 +1339,7 @@ mod tests {
         let captured = r#"{"@context":["https://www.w3.org/ns/credentials/v2","https://w3id.org/security/v2"],"id":"urn:uuid:cf35933b-b49d-4b18-82ee-0e594912ec87","type":["VerifiableCredential"],"credentialSubject":{"id":"urn:cid:bafkr4ibthuzk3zug7ghmx63yjqaiu6rx4hhfdv3453j5bodskgw57bx2ya"},"issuer":"did:key:z6Mkt1QV8soXyenn4uUYtrMzFDnWWq8e8Mu71t2KmBsWi2mv","issuanceDate":"2026-05-14T13:43:44Z","proof":{"type":"Ed25519Signature2018","proofPurpose":"assertionMethod","verificationMethod":"did:key:z6Mkt1QV8soXyenn4uUYtrMzFDnWWq8e8Mu71t2KmBsWi2mv#z6Mkt1QV8soXyenn4uUYtrMzFDnWWq8e8Mu71t2KmBsWi2mv","created":"2026-05-14T13:43:44Z","jws":"eyJhbGciOiJFZERTQSIsImNyaXQiOlsiYjY0Il0sImI2NCI6ZmFsc2V9..P1CYP_-UNuPSyJUfE3EfLnHDZxHE1rZt961j1UQ6wx0f4ftTs3cUNmQ6pINp6VECGscjWnmvYtt4r2jt1-0YDg"},"validFrom":"2026-05-14T13:43:44Z"}"#;
 
         assert!(is_legacy_vc(captured), "should detect as legacy");
-        let result = verify_vc(captured).await;
+        let result = verify_vc(captured, None).await;
         assert!(
             result.is_ok(),
             "captured OLD-issued VC should verify via legacy path: {:?}",
@@ -1351,22 +1389,36 @@ mod tests {
           "validFrom": "2026-04-30T15:51:28Z"
         }"#;
 
-        let result = verify_vc(legacy_vc).await;
+        let result = verify_vc(legacy_vc, None).await;
         assert!(
             result.is_ok(),
             "legacy VC verification should succeed: {:?}",
             result.err()
         );
+
+        // Caller contexts never reach the legacy path, which pins the exact
+        // bytes these credentials were signed against. Passing a document that
+        // would wreck canonicalization must make no difference at all.
+        let hostile = HashMap::from([(
+            "https://www.w3.org/ns/credentials/v2".to_string(),
+            r#"{"@context":{"@vocab":"https://example.invalid/not-the-real-context#"}}"#
+                .to_string(),
+        )]);
+        let result = verify_vc(legacy_vc, Some(hostile)).await;
+        assert!(
+            result.is_ok(),
+            "caller contexts must not reach the legacy path: {:?}",
+            result.err()
+        );
     }
 
-    /// User-supplied VC carrying a custom JSON-LD context
-    /// (`https://eqtylab.io/contexts/vcomp/v1`) and custom evidence terms
-    /// (`EqtyVCompNvidiaCcV0Evidence`, `report`, `certificateChain`) that are
-    /// only defined in that context. We sign with a fresh signer — rewriting
-    /// `issuer` to match (the original fixture's DID is unowned) — and
-    /// otherwise leave the VC as supplied. Expected to fail today because
-    /// ssi 0.16's static context loader can't resolve the custom URL, so
-    /// JSON-LD expansion of the evidence terms fails during canonicalization.
+    /// User-supplied VC carrying a custom JSON-LD context by `urn:cid:` link
+    /// and custom evidence terms (`EqtyVCompNvidiaCcV0Evidence`, `report`,
+    /// `certificateChain`) that are only defined in that context. We sign with
+    /// a fresh signer — rewriting `issuer` to match (the original fixture's DID
+    /// is unowned) — and otherwise leave the VC as supplied. The context is
+    /// content-addressed and embedded here, so it resolves without the caller
+    /// supplying anything.
     #[tokio::test]
     async fn test_verify_vc_with_custom_context() {
         let _ = env_logger::builder().is_test(true).try_init();
@@ -1402,10 +1454,10 @@ mod tests {
         unsigned_value["issuer"] = Value::String(issuer_did);
 
         let unsigned: JsonCredential = serde_json::from_value(unsigned_value).unwrap();
-        let signed = sign_vc(unsigned, signer_type).await.unwrap();
+        let signed = sign_vc(unsigned, signer_type, None).await.unwrap();
 
         let vc_json = serde_json::to_string(&signed).unwrap();
-        let result = verify_vc(&vc_json).await;
+        let result = verify_vc(&vc_json, None).await;
         assert!(
             result.is_ok(),
             "VC verification should succeed: {:?}",
@@ -1447,7 +1499,7 @@ mod tests {
         unsigned_value["issuer"] = Value::String(issuer_did);
 
         let unsigned: JsonCredential = serde_json::from_value(unsigned_value).unwrap();
-        let signed = sign_vc(unsigned, signer_type).await.unwrap();
+        let signed = sign_vc(unsigned, signer_type, None).await.unwrap();
         let vc_json = serde_json::to_string(&signed).unwrap();
 
         // Precondition: the VC really carries the urn:cid: context, not @vocab.
@@ -1456,7 +1508,7 @@ mod tests {
             "test VC must carry the IG-common urn:cid: context: {vc_json}"
         );
 
-        verify_vc(&vc_json)
+        verify_vc(&vc_json, None)
             .await
             .expect("VC carrying the IG-common urn:cid: context must still verify");
     }
@@ -1490,7 +1542,7 @@ mod tests {
           "validFrom": "2025-05-22T16:25:37Z"
         }"#;
 
-        let result = verify_vc(legacy_vc).await;
+        let result = verify_vc(legacy_vc, None).await;
         assert!(
             result.is_ok(),
             "legacy VC verification should succeed: {:?}",
@@ -1557,9 +1609,9 @@ mod tests {
             "EQTY context must be an inline @vocab with no urn:cid: entry"
         );
 
-        let signed = sign_vc(unsigned, signer_type).await.unwrap();
+        let signed = sign_vc(unsigned, signer_type, None).await.unwrap();
         let signed_json = serde_json::to_string(&signed).unwrap();
-        verify_vc(&signed_json)
+        verify_vc(&signed_json, None)
             .await
             .expect("vcomp-shape VC must verify with attached contexts");
     }
@@ -1601,9 +1653,9 @@ mod tests {
         assert!(unsigned.valid_until.is_some());
         assert!(unsigned.evidence.is_empty());
 
-        let signed = sign_vc(unsigned, signer_type).await.unwrap();
+        let signed = sign_vc(unsigned, signer_type, None).await.unwrap();
         let signed_json = serde_json::to_string(&signed).unwrap();
-        verify_vc(&signed_json)
+        verify_vc(&signed_json, None)
             .await
             .expect("compliance-shape VC must verify with attached contexts");
     }

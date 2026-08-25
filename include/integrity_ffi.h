@@ -158,16 +158,30 @@ IgStatus ig_vc_issue(
     char **out_credential_json,
     char **err_out
 );
+IgStatus ig_vc_issue_revocable(
+    const IgRuntimeHandle *runtime,
+    const IgSignerHandle *signer,
+    const char *subject,
+    const char *status_server_url,
+    const char *status_server_jwt,
+    char **out_credential_json,
+    char **err_out
+);
+/* `contexts_json` is a JSON object mapping a context URL to the JSON-LD context
+ * document served there, for any @context entry the library does not bundle.
+ * Pass NULL for none; an unresolvable context is an error, never a silent skip. */
 IgStatus ig_vc_sign(
     const IgRuntimeHandle *runtime,
     const IgSignerHandle *signer,
     const char *unsigned_credential_json,
+    const char *contexts_json,
     char **out_signed_credential_json,
     char **err_out
 );
 IgStatus ig_vc_verify(
     const IgRuntimeHandle *runtime,
     const char *credential_json,
+    const char *contexts_json,
     char **out_verify_result_json,
     bool *out_valid,
     char **err_out

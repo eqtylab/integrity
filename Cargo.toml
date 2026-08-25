@@ -16,7 +16,7 @@ members = [
 resolver = "2"
 
 [workspace.package]
-version = "0.0.12"
+version = "0.0.13"
 
 # `ssi-vc` 0.2.1 is a transitive dependency of `ssi` 0.7, which integrity-vc
 # keeps (aliased as `ssi-legacy`) solely to verify pre-ssi-0.16 legacy VCs.

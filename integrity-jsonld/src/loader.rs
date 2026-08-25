@@ -16,6 +16,10 @@ type ContextMap = HashMap<String, &'static str>;
 /// - `cid/<CID>` files are keyed by `urn:cid:<CID>`.
 /// - `https/<host>/<path>` files are keyed by `https://<host>/<path>`.
 ///
+/// Only `cid/` is populated today. Contexts addressed by URL are supplied by the
+/// caller instead — see the `additional_contexts` argument to [`loader`] — so that
+/// a vocabulary can evolve without waiting on a release of this crate.
+///
 /// A `build.rs` emits `cargo:rerun-if-changed` for this tree so edits are picked
 /// up on incremental builds.
 static STATIC_CONTEXTS_DIR: Dir<'static> = include_dir!("$CARGO_MANIFEST_DIR/static_contexts");
@@ -116,7 +120,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn embeds_cid_and_url_contexts() {
+    fn embeds_cid_contexts() {
         let contexts = static_contexts().expect("static contexts build");
 
         // The full set of content-addressed contexts is still embedded.
@@ -133,9 +137,15 @@ mod tests {
         assert!(contexts
             .contains_key("urn:cid:bafkr4icploa577ziqnb57jlpoj7l2hi5kgt3knxpdtunlttjd3q33zeqpy"));
 
-        // The URL-addressed contexts vendored from eqtylab/credentials.
-        assert!(contexts.contains_key("https://eqtylab.io/contexts/component-attestation.jsonld"));
-        assert!(contexts.contains_key("https://eqtylab.io/contexts/identity-attestation.jsonld"));
+        // Nothing is embedded by URL: those come from the caller.
+        assert!(
+            contexts.keys().all(|k| k.starts_with("urn:cid:")),
+            "expected only urn:cid: contexts, found {:?}",
+            contexts
+                .keys()
+                .filter(|k| !k.starts_with("urn:cid:"))
+                .collect::<Vec<_>>()
+        );
     }
 
     #[test]
@@ -144,9 +154,10 @@ mod tests {
             uri_for_path(Path::new("cid/bafkr4iabc")).as_deref(),
             Some("urn:cid:bafkr4iabc")
         );
+        // The https/ branch is unused today but still supported.
         assert_eq!(
-            uri_for_path(Path::new("https/eqtylab.io/contexts/foo.jsonld")).as_deref(),
-            Some("https://eqtylab.io/contexts/foo.jsonld")
+            uri_for_path(Path::new("https/example.com/contexts/foo.jsonld")).as_deref(),
+            Some("https://example.com/contexts/foo.jsonld")
         );
         // Non-context paths are ignored.
         assert_eq!(uri_for_path(Path::new("cid/nested/file")), None);

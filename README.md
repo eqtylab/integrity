@@ -45,7 +45,7 @@ The workspace includes a stable C ABI surface in `ffi/src/ffi/` for SDK bindings
   - Release memory with `ig_string_free`, `ig_error_free`, `ig_bytes_free`
   - Release handles with their corresponding `*_free` function
 
-The current ABI version is `0.3.0`.
+The current ABI version is `0.4.0`.
 
 ### Native Artifact Releases
 
@@ -79,18 +79,17 @@ The project uses [Just](https://github.com/casey/just) for common development ta
 
 ```present just --list
 Available recipes:
-    build                    # Build the project for native target
-    build-wasm               # Build WebAssembly package with wasm-pack
-    ci                       # Run all CI checks (format, build, lint, test)
-    fix                      # Auto-fix clippy warnings where possible
-    fmt                      # Format Rust code using rustfmt
-    fmt-check                # Check if code is formatted correctly without modifying files
-    lint                     # Run clippy lints to check code quality
-    lint-docs                # Check that all public items have documentation
-    pre-commit               # Run all prek pre-commit hooks on all files
-    readme-check             # Check if README.md is up to date with auto-generated content
-    readme-update            # Update README.md with auto-generated content (Justfile commands, etc.)
-    sync-credential-contexts # Vendor JSON-LD contexts from the eqtylab/credentials repo (set CREDENTIALS_REF to pin)
-    test                     # Run unit tests with cargo
-    test-wasm                # Run WASM tests in Node.js and browsers (Chrome, Firefox) Note: for macOS test Safari with --safari
+    build         # Build the project for native target
+    build-wasm    # Build WebAssembly package with wasm-pack
+    ci            # Run all CI checks (format, build, lint, test)
+    fix           # Auto-fix clippy warnings where possible
+    fmt           # Format Rust code using rustfmt
+    fmt-check     # Check if code is formatted correctly without modifying files
+    lint          # Run clippy lints to check code quality
+    lint-docs     # Check that all public items have documentation
+    pre-commit    # Run all prek pre-commit hooks on all files
+    readme-check  # Check if README.md is up to date with auto-generated content
+    readme-update # Update README.md with auto-generated content (Justfile commands, etc.)
+    test          # Run unit tests with cargo
+    test-wasm     # Run WASM tests in Node.js and browsers (Chrome, Firefox) Note: for macOS test Safari with --safari
 ```
