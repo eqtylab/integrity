@@ -16,8 +16,11 @@ The whole `static_contexts/` tree is embedded at compile time (via `include_dir!
   - Verifiable metadata schemas for the Integrity Fabric
 
 - **`https/<host>/<path>`** — URL-addressed contexts mirrored on disk under a path that
-  reconstructs their URL, keyed as `https://<host>/<path>`. Supported, but **empty today**:
-  contexts addressed by URL are supplied by the caller instead (see below).
+  reconstructs their URL, keyed as `https://<host>/<path>`. This holds exactly two documents,
+  `https://eqtylab.io/contexts/{component,identity}-attestation.jsonld`, retained so that
+  credentials already signed against those URLs keep verifying. They are **frozen**: no longer
+  synced from anywhere, and not to be edited. Rewriting one changes the canonicalized output of
+  every credential referencing it, invalidating proofs that are already in the wild.
 
 W3C standard contexts (Verifiable Credentials v1/v2, DID v1, Security v1/v2) are **not**
 stored here — `ssi_json_ld`'s built-in static loader provides them at runtime.
@@ -25,10 +28,10 @@ stored here — `ssi_json_ld`'s built-in static loader provides them at runtime.
 ### Caller-supplied contexts
 
 `loader()` takes an optional `HashMap<String, String>` of context URL to context document,
-merged over the embedded set so a caller's entry wins on collision. Anything vendored here is
-frozen at the version of this crate you depend on, so a vocabulary that is still evolving
-belongs on that argument rather than in this tree — otherwise using a new term means cutting a
-release of this crate first.
+merged over the embedded set so a caller's entry wins on collision. This is where a vocabulary
+that is still evolving belongs: anything vendored into `static_contexts/` is pinned to the
+version of this crate you depend on, so embedding it would mean cutting a release here before a
+new term could be used.
 
 Nothing is ever fetched over the network. A context that is neither embedded nor supplied is a
 hard error, which keeps canonicalization a pure function of its inputs.

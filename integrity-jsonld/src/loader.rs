@@ -16,9 +16,16 @@ type ContextMap = HashMap<String, &'static str>;
 /// - `cid/<CID>` files are keyed by `urn:cid:<CID>`.
 /// - `https/<host>/<path>` files are keyed by `https://<host>/<path>`.
 ///
-/// Only `cid/` is populated today. Contexts addressed by URL are supplied by the
-/// caller instead — see the `additional_contexts` argument to [`loader`] — so that
-/// a vocabulary can evolve without waiting on a release of this crate.
+/// Everything embedded here is **frozen**, and that is the bar for adding to it:
+/// a `urn:cid:` document cannot change without changing its own identifier, and
+/// the two `https/eqtylab.io/contexts/` documents are retained solely so that
+/// credentials already signed against those URLs keep verifying. They are no
+/// longer synced from anywhere and must not be edited — rewriting one changes the
+/// canonicalized output of every credential that references it, which invalidates
+/// proofs that are already in the wild.
+///
+/// A vocabulary that is still evolving does not belong here. Pass it to [`loader`]
+/// as `additional_contexts` instead, so it is not pinned to a release of this crate.
 ///
 /// A `build.rs` emits `cargo:rerun-if-changed` for this tree so edits are picked
 /// up on incremental builds.
@@ -120,7 +127,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn embeds_cid_contexts() {
+    fn embeds_cid_and_legacy_url_contexts() {
         let contexts = static_contexts().expect("static contexts build");
 
         // The full set of content-addressed contexts is still embedded.
@@ -137,14 +144,17 @@ mod tests {
         assert!(contexts
             .contains_key("urn:cid:bafkr4icploa577ziqnb57jlpoj7l2hi5kgt3knxpdtunlttjd3q33zeqpy"));
 
-        // Nothing is embedded by URL: those come from the caller.
-        assert!(
-            contexts.keys().all(|k| k.starts_with("urn:cid:")),
-            "expected only urn:cid: contexts, found {:?}",
+        // Retained so credentials signed against these URLs keep verifying. New
+        // contexts are supplied by the caller, so this set should not grow.
+        assert!(contexts.contains_key("https://eqtylab.io/contexts/component-attestation.jsonld"));
+        assert!(contexts.contains_key("https://eqtylab.io/contexts/identity-attestation.jsonld"));
+        assert_eq!(
             contexts
                 .keys()
                 .filter(|k| !k.starts_with("urn:cid:"))
-                .collect::<Vec<_>>()
+                .count(),
+            2,
+            "only the two legacy eqtylab.io contexts should be embedded by URL"
         );
     }
 
@@ -154,10 +164,9 @@ mod tests {
             uri_for_path(Path::new("cid/bafkr4iabc")).as_deref(),
             Some("urn:cid:bafkr4iabc")
         );
-        // The https/ branch is unused today but still supported.
         assert_eq!(
-            uri_for_path(Path::new("https/example.com/contexts/foo.jsonld")).as_deref(),
-            Some("https://example.com/contexts/foo.jsonld")
+            uri_for_path(Path::new("https/eqtylab.io/contexts/foo.jsonld")).as_deref(),
+            Some("https://eqtylab.io/contexts/foo.jsonld")
         );
         // Non-context paths are ignored.
         assert_eq!(uri_for_path(Path::new("cid/nested/file")), None);

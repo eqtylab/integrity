@@ -1466,6 +1466,55 @@ mod tests {
         );
     }
 
+    /// Backward-compat guard: credentials issued against the published
+    /// `https://eqtylab.io/contexts/*.jsonld` URLs must keep verifying with **no
+    /// caller-supplied contexts**, because whoever holds one has no way to know
+    /// it should pass anything. Those two documents stay embedded in
+    /// integrity-jsonld for exactly this reason; this test is what makes their
+    /// removal a visible failure rather than a silent one.
+    #[tokio::test]
+    async fn test_verify_vc_with_legacy_eqtylab_url_context() {
+        let _ = env_logger::builder().is_test(true).try_init();
+
+        let signer = Ed25519Signer::create().unwrap();
+        let signer_type = SignerType::ED25519(signer);
+        let issuer_did = signer_type.get_did_doc().id;
+
+        let unsigned: JsonCredential = serde_json::from_value(serde_json::json!({
+            "@context": [
+                "https://www.w3.org/ns/credentials/v2",
+                "https://w3id.org/security/v2",
+                "https://eqtylab.io/contexts/identity-attestation.jsonld"
+            ],
+            "type": ["VerifiableCredential", "IdentityAttestation"],
+            "id": "urn:uuid:22222222-2222-2222-2222-222222222222",
+            "issuer": issuer_did,
+            "validFrom": "2026-07-01T00:00:00Z",
+            "credentialSubject": {
+                "id": "did:key:z6MkpRdf4P2f3EaEhx3iKxJWLN8LeF3NfJ1hV4uLci3xV8j2",
+                "identity": {
+                    "type": "ProjectMembershipV1",
+                    "project": "urn:uuid:a7e9f0d2-6e42-4f8b-9f83-9ad3bb7f92e4",
+                    "role": ["automation-agent"]
+                }
+            }
+        }))
+        .unwrap();
+
+        // `None` throughout: the whole point is that these resolve from the
+        // embedded set without the caller knowing they exist.
+        let signed = sign_vc(unsigned, signer_type, None).await.unwrap();
+        let vc_json = serde_json::to_string(&signed).unwrap();
+
+        let result = verify_vc(&vc_json, None).await;
+        assert!(
+            result.is_ok(),
+            "a credential on the legacy eqtylab.io context URL must still verify \
+             without caller-supplied contexts: {:?}",
+            result.err()
+        );
+    }
+
     /// Backward-compat guard: VCs issued *before* the switch to an inline
     /// `@vocab` carry the IG-common context as a `urn:cid:` link — exactly
     /// what `build_unsigned_with_eqty_contexts` used to attach. The JSON-LD
