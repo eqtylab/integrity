@@ -197,7 +197,7 @@ fn run_verify_vc(args: VerifyVcArgs) -> Result<()> {
     )?;
 
     let runtime = build_runtime()?;
-    let result = runtime.block_on(vc::verify_vc(&vc_json))?;
+    let result = runtime.block_on(vc::verify_vc(&vc_json, None))?;
     println!("{result}");
 
     Ok(())

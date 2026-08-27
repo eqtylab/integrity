@@ -51,10 +51,6 @@ test-wasm:
         --mode no-install \
         --no-default-features
 
-# Vendor JSON-LD contexts from the eqtylab/credentials repo (set CREDENTIALS_REF to pin)
-sync-credential-contexts:
-    ./scripts/sync-credential-contexts.sh
-
 # Update README.md with auto-generated content (Justfile commands, etc.)
 readme-update:
     present --in-place README.md
