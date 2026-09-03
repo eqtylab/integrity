@@ -25,6 +25,7 @@ default-features = false
 
 [dependencies.cid]
 version = "0.8.3"
+path = "../cid-0.8.6"
 features = ["alloc"]
 default-features = false
 
@@ -40,6 +41,7 @@ default-features = false
 
 [dependencies.multihash]
 version = "0.16.0"
+path = "../multihash-0.16.3"
 features = ["alloc"]
 default-features = false
 
@@ -55,6 +57,7 @@ optional = true
 
 [dev-dependencies.multihash]
 version = "0.16.0"
+path = "../multihash-0.16.3"
 features = [
     "multihash-impl",
     "blake3",

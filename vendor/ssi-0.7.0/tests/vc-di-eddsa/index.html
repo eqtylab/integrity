@@ -1,0 +1,1981 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>EdDSA Cryptosuite v2022</title>
+    <meta http-equiv="Content-Type" content="text/html;charset=utf-8" />
+    <!--
+      === NOTA BENE ===
+      For the three scripts below, if your spec resides on dev.w3 you can check them
+      out in the same tree and use relative links so that they'll work offline,
+     -->
+    <script src="https://www.w3.org/Tools/respec/respec-w3c" class="remove"></script>
+    <script class="remove" src="https://w3c.github.io/vc-data-integrity/common.js"></script>
+
+    <script type="text/javascript" class="remove">
+      var respecConfig = {
+        // specification status (e.g. WD, LCWD, NOTE, etc.). If in doubt use ED.
+        specStatus: "WD",
+
+        // the specification's short name, as in http://www.w3.org/TR/short-name/
+        shortName: "vc-di-eddsa",
+        group: "vc",
+
+        // if you wish the publication date to be other than today, set this
+        //publishDate:  "2023-04-18",
+
+        // if there is a previously published draft, uncomment this and set its YYYY-MM-DD date
+        // and its maturity status
+        // previousPublishDate:  "1977-03-15",
+        // previousMaturity:  "WD",
+
+        // if there a publicly available Editor's Draft, this is the link
+        edDraftURI: "https://w3c.github.io/vc-di-eddsa/",
+        //latestVersion: "https://www.w3.org/community/reports/credentials/CG-FINAL-di-eddsa-2020-20220724/",
+
+        // if this is a LCWD, uncomment and set the end of its review period
+        // lcEnd: "2009-08-05",
+
+        // if you want to have extra CSS, append them to this list
+        // it is recommended that the respec.css stylesheet be kept
+        //extraCSS:             ["spec.css", "prettify.css"],
+
+        // editors, add as many as you like
+        // only "name" is required
+        editors: [{
+          name: "Manu Sporny",
+          url: "https://www.linkedin.com/in/manusporny/",
+          company: "Digital Bazaar",
+          companyURL: "https://digitalbazaar.com/",
+          w3cid: 41758
+        }, {
+          name: "Dmitri Zagidulin",
+          url: "https://www.linkedin.com/in/dzagidulin/",
+          company: "MIT Digital Credentials Consortium",
+          companyURL: "https://digitalcredentials.mit.edu/",
+          w3cid: 86708
+        }],
+
+        authors: [{
+          name: "Dave Longley", url: "https://digitalbazaar.com/",
+          company: "Digital Bazaar", companyURL: "https://digitalbazaar.com/",
+          w3cid: 48025
+        }, {
+          name: "Manu Sporny", url: "https://www.linkedin.com/in/manusporny/",
+          company: "Digital Bazaar", companyURL: "https://digitalbazaar.com/",
+          w3cid: 41758
+        }],
+
+        github: "https://github.com/w3c/vc-di-eddsa/",
+
+        // URI of the patent status for this WG, for Rec-track documents
+        // !!!! IMPORTANT !!!!
+        // This is important for Rec-track documents, do not copy a patent URI from a random
+        // document unless you know what you're doing. If in doubt ask your friendly neighbourhood
+        // Team Contact.
+        // wgPatentURI:  "",
+        maxTocLevel: 4,
+        /*preProcess: [ webpayments.preProcess ],
+        alternateFormats: [ {uri: "diff-20111214.html", label: "diff to previous version"} ],
+        */
+        localBiblio: {
+          MULTIBASE: {
+            title: "Multibase",
+            href: "https://datatracker.ietf.org/doc/html/draft-multiformats-multibase-01",
+          },
+          MULTICODEC: {
+            title: "Multicodec",
+            href: "https://github.com/multiformats/multicodec/",
+          },
+          Taming_EdDSAs: {
+            title: "Taming the many EdDSAs",
+            href: "https://eprint.iacr.org/2020/1244",
+            authors: ["Konstantinos Chalkias", "François Garillot", "Valeria Nikolaenko"],
+            date: "2020",
+            publisher: "Cryptology ePrint Archive, Paper 2020/1244",
+            doi: "10.1007/978-3-030-64357-7_4"
+          },
+          Provable_Ed25519: {
+            authors: ["Jacqueline Brendel", "Cas Cremers", "Dennis Jackson", "Mang Zhao"],
+            title: "The Provable Security of Ed25519: Theory and Practice",
+            publisher: "Cryptology ePrint Archive, Paper 2020/823",
+            date: "2020",
+            href: "https://eprint.iacr.org/2020/823"
+          }
+        },
+        lint: {"no-unused-dfns": false},
+        postProcess: [restrictRefs]
+      };
+    </script>
+    <style>
+      pre .highlight {
+        font-weight: bold;
+        color: green;
+      }
+      pre .comment {
+        font-weight: bold;
+        color: Gray;
+      }
+      .color-text {
+        font-weight: bold;
+        text-shadow: -1px 0 black, 0 1px black, 1px 0 black, 0 -1px black;
+      }
+      ol.algorithm {
+        counter-reset: numsection;
+        list-style-type: none;
+      }
+      ol.algorithm li {
+        margin: 0.5em 0;
+      }
+      ol.algorithm li:before {
+        font-weight: bold;
+        counter-increment: numsection;
+        content: counters(numsection, ".") ") ";
+      }
+    </style>
+  </head>
+  <body>
+    <section id="abstract">
+      <p>
+This specification describes a Data Integrity cryptographic suite for use when
+creating or verifying a digital signature using the twisted Edwards Curve
+Digital Signature Algorithm (EdDSA) and Curve25519 (ed25519).
+      </p>
+    </section>
+
+    <section id="sotd">
+      <p>
+This is an experimental specification and is undergoing regular revisions. It is
+not fit for production deployment.
+      </p>
+    </section>
+
+    <section>
+      <h2>Introduction</h2>
+      <p>
+This specification defines a cryptographic suite for the purpose of creating,
+verifying proofs for Ed25519 EdDSA signatures in conformance with the
+Data Integrity [[VC-DATA-INTEGRITY]] specification. The approach is
+accepted by the U.S. National Institute of Standards in the latest FIPS 186-5
+publication and meets U.S. Federal Information Processing requirements when
+using cryptography to secure digital information.
+      </p>
+      <p>
+The suites described in this specification use the RDF Dataset Normalization
+Algorithm [[RDF-CANON]] or the JSON Canonicalization Scheme [[RFC8785]] to
+transform an input document into its canonical form. The canonical
+representation is then hashed and signed with a detached signature algorithm.
+      </p>
+
+      <section id="terminology">
+        <h3>Terminology</h3>
+
+        <div data-include="https://w3c.github.io/vc-data-integrity/terms.html"></div>
+
+      </section>
+
+      <section id="conformance">
+        <p>
+A <dfn>conforming proof</dfn> is any concrete expression of the data model
+that complies with the normative statements in this specification. Specifically,
+all relevant normative statements in Sections
+<a href="#data-model"></a> and <a href="#algorithms"></a>
+of this document MUST be enforced.
+        </p>
+
+        <p>
+A <dfn class="lint-ignore">conforming processor</dfn> is any algorithm realized
+as software and/or hardware that generates or consumes a
+<a>conforming proof</a>. Conforming processors MUST produce errors when
+non-conforming documents are consumed.
+        </p>
+        <p>
+This document also contains examples that contain JSON and JSON-LD content. Some
+of these examples contain characters that are invalid JSON, such as inline
+comments (`//`) and the use of ellipsis (`...`) to denote
+information that adds little value to the example. Implementers are cautioned to
+remove this content if they desire to use the information as valid JSON or
+JSON-LD.
+        </p>
+      </section>
+
+    </section>
+
+    <section>
+      <h2>Data Model</h2>
+
+      <p>
+The following sections outline the data model that is used by this specification
+for verification methods and signature formats.
+      </p>
+
+      <section>
+        <h3>Verification Methods</h3>
+        <p>
+The cryptographic material used to verify a linked data proof is called the
+verification method. This suite relies on public key material represented using
+[[MULTIBASE]] and [[MULTICODEC]]. This suite supports public key use for both
+digital signature generation and verification, according to [[RFC8032]].
+        </p>
+
+        <p>
+This suite MAY be used to verify Data Integrity Proofs [[VC-DATA-INTEGRITY]]
+produced by Ed25519 public key material encoded as either a
+<a href="#ed25519verificationkey2020">Ed25519VerificationKey2020</a> or
+<a href="#multikey">Multikey</a>. Loss-less key transformation processes that
+result in equivalent cryptographic material MAY be utilized.
+        </p>
+
+        <section>
+          <h4>Multikey</h4>
+
+          <p class="issue">
+This definition should go in the Data Integrity specification and referenced
+from there.
+          </p>
+
+          <p>
+The `type` of the verification method MUST be `Multikey`.
+          </p>
+
+          <p>
+The `controller` of the verification method MUST be a URL.
+          </p>
+
+          <p>
+The `publicKeyMultibase` property of the verification method MUST be
+a public key encoded according to [[MULTICODEC]] and formatted according to
+[[MULTIBASE]]. The multicodec encoding of an Ed25519 public key is the two-byte
+prefix `0xed01` followed by the 32-byte public key data. The 34 byte
+value is then encoded using base58-btc (`z`) as the prefix. Any other encoding
+MUST NOT be allowed.
+          </p>
+
+          <p class="advisement">
+Developers are advised to not accidentally publish a representation of a private
+key. Implementations of this specification will raise errors in the event of a
+[[MULTICODEC]] value other than `0xed01` being used in a
+`publicKeyMultibase` value.
+          </p>
+
+          <pre class="example"
+            title="An Ed25519 public key encoded as a Multikey">
+{
+  "id": "https://example.com/issuer/123#key-0",
+  "type": "Multikey",
+  "controller": "https://example.com/issuer/123",
+  "publicKeyMultibase": "z6Mkf5rGMoatrSj1f4CyvuHBeXJELe9RPdzo2PKGNCKVtZxP"
+}
+          </pre>
+
+          <pre class="example" title="An Ed25519 public key encoded as a
+            Multikey in a controller document">
+{
+  "@context": [
+    "https://www.w3.org/ns/did/v1",
+    "https://w3id.org/security/data-integrity/v1"
+  ],
+  "id": "did:example:123",
+  "verificationMethod": [{
+    "id": "did:example:123#key-0",
+    "type": "Multikey",
+    "controller": "did:example:123",
+    "publicKeyMultibase": "z6Mkf5rGMoatrSj1f4CyvuHBeXJELe9RPdzo2PKGNCKVtZxP"
+  }],
+  "authentication": [
+    "did:example:123#key-0"
+  ],
+  "assertionMethod": [
+    "did:example:123#key-0"
+  ],
+  "capabilityDelegation": [
+    "did:example:123#key-0"
+  ],
+  "capabilityInvocation": [
+    "did:example:123#key-0"
+  ]
+}
+          </pre>
+        </section>
+
+
+      </section>
+
+      <section>
+        <h3>Proof Representations</h3>
+
+        <p>
+This suite relies on detached digital signatures represented using [[MULTIBASE]]
+and [[MULTICODEC]].
+        </p>
+
+        <section>
+          <h4>DataIntegrityProof</h4>
+
+          <p>
+The `verificationMethod` property of the proof MUST be a URL.
+Dereferencing the `verificationMethod` MUST result in an object
+containing a `type` property with the value set to
+`Multikey`.
+          </p>
+
+          <p>
+The `type` property of the proof MUST be `DataIntegrityProof`.
+          </p>
+          <p>
+The `cryptosuite` property of the proof MUST be `eddsa-2022`.
+          </p>
+          <p>
+The `created` property of the proof MUST be an [[XMLSCHEMA11-2]]
+formatted date string.
+          </p>
+          <p>
+The `proofPurpose` property of the proof MUST be a string, and MUST
+match the verification relationship expressed by the verification method
+`controller`.
+          </p>
+          <p>
+The `proofValue` property of the proof MUST be a detached EdDSA
+produced according to [[RFC8032]], encoded according to [[MULTIBASE]] using
+the base58-btc base encoding.
+          </p>
+
+          <pre class="example highlight" style="overflow-x:
+            auto; white-space: pre-wrap; word-wrap: break-word;"
+            title="An Ed25519 digital signature expressed as a
+              DataIntegrityProof">
+{
+  "@context": [
+    {"title": "https://schema.org/title"},
+    "https://w3id.org/security/data-integrity/v1"
+  ],
+  "title": "Hello world!",
+  "proof": {
+    "type": "DataIntegrityProof",
+    "cryptosuite": "eddsa-2022",
+    "created": "2020-11-05T19:23:24Z",
+    "verificationMethod": "https://ldi.example/issuer#z6MkjLrk3gKS2nnkeWcmcxi
+      ZPGskmesDpuwRBorgHxUXfxnG",
+    "proofPurpose": "assertionMethod",
+    "proofValue": "z4oey5q2M3XKaxup3tmzN4DRFTLVqpLMweBrSxMY2xHX5XTYVQeVbY8nQA
+      VHMrXFkXJpmEcqdoDwLWxaqA3Q1geV6"
+  }
+}
+          </pre>
+
+        </section>
+
+      </section>
+    </section>
+
+    <section>
+      <h2>Algorithms</h2>
+
+      <p>
+The following section describes multiple Data Integrity cryptographic suites
+that utilize the twisted Edwards Curve Digital Signature Algorithm.
+      </p>
+
+      <section>
+        <h3>eddsa-2022</h3>
+
+        <p>
+The `eddsa-2022` cryptographic suite takes an input document, canonicalizes
+the document using the Universal RDF Dataset Canonicalization Algorithm
+[[RDF-CANON]], and then cryptographically hashes and signs the output
+resulting in the production of a data integrity proof. The algorithms in this
+section also include the verification of such a data integrity proof.
+        </p>
+
+        <section>
+          <h4>Add Proof (eddsa-2022)</h4>
+
+          <p>
+To generate a proof, the algorithm in
+<a data-cite="vc-data-integrity#add-proof">
+Section 4.1: Add Proof</a> in the Data Integrity
+[[VC-DATA-INTEGRITY]] specification MUST be executed.
+For that algorithm, the cryptographic suite specific
+<a data-cite="vc-data-integrity#dfn-transformation-algorithm">
+transformation algorithm</a> is defined in Section
+<a href="#transformation-eddsa-2022"></a>, the
+<a data-cite="vc-data-integrity#dfn-hashing-algorithm">
+hashing algorithm</a> is defined in Section <a href="#hashing-eddsa-2022"></a>,
+and the
+<a data-cite="vc-data-integrity#dfn-proof-serialization-algorithm">
+proof serialization algorithm</a> is defined in Section
+<a href="#proof-serialization-eddsa-2022"></a>.
+          </p>
+        </section>
+
+        <section>
+          <h4>Verify Proof (eddsa-2022)</h4>
+
+          <p>
+To verify a proof, the algorithm in
+<a data-cite="vc-data-integrity#verify-proof">
+Section 4.2: Verify Proof</a> in the Data Integrity
+[[VC-DATA-INTEGRITY]] specification MUST be executed.
+For that algorithm, the cryptographic suite specific
+<a data-cite="vc-data-integrity#dfn-transformation-algorithm">
+transformation algorithm</a> is defined in Section
+<a href="#transformation-eddsa-2022"></a>, the
+<a data-cite="vc-data-integrity#dfn-hashing-algorithm">
+hashing algorithm</a> is defined in Section <a href="#hashing-eddsa-2022"></a>,
+and the
+<a data-cite="vc-data-integrity#dfn-proof-serialization-algorithm">
+proof verification algorithm</a> is defined in Section
+<a href="#proof-verification-eddsa-2022"></a>.
+          </p>
+        </section>
+
+        <section>
+          <h4>Transformation (eddsa-2022)</h4>
+
+          <p>
+The following algorithm specifies how to transform an unsecured input document
+into a transformed document that is ready to be provided as input to the
+hashing algorithm in Section <a href="#hashing-eddsa-2022"></a>.
+          </p>
+
+          <p>
+Required inputs to this algorithm are an
+<a data-cite="vc-data-integrity#dfn-unsecured-data-document">
+unsecured data document</a> (<var>unsecuredDocument</var>) and
+transformation options (<var>options</var>). The
+transformation options MUST contain a type identifier for the
+<a data-cite="vc-data-integrity#dfn-cryptosuite">
+cryptographic suite</a> (<var>type</var>) and a cryptosuite
+identifier (<var>cryptosuite</var>). A <em>transformed data document</em> is
+produced as output. Whenever this algorithm encodes strings, it MUST use UTF-8
+encoding.
+          </p>
+
+          <ol class="algorithm">
+            <li>
+If <var>options</var>.<var>type</var> is not set to the string
+`DataIntegrityProof` and <var>options</var>.<var>cryptosuite</var> is not
+set to the string `eddsa-2022` then a `PROOF_TRANSFORMATION_ERROR` MUST be
+raised.
+            </li>
+            <li>
+Let <var>canonicalDocument</var> be the result of applying the
+Universal RDF Dataset Canonicalization Algorithm
+[[RDF-CANON]] to the <var>unsecuredDocument</var>.
+            </li>
+            <li>
+Return <var>canonicalDocument</var> as the <em>transformed data document</em>.
+            </li>
+          </ol>
+        </section>
+
+        <section>
+          <h4>Hashing (eddsa-2022)</h4>
+
+          <p>
+The following algorithm specifies how to cryptographically hash a
+<em>transformed data document</em> and <em>proof configuration</em>
+into cryptographic hash data that is ready to be provided as input to the
+algorithms in Section <a href="#proof-serialization-eddsa-2022"></a> or
+Section <a href="#proof-verification-eddsa-2022"></a>.
+          </p>
+
+          <p>
+The required inputs to this algorithm are a <em>transformed data document</em>
+(<var>transformedDocument</var>) and <em>canonical proof configuration</em>
+(<var>canonicalProofConfig</var>). A single <em>hash data</em> value represented as
+series of bytes is produced as output.
+          </p>
+
+          <ol class="algorithm">
+            <li>
+Let <var>transformedDocumentHash</var> be the result of applying the
+SHA-256 (SHA-2 with 256-bit output) cryptographic hashing algorithm [[RFC6234]]
+to the <var>transformedDocument</var>. <var>transformedDocumentHash</var> will
+be exactly 32 bytes in size.
+            </li>
+            <li>
+Let <var>proofConfigHash</var> be the result of applying the
+SHA-256 (SHA-2 with 256-bit output) cryptographic hashing algorithm [[RFC6234]]
+to the <var>canonicalProofConfig</var>. <var>proofConfigHash</var> will be
+exactly 32 bytes in size.
+            </li>
+            <li>
+Let <var>hashData</var> be the result of joining <var>proofConfigHash</var> (the
+first hash) with <var>transformedDocumentHash</var> (the second hash).
+            </li>
+            <li>
+Return <var>hashData</var> as the <em>hash data</em>.
+            </li>
+          </ol>
+
+        </section>
+
+        <section>
+          <h4>Proof Configuration (eddsa-2022)</h4>
+
+          <p>
+The following algorithm specifies how to generate a
+<em>proof configuration</em> from a set of <em>proof options</em>
+that is used as input to the <a href="#hashing-eddsa-2022">proof hashing algorithm</a>.
+          </p>
+
+          <p>
+The required inputs to this algorithm are <em>proof options</em>
+(<var>options</var>). The <em>proof options</em> MUST contain a type identifier
+for the
+<a data-cite="vc-data-integrity#dfn-cryptosuite">
+cryptographic suite</a> (<var>type</var>) and MUST contain a cryptosuite
+identifier (<var>cryptosuite</var>). A <em>proof configuration</em>
+object is produced as output.
+          </p>
+
+          <ol class="algorithm">
+            <li>
+Let <var>proofConfig</var> be an empty object.
+            </li>
+            <li>
+Set <var>proofConfig</var>.<var>type</var> to
+<var>options</var>.<var>type</var>.
+            </li>
+            <li>
+If <var>options</var>.<var>cryptosuite</var> is set, set
+<var>proofConfig</var>.<var>cryptosuite</var> to its value.
+            </li>
+            <li>
+If <var>options</var>.<var>type</var> is not set to `DataIntegrityProof` and
+<var>proofConfig</var>.<var>cryptosuite</var> is not set to `eddsa-2022`, an
+`INVALID_PROOF_CONFIGURATION` error MUST be raised.
+            </li>
+            <li>
+Set <var>proofConfig</var>.<var>created</var> to
+<var>options</var>.<var>created</var>. If the value is not a valid
+[[XMLSCHEMA11-2]] datetime, an `INVALID_PROOF_DATETIME` error MUST be raised.
+            </li>
+            <li>
+Set <var>proofConfig</var>.<var>verificationMethod</var> to
+<var>options</var>.<var>verificationMethod</var>.
+            </li>
+            <li>
+Set <var>proofConfig</var>.<var>proofPurpose</var> to
+<var>options</var>.<var>proofPurpose</var>.
+            </li>
+            <li>
+Set <var>proofConfig</var>.<var>@context</var> to
+<var>unsecuredDocument</var>.<var>@context</var>
+            </li>
+            <li>
+Let <var>canonicalProofConfig</var> be the result of applying the
+Universal RDF Dataset Canonicalization Algorithm
+[[RDF-CANON]] to the <var>proofConfig</var>.
+            </li>
+            <li>
+Return <var>canonicalProofConfig</var>.
+            </li>
+          </ol>
+
+        </section>
+
+        <section>
+          <h4>Proof Serialization (eddsa-2022)</h4>
+
+          <p>
+The following algorithm specifies how to serialize a digital signature from
+a set of cryptographic hash data. This
+algorithm is designed to be used in conjunction with the algorithms defined
+in the Data Integrity [[VC-DATA-INTEGRITY]] specification,
+<a data-cite="vc-data-integrity#algorithms">
+Section 4: Algorithms</a>. Required inputs are
+cryptographic hash data (<var>hashData</var>) and
+<em>proof options</em> (<var>options</var>). The
+<em>proof options</em> MUST contain a type identifier for the
+<a data-cite="vc-data-integrity#dfn-cryptosuite">
+cryptographic suite</a> (<var>type</var>) and MAY contain a cryptosuite
+identifier (<var>cryptosuite</var>). A single <em>digital proof</em> value
+represented as series of bytes is produced as output.
+          </p>
+
+          <ol class="algorithm">
+            <li>
+Let <var>privateKeyBytes</var> be the result of retrieving the
+private key bytes associated with the
+<var>options</var>.<var>verificationMethod</var> value as described in the
+Data Integrity [[VC-DATA-INTEGRITY]] specification,
+<a data-cite="vc-data-integrity#algorithms">
+Section 4: Retrieving Cryptographic Material</a>.
+            </li>
+            <li>
+Let <var>proofBytes</var> be the result of applying the Edwards-Curve Digital
+Signature Algorithm (EdDSA) [[RFC8032]], using the `Ed25519` variant
+(Pure EdDSA), with <var>hashData</var> as the data to be signed using
+the private key specified by <var>privateKeyBytes</var>.
+<var>proofBytes</var> will be exactly 64 bytes in size.
+            </li>
+            <li>
+Return <var>proofBytes</var> as the <em>digital proof</em>.
+            </li>
+          </ol>
+
+        </section>
+
+        <section>
+          <h4>Proof Verification (eddsa-2022)</h4>
+
+          <p>
+The following algorithm specifies how to verify a digital signature from
+a set of cryptographic hash data. This
+algorithm is designed to be used in conjunction with the algorithms defined
+in the Data Integrity [[VC-DATA-INTEGRITY]] specification,
+<a data-cite="vc-data-integrity#algorithms">
+Section 4: Algorithms</a>. Required inputs are
+cryptographic hash data (<var>hashData</var>),
+a digital signature (<var>proofBytes</var>) and
+proof options (<var>options</var>). A <em>verification result</em>
+represented as a boolean value is produced as output.
+          </p>
+
+          <ol class="algorithm">
+            <li>
+Let <var>publicKeyBytes</var> be the result of retrieving the
+public key bytes associated with the
+<var>options</var>.<var>verificationMethod</var> value as described in the
+Data Integrity [[VC-DATA-INTEGRITY]] specification,
+<a data-cite="vc-data-integrity#algorithms">
+Section 4: Retrieving Cryptographic Material</a>.
+            </li>
+            <li>
+Let <var>verificationResult</var> be the result of applying the verification
+algorithm for the Edwards-Curve Digital Signature Algorithm (EdDSA)
+[[RFC8032]], using the `Ed25519` variant (Pure EdDSA),
+with <var>hashData</var> as the data to be verified against the
+<var>proofBytes</var> using the public key specified by
+<var>publicKeyBytes</var>.
+            </li>
+            <li>
+Return <var>verificationResult</var> as the <em>verification result</em>.
+            </li>
+          </ol>
+
+        </section>
+      </section>
+
+      <section>
+        <h3>jcs-eddsa-2022</h3>
+
+          <p class="issue" title="Cryptosuite naming convention is disputed">
+The naming convention utilized by this cryptosuite is disputed. An alternative
+of `json-eddsa-2022` was originally suggested for this cryptography suite to
+convey that it is a cryptography suite for securing JSON data utilizing the
+Twisted Edwards Curve Digital Signature Algorithm. The counter-argument to
+the original proposal was that expressing the canonicalization mechanism in
+the cryptosuite string clearly conveys to a developer that the thing that
+differentiates this cryptosuite from the `eddsa-2022` one is the use of
+JSON Canonicalization Scheme [[RFC8785]]. Other options include
+`"cryptosuite": "json-sign-2022"`, and `"cryptosuite": "json-2022"`. This
+topic is <a href="https://github.com/w3c/vc-data-integrity/issues/38">
+currently being debated in the Data Integrity work item.</a>.
+          </p>
+
+          <p>
+The `jcs-eddsa-2022` cryptographic suite takes an input document, canonicalizes
+the document using the JSON Canonicalization Scheme [[RFC8785]], and then
+cryptographically hashes and signs the output resulting in the production of a
+data integrity proof. The algorithms for this cryptographic suite are the
+same as the ones in Section <a href="#eddsa-2022"></a> except for the following
+modifications:
+          </p>
+
+          <p>
+In Section <a href="#transformation-eddsa-2022"></a>, step <strong>1)</strong>
+and step <strong>2)</strong> are replaced by the following text:
+          </p>
+
+          <ol class="algorithm">
+            <li>
+If <var>options</var>.<var>type</var> is not set to the string
+`DataIntegrityProof` and <var>options</var>.<var>cryptosuite</var> is not
+set to the string `jcs-eddsa-2022` then a `PROOF_TRANSFORMATION_ERROR` MUST be
+raised.
+            </li>
+            <li>
+Let <var>canonicalDocument</var> be the result of applying the
+JSON Canonicalization Scheme [[RFC8785]] to the <var>unsecuredDocument</var>.
+            </li>
+          </ol>
+
+          <p>
+In Section <a href="#proof-configuration-eddsa-2022"></a>, step <strong>8)</strong> is not performed, and steps
+<strong>4)</strong> and <strong>9)</strong> are replaced by the following text:
+          </p>
+
+          <p style="padding-left: 2em;">
+<strong>4)</strong> If <var>options</var>.<var>type</var> is not set to
+`DataIntegrityProof` and <var>proofConfig</var>.<var>cryptosuite</var> is not
+set to `jcs-eddsa-2022`, an `INVALID_PROOF_CONFIGURATION` error MUST be raised.
+          </p>
+          <p style="padding-left: 2em;">
+<strong>9)</strong> Let <var>canonicalProofConfig</var> be the result of applying the
+JSON Canonicalization Scheme [[RFC8785]] to the <var>proofConfig</var>.
+          </p>
+      </section>
+
+    </section>
+
+    <section>
+      <h2>Security Considerations</h2>
+      <p>
+The following section describes security considerations that developers
+implementing this specification should be aware of in order to create secure
+software.
+      </p>
+
+      <p class="note">
+This specification relies on URDNA2015, please review
+[[RDF-CANON]].
+      </p>
+
+      <p class="note">
+This specification relies on [[MULTIBASE]], [[MULTICODEC]] and [[RFC8032]].
+      </p>
+
+      <p class="issue">
+There are <a href="https://eprint.iacr.org/2020/1244.pdf">
+known mis-implementation attacks against multiple flavors of EdDSA</a>
+implementations. We might want to warn about what to look out for and how to
+mitigate the attacks.
+      </p>
+
+      <section class="informative">
+        <h3>Security Properties of Ed25519 Implementations</h3>
+        <p>Ed25519 signatures (EdDSA algorithm with edwards25519 curve) have
+        been widely adopted, due both to the compact size of the keys and
+        signatures and to the speed at 
+which signatures can be produced and verified. Many libraries exist that can
+create and verify Ed25519 signatures. Since the publication of [[RFC8032]],
+security properties of Ed25519 signatures have been rigorously proven (see
+[[Provable_Ed25519]] and [[Taming_EdDSAs]]). However, it has been observed that a
+significant number of libraries do not achieve these security levels, due to 
+missing input validity checks during the signature verification process. In 
+this section, we summarize the security levels achievable with Ed25519 
+signatures, and indicate how one can determine whether a library will support those 
+levels.
+        </p>
+        <section>
+          <h4>Signature Security Properties</h4>
+          <p>Digital signatures may exhibit a number of desirable cryptographic
+properties [[Taming_EdDSAs]] among these are:
+          </p>
+          <p><strong>EUF-CMA</strong> (<em>existential unforgeability under 
+chosen message attacks</em>) is usually the minimal security property required 
+of a signature scheme. It guarantees that any efficient adversary who has the 
+public key
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="inline">
+  <mstyle displaystyle="true" scriptlevel="0">
+    <mrow data-mjx-texclass="ORD">
+      <mtable rowspacing=".5em" columnspacing="1em" displaystyle="true">
+        <mtr>
+          <mtd>
+            <mi>p</mi>
+            <mi>k</mi>
+          </mtd>
+        </mtr>
+      </mtable>
+    </mrow>
+  </mstyle>
+</math> of the signer and received an arbitrary number of signatures on
+messages of its choice (in an adaptive manner): 
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="inline">
+  <mstyle displaystyle="true" scriptlevel="0">
+    <mrow data-mjx-texclass="ORD">
+      <mtable rowspacing=".5em" columnspacing="1em" displaystyle="true">
+        <mtr>
+          <mtd>
+            <mo fence="false" stretchy="false">{</mo>
+            <msub>
+              <mi>m</mi>
+              <mi>i</mi>
+            </msub>
+            <mo>,</mo>
+            <msub>
+              <mi>&#x3C3;</mi>
+              <mi>i</mi>
+            </msub>
+            <msubsup>
+              <mo fence="false" stretchy="false">}</mo>
+              <mrow data-mjx-texclass="ORD">
+                <mi>i</mi>
+                <mo>=</mo>
+                <mn>1</mn>
+              </mrow>
+              <mi>N</mi>
+            </msubsup>
+          </mtd>
+        </mtr>
+      </mtable>
+    </mrow>
+  </mstyle>
+</math>, 
+cannot output a valid signature 
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="inline">
+  <mstyle displaystyle="true" scriptlevel="0">
+    <mrow data-mjx-texclass="ORD">
+      <mtable rowspacing=".5em" columnspacing="1em" displaystyle="true">
+        <mtr>
+          <mtd>
+            <msup>
+              <mi>&#x3C3;</mi>
+              <mo>&#x2217;</mo>
+            </msup>
+          </mtd>
+        </mtr>
+      </mtable>
+    </mrow>
+  </mstyle>
+</math>
+for a new message
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="inline">
+  <mstyle displaystyle="true" scriptlevel="0">
+    <mrow data-mjx-texclass="ORD">
+      <mtable rowspacing=".5em" columnspacing="1em" displaystyle="true">
+        <mtr>
+          <mtd>
+            <msup>
+              <mi>m</mi>
+              <mo>&#x2217;</mo>
+            </msup>
+            <mo>&#x2209;</mo>
+            <mo fence="false" stretchy="false">{</mo>
+            <msub>
+              <mi>m</mi>
+              <mi>i</mi>
+            </msub>
+            <msubsup>
+              <mo fence="false" stretchy="false">}</mo>
+              <mrow data-mjx-texclass="ORD">
+                <mi>i</mi>
+                <mo>=</mo>
+                <mn>1</mn>
+              </mrow>
+              <mi>N</mi>
+            </msubsup>
+          </mtd>
+        </mtr>
+      </mtable>
+    </mrow>
+  </mstyle>
+</math> 
+(except with negligible probability). In case the attacker outputs a valid 
+signature on a new message:
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="inline">
+  <mstyle displaystyle="true" scriptlevel="0">
+    <mrow data-mjx-texclass="ORD">
+      <mtable rowspacing=".5em" columnspacing="1em" displaystyle="true">
+        <mtr>
+          <mtd>
+            <mo stretchy="false">(</mo>
+            <msup>
+              <mi>m</mi>
+              <mo>&#x2217;</mo>
+            </msup>
+            <mo>,</mo>
+            <msup>
+              <mi>&#x3C3;</mi>
+              <mo>&#x2217;</mo>
+            </msup>
+            <mo stretchy="false">)</mo>
+          </mtd>
+        </mtr>
+      </mtable>
+    </mrow>
+  </mstyle>
+</math>,
+it is called an <em>existential 
+forgery</em>.
+          </p>
+          <p><strong>SUF-CMA</strong> (<em>strong unforgeability under chosen 
+message attacks</em>) is a stronger notion than <em>EUF-CMA</em>. It guarantees
+that for any efficient adversary who has the public key 
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="inline">
+  <mstyle displaystyle="true" scriptlevel="0">
+    <mrow data-mjx-texclass="ORD">
+      <mtable rowspacing=".5em" columnspacing="1em" displaystyle="true">
+        <mtr>
+          <mtd>
+            <mi>p</mi>
+            <mi>k</mi>
+          </mtd>
+        </mtr>
+      </mtable>
+    </mrow>
+  </mstyle>
+</math>
+of the signer and 
+received an arbitrary number of signatures on messages of its choice: 
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="inline">
+  <mstyle displaystyle="true" scriptlevel="0">
+    <mrow data-mjx-texclass="ORD">
+      <mtable rowspacing=".5em" columnspacing="1em" displaystyle="true">
+        <mtr>
+          <mtd>
+            <mo fence="false" stretchy="false">{</mo>
+            <msub>
+              <mi>m</mi>
+              <mi>i</mi>
+            </msub>
+            <mo>,</mo>
+            <msub>
+              <mi>&#x3C3;</mi>
+              <mi>i</mi>
+            </msub>
+            <msubsup>
+              <mo fence="false" stretchy="false">}</mo>
+              <mrow data-mjx-texclass="ORD">
+                <mi>i</mi>
+                <mo>=</mo>
+                <mn>1</mn>
+              </mrow>
+              <mi>N</mi>
+            </msubsup>
+          </mtd>
+        </mtr>
+      </mtable>
+    </mrow>
+  </mstyle>
+</math>, 
+it cannot output a new valid signature pair 
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="inline">
+  <mstyle displaystyle="true" scriptlevel="0">
+    <mrow data-mjx-texclass="ORD">
+      <mtable rowspacing=".5em" columnspacing="1em" displaystyle="true">
+        <mtr>
+          <mtd>
+            <mo stretchy="false">(</mo>
+            <msup>
+              <mi>m</mi>
+              <mo>&#x2217;</mo>
+            </msup>
+            <mo>,</mo>
+            <msup>
+              <mi>&#x3C3;</mi>
+              <mo>&#x2217;</mo>
+            </msup>
+            <mo stretchy="false">)</mo>
+          </mtd>
+        </mtr>
+      </mtable>
+    </mrow>
+  </mstyle>
+</math>, 
+such that 
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="inline">
+  <mstyle displaystyle="true" scriptlevel="0">
+    <mrow data-mjx-texclass="ORD">
+      <mtable rowspacing=".5em" columnspacing="1em" displaystyle="true">
+        <mtr>
+          <mtd>
+            <mo stretchy="false">(</mo>
+            <msup>
+              <mi>m</mi>
+              <mo>&#x2217;</mo>
+            </msup>
+            <mo>,</mo>
+            <msup>
+              <mi>&#x3C3;</mi>
+              <mo>&#x2217;</mo>
+            </msup>
+            <mo stretchy="false">)</mo>
+            <mo>&#x2209;</mo>
+            <mo fence="false" stretchy="false">{</mo>
+            <msup>
+              <mi>m</mi>
+              <mi>i</mi>
+            </msup>
+            <mo>,</mo>
+            <msup>
+              <mi>&#x3C3;</mi>
+              <mi>i</mi>
+            </msup>
+            <msubsup>
+              <mo fence="false" stretchy="false">}</mo>
+              <mrow data-mjx-texclass="ORD">
+                <mi>i</mi>
+                <mo>=</mo>
+                <mn>1</mn>
+              </mrow>
+              <mi>N</mi>
+            </msubsup>
+          </mtd>
+        </mtr>
+      </mtable>
+    </mrow>
+  </mstyle>
+</math>
+(except with negligible probability). Strong unforgeability implies that an
+adversary cannot only sign new messages, but also cannot find a new signature
+on an old message. See [[Provable_Ed25519]] for a real world attack that would 
+have been circumvented with SUF-CMA security over EUF-CMA security.
+          </p>
+          <p><strong>Binding signature</strong> (BS) We say that a signature 
+scheme is <em>binding</em> if no efficient signer can output a tuple 
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="inline">
+  <mstyle displaystyle="true" scriptlevel="0">
+    <mrow data-mjx-texclass="ORD">
+      <mtable rowspacing=".5em" columnspacing="1em" displaystyle="true">
+        <mtr>
+          <mtd>
+            <mo stretchy="false">[</mo>
+            <mi>p</mi>
+            <mi>k</mi>
+            <mo>,</mo>
+            <mi>m</mi>
+            <mo>,</mo>
+            <msup>
+              <mi>m</mi>
+              <mi data-mjx-alternate="1">&#x2032;</mi>
+            </msup>
+            <mo>,</mo>
+            <mi>&#x3C3;</mi>
+            <mo stretchy="false">]</mo>
+          </mtd>
+        </mtr>
+      </mtable>
+    </mrow>
+  </mstyle>
+</math>, 
+where both 
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="inline">
+  <mstyle displaystyle="true" scriptlevel="0">
+    <mrow data-mjx-texclass="ORD">
+      <mtable rowspacing=".5em" columnspacing="1em" displaystyle="true">
+        <mtr>
+          <mtd>
+            <mo stretchy="false">(</mo>
+            <mi>m</mi>
+            <mo>,</mo>
+            <mi>&#x3C3;</mi>
+            <mo stretchy="false">)</mo>
+          </mtd>
+        </mtr>
+      </mtable>
+    </mrow>
+  </mstyle>
+</math>
+and 
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="inline">
+  <mstyle displaystyle="true" scriptlevel="0">
+    <mrow data-mjx-texclass="ORD">
+      <mtable rowspacing=".5em" columnspacing="1em" displaystyle="true">
+        <mtr>
+          <mtd>
+            <mo stretchy="false">(</mo>
+            <msup>
+              <mi>m</mi>
+              <mi data-mjx-alternate="1">&#x2032;</mi>
+            </msup>
+            <mo>,</mo>
+            <mi>&#x3C3;</mi>
+            <mo stretchy="false">)</mo>
+          </mtd>
+        </mtr>
+      </mtable>
+    </mrow>
+  </mstyle>
+</math>
+are valid message signature pairs under the public key
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="inline">
+  <mstyle displaystyle="true" scriptlevel="0">
+    <mrow data-mjx-texclass="ORD">
+      <mtable rowspacing=".5em" columnspacing="1em" displaystyle="true">
+        <mtr>
+          <mtd>
+            <mi>p</mi>
+            <mi>k</mi>
+          </mtd>
+        </mtr>
+      </mtable>
+    </mrow>
+  </mstyle>
+</math>
+and 
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="inline">
+  <mstyle displaystyle="true" scriptlevel="0">
+    <mrow data-mjx-texclass="ORD">
+      <mtable rowspacing=".5em" columnspacing="1em" displaystyle="true">
+        <mtr>
+          <mtd>
+            <mi>m</mi>
+            <mo>&#x2260;</mo>
+            <msup>
+              <mi>m</mi>
+              <mi data-mjx-alternate="1">&#x2032;</mi>
+            </msup>
+          </mtd>
+        </mtr>
+      </mtable>
+    </mrow>
+  </mstyle>
+</math>
+(except with negligible probability). A binding signature makes it impossible
+for the signer to claim later that it has signed a different message, the 
+signature <em>binds</em> the signer to the message.
+          </p>
+          <p><strong>Strongly Binding signature</strong> (SBS) Certain 
+applications may require a signature to not only be binding to the message but 
+also be binding to the public key. We say that a signature scheme is 
+strongly-binding if any efficient signer can not output a tuple 
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="inline">
+  <mstyle displaystyle="true" scriptlevel="0">
+    <mrow data-mjx-texclass="ORD">
+      <mtable rowspacing=".5em" columnspacing="1em" displaystyle="true">
+        <mtr>
+          <mtd>
+            <mo stretchy="false">[</mo>
+            <mi>p</mi>
+            <mi>k</mi>
+            <mo>,</mo>
+            <mi>m</mi>
+            <mo>,</mo>
+            <mi>p</mi>
+            <msup>
+              <mi>k</mi>
+              <mi data-mjx-alternate="1">&#x2032;</mi>
+            </msup>
+            <mo>,</mo>
+            <msup>
+              <mi>m</mi>
+              <mi data-mjx-alternate="1">&#x2032;</mi>
+            </msup>
+            <mo>,</mo>
+            <mi>&#x3C3;</mi>
+            <mo stretchy="false">]</mo>
+          </mtd>
+        </mtr>
+      </mtable>
+    </mrow>
+  </mstyle>
+</math>, 
+where 
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="inline">
+  <mstyle displaystyle="true" scriptlevel="0">
+    <mrow data-mjx-texclass="ORD">
+      <mtable rowspacing=".5em" columnspacing="1em" displaystyle="true">
+        <mtr>
+          <mtd>
+            <mo stretchy="false">(</mo>
+            <mi>m</mi>
+            <mo>,</mo>
+            <mi>&#x3C3;</mi>
+            <mo stretchy="false">)</mo>
+          </mtd>
+        </mtr>
+      </mtable>
+    </mrow>
+  </mstyle>
+</math>
+is a valid signature for the public key 
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="inline">
+  <mstyle displaystyle="true" scriptlevel="0">
+    <mrow data-mjx-texclass="ORD">
+      <mtable rowspacing=".5em" columnspacing="1em" displaystyle="true">
+        <mtr>
+          <mtd>
+            <mi>p</mi>
+            <mi>k</mi>
+          </mtd>
+        </mtr>
+      </mtable>
+    </mrow>
+  </mstyle>
+</math> 
+and 
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="inline">
+  <mstyle displaystyle="true" scriptlevel="0">
+    <mrow data-mjx-texclass="ORD">
+      <mtable rowspacing=".5em" columnspacing="1em" displaystyle="true">
+        <mtr>
+          <mtd>
+            <mo stretchy="false">(</mo>
+            <msup>
+              <mi>m</mi>
+              <mi data-mjx-alternate="1">&#x2032;</mi>
+            </msup>
+            <mo>,</mo>
+            <mi>&#x3C3;</mi>
+            <mo stretchy="false">)</mo>
+          </mtd>
+        </mtr>
+      </mtable>
+    </mrow>
+  </mstyle>
+</math> 
+is a valid signature for the public key 
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="inline">
+  <mstyle displaystyle="true" scriptlevel="0">
+    <mrow data-mjx-texclass="ORD">
+      <mtable rowspacing=".5em" columnspacing="1em" displaystyle="true">
+        <mtr>
+          <mtd>
+            <mi>p</mi>
+            <msup>
+              <mi>k</mi>
+              <mi data-mjx-alternate="1">&#x2032;</mi>
+            </msup>
+          </mtd>
+        </mtr>
+      </mtable>
+    </mrow>
+  </mstyle>
+</math> 
+and either 
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="inline">
+  <mstyle displaystyle="true" scriptlevel="0">
+    <mrow data-mjx-texclass="ORD">
+      <mtable rowspacing=".5em" columnspacing="1em" displaystyle="true">
+        <mtr>
+          <mtd>
+            <msup>
+              <mi>m</mi>
+              <mi data-mjx-alternate="1">&#x2032;</mi>
+            </msup>
+            <mo>&#x2260;</mo>
+            <mi>m</mi>
+          </mtd>
+        </mtr>
+      </mtable>
+    </mrow>
+  </mstyle>
+</math> 
+or 
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="inline">
+  <mstyle displaystyle="true" scriptlevel="0">
+    <mrow data-mjx-texclass="ORD">
+      <mtable rowspacing=".5em" columnspacing="1em" displaystyle="true">
+        <mtr>
+          <mtd>
+            <mi>p</mi>
+            <mi>k</mi>
+            <mo>&#x2260;</mo>
+            <mi>p</mi>
+            <msup>
+              <mi>k</mi>
+              <mi data-mjx-alternate="1">&#x2032;</mi>
+            </msup>
+          </mtd>
+        </mtr>
+      </mtable>
+    </mrow>
+  </mstyle>
+</math>, 
+or both (except with negligible probability). See [[Provable_Ed25519]] for real
+world attacks that would have been circumvented with the SBS property.
+          </p>
+          <p>Note that the <em>BS</em> and <em>SBS</em> properties are forms of
+<em>non-repudiation</em>.
+          </p>
+        </section>
+        <section>
+          <h4>Achieving Ed25519 Security Properties</h4>
+          <p>As pointed on in [[Taming_EdDSAs]] flaws in Ed25519 libraries 
+primarily occur on the signature verification side where sometimes edge cases 
+are not properly checked. An Ed25519 signature library that is in conformance 
+with [[RFC8032]] or [[FIPS-186-5]], i.e., one that performs <strong>all
+</strong> specified validation checks, will have the <strong>SUF-CMA</strong> 
+property in addition to <strong>EUF-CMA</strong>.
+          </p>
+          <p>Reference [[Taming_EdDSAs]] achieves the <strong>BS</strong> and 
+<strong>SBS</strong> properties along with <strong>SUF-CMA</strong> in their 
+&quot;signature verification algorithm 2&quot; where an additional check is 
+performed against the public key <em>A</em> to make sure that it is not one of 
+eight &quot;small order points&quot;. These additional checks incur minimal processing overhead.
+          </p>
+          <p>Reference [[Taming_EdDSAs]] included a set of twelve test vectors 
+to test various Ed25519 libraries available at the time of publication. They 
+found that a significant portion missed edge cases and hence did not achieve 
+<strong>SUF-CMA</strong> (just EUF-CMA) and only two libraries out of sixteen 
+achieved all the security properties. Since the time of publication more 
+Ed25519 libraries have been created and some of the libraries have been updated
+to include all verification checks. Implementers are recommended to test the 
+Ed25519 library they are using against the test vectors of [[Taming_EdDSAs]].
+          </p>
+        </section>
+      </section>
+
+    </section>
+
+    <section>
+      <h2>Privacy Considerations</h2>
+      <p>
+The following section describes privacy considerations that developers
+implementing this specification should be aware of in order to avoid violating
+privacy assumptions.
+      </p>
+
+      <p class="issue">
+This cryptography suite does not provide for selective disclosure or
+unlinkability. If signatures are re-used, they can be used as correlatable data.
+      </p>
+    </section>
+
+    <section class="appendix">
+      <h2>The Ed25519Signature2020 Suite</h2>
+
+      <p>
+        `Ed25519Signature2020` is an earlier version of a cryptographic suite
+        for the usage of the EdDSA algorithm and Curve25519. While it has 
+        been used in production systems, new implementations should use <a href="#eddsa-2022">`edssa-2022`</a>
+        instead. It has been kept in this specification to provide a stable reference.
+      </p>
+
+      <section>
+        <h3>Data Model</h3>
+        <section>
+          <h3>Verification Methods</h3>
+          <section>
+            <h4>Ed25519VerificationKey2020</h4>
+  
+            <p class="issue">
+  We need to add documentation to note that this key format is deployed and
+  widely used in production, but is deprecated. `Multikey` and `JsonWebKey2020`
+  supersede it.
+            </p>
+  
+            <p>
+  The `type` of the verification method MUST be
+  <a href="#ed25519verificationkey2020">Ed25519VerificationKey2020</a>.
+            </p>
+  
+            <p>
+  The `controller` of the verification method MUST be a URL.
+            </p>
+  
+            <p>
+  The `publicKeyMultibase` property of the verification method MUST be
+  a public key encoded according to [[MULTICODEC]] and formatted according to
+  [[MULTIBASE]]. The multicodec encoding of an Ed25519 public key is the two-byte
+  prefix `0xed01` followed by the 32-byte public key data. The 34 byte
+  value is then encoded using base58-btc (`z`) as the prefix. Any other encoding
+  MUST NOT be allowed.
+            </p>
+  
+            <p class="advisement">
+  Developers are advised to not accidentally publish a representation of a private
+  key. Implementations of this specification will raise errors in the event of a
+  [[MULTICODEC]] value other than `0xed01` being used in a
+  `publicKeyMultibase` value.
+            </p>
+  
+            <pre class="example" title="An Ed25519 public key encoded as an
+              Ed25519VerificationKey2020">
+  {
+    "id": "https://example.com/issuer/123#key-0",
+    "type": "Ed25519VerificationKey2020",
+    "controller": "https://example.com/issuer/123",
+    "publicKeyMultibase": "z6Mkf5rGMoatrSj1f4CyvuHBeXJELe9RPdzo2PKGNCKVtZxP"
+  }
+            </pre>
+  
+            <pre class="example" title="An Ed25519 public key encoded as an
+              Ed25519VerificationKey2020 in a controller document.">
+  {
+    "@context": [
+      "https://www.w3.org/ns/did/v1",
+      "https://w3id.org/security/suites/ed25519-2020/v1"
+    ],
+    "id": "did:example:123",
+    "verificationMethod": [{
+      "id": "did:example:123#key-0",
+      "type": "Ed25519VerificationKey2020",
+      "controller": "did:example:123",
+      "publicKeyMultibase": "z6Mkf5rGMoatrSj1f4CyvuHBeXJELe9RPdzo2PKGNCKVtZxP"
+    }],
+    "authentication": [
+      "did:example:123#key-0"
+    ],
+    "assertionMethod": [
+      "did:example:123#key-0"
+    ],
+    "capabilityDelegation": [
+      "did:example:123#key-0"
+    ],
+    "capabilityInvocation": [
+      "did:example:123#key-0"
+    ]
+  }
+            </pre>
+          </section>
+  
+        </section>
+        <section>
+          <h3>Proof representations</h3>
+          <section>
+            <h4>Ed25519Signature2020</h4>
+  
+            <p>
+  The `verificationMethod` property of the proof MUST be a URL.
+  Dereferencing the `verificationMethod` MUST result in an object
+  containing a `type` property with the value set to
+  `Ed25519VerificationKey2020`.
+            </p>
+  
+            <p>
+  The `type` property of the proof MUST be `Ed25519Signature2020`.
+            </p>
+            <p>
+  The `created` property of the proof MUST be an [[XMLSCHEMA11-2]]
+  formatted date string.
+            </p>
+            <p>
+  The `proofPurpose` property of the proof MUST be a string, and MUST
+  match the verification relationship expressed by the verification method
+  `controller`.
+            </p>
+            <p>
+  The `proofValue` property of the proof MUST be a detached EdDSA
+  produced according to [[RFC8032]], encoded according to [[MULTIBASE]] using
+  the base58-btc base encoding.
+            </p>
+  
+            <pre class="example highlight" style="overflow-x:
+              auto; white-space: pre-wrap; word-wrap: break-word;"
+              title="An Ed25519 digital signature expressed as a
+              Ed25519Signature2020">
+  {
+    "@context": [
+      {"title": "https://schema.org/title"},
+      "https://w3id.org/security/data-integrity/v1"
+    ],
+    "title": "Hello world!",
+    "proof": {
+      "type": "Ed25519Signature2020",
+      "created": "2020-11-05T19:23:24Z",
+      "verificationMethod": "https://di.example/issuer#z6MkjLrk3gKS2nnkeWcmcxi
+        ZPGskmesDpuwRBorgHxUXfxnG",
+      "proofPurpose": "assertionMethod",
+      "proofValue": "z4oey5q2M3XKaxup3tmzN4DRFTLVqpLMweBrSxMY2xHX5XTYVQeVbY8nQA
+        VHMrXFkXJpmEcqdoDwLWxaqA3Q1geV6"
+    }
+  }
+            </pre>
+  
+          </section>
+  
+        </section>
+      </section>
+
+      <section>
+        <h3>Algorithms</h3>
+        <section>
+          <h3>Ed25519Signature2020</h3>
+  
+          <p>
+  The `Ed25519Signature2020` cryptographic suite takes an input document,
+  canonicalizes the document using the Universal RDF Dataset Canonicalization
+  Algorithm [[RDF-CANON]], and then cryptographically hashes and signs the output
+  resulting in the production of a data integrity proof. The algorithms in this
+  section also include the verification of such a data integrity proof.
+          </p>
+  
+          <section>
+            <h4>Add Proof (Ed25519Signature2020)</h4>
+  
+            <p>
+  To generate a proof, the algorithm in
+  <a data-cite="vc-data-integrity#add-proof">
+  Section 4.1: Add Proof</a> in the Data Integrity
+  [[VC-DATA-INTEGRITY]] specification MUST be executed.
+  For that algorithm, the cryptographic suite specific
+  <a data-cite="vc-data-integrity#dfn-transformation-algorithm">
+  transformation algorithm</a> is defined in Section
+  <a href="#transformation-ed25519signature2020"></a>, the
+  <a data-cite="vc-data-integrity#dfn-hashing-algorithm">
+  hashing algorithm</a> is defined in Section <a href="hashing-ed25519signature2020"></a>,
+  and the
+  <a data-cite="vc-data-integrity#dfn-proof-serialization-algorithm">
+  proof serialization algorithm</a> is defined in Section
+  <a href="#proof-serialization-ed25519signature2020"></a>.
+            </p>
+          </section>
+  
+          <section>
+            <h4>Verify Proof (Ed25519Signature2020)</h4>
+  
+            <p>
+  To verify a proof, the algorithm in
+  <a data-cite="vc-data-integrity#verify-proof">
+  Section 4.2: Verify Proof</a> in the Data Integrity
+  [[VC-DATA-INTEGRITY]] specification MUST be executed.
+  For that algorithm, the cryptographic suite specific
+  <a data-cite="vc-data-integrity#dfn-transformation-algorithm">
+  transformation algorithm</a> is defined in Section
+  <a href="#transformation-ed25519signature2020"></a>, the
+  <a data-cite="vc-data-integrity#dfn-hashing-algorithm">
+  hashing algorithm</a> is defined in Section <a href="#hashing-ed25519signature2020"></a>,
+  and the
+  <a data-cite="vc-data-integrity#dfn-proof-serialization-algorithm">
+  proof verification algorithm</a> is defined in Section
+  <a href="#proof-verification-ed25519signature2020"></a>.
+            </p>
+          </section>
+  
+          <section>
+            <h4>Transformation (Ed25519Signature2020)</h4>
+  
+            <p>
+  The following algorithm specifies how to transform an unsecured input document
+  into a transformed document that is ready to be provided as input to the
+  hashing algorithm in Section <a href="#hashing-ed25519signature2020"></a>.
+            </p>
+  
+            <p>
+  Required inputs to this algorithm are an
+  <a data-cite="vc-data-integrity#dfn-unsecured-data-document">
+  unsecured data document</a> (<var>unsecuredDocument</var>) and
+  transformation options (<var>options</var>). The
+  transformation options MUST contain a type identifier for the
+  <a data-cite="vc-data-integrity#dfn-cryptosuite">
+  cryptographic suite</a> (<var>type</var>) and a cryptosuite
+  identifier (<var>cryptosuite</var>). A <em>transformed data document</em> is
+  produced as output. Whenever this algorithm encodes strings, it MUST use UTF-8
+  encoding.
+            </p>
+  
+            <ol class="algorithm">
+              <li>
+  If <var>options</var>.<var>type</var> is not set to the string
+  `Ed25519Signature2020`, then a `PROOF_TRANSFORMATION_ERROR` MUST be raised.
+              </li>
+              <li>
+  Let <var>canonicalDocument</var> be the result of applying the
+  Universal RDF Dataset Canonicalization Algorithm
+  [[RDF-CANON]] to the <var>unsecuredDocument</var>.
+              </li>
+              <li>
+  Set <var>output</var> to the value of <var>canonicalDocument</var>.
+              </li>
+              <li>
+  Return <var>canonicalDocument</var> as the <em>transformed data document</em>.
+              </li>
+            </ol>
+  
+          </section>
+  
+          <section>
+            <h4>Hashing (Ed25519Signature2020)</h4>
+  
+            <p>
+  The following algorithm specifies how to cryptographically hash a
+  <em>transformed data document</em> and <em>proof configuration</em>
+  into cryptographic hash data that is ready to be provided as input to the
+  algorithms in Section <a href="#proof-serialization-ed25519signature2020"></a> or
+  Section <a href="#proof-verification-ed25519signature2020"></a>.
+            </p>
+  
+            <p>
+  The required inputs to this algorithm are a
+  <em>transformed data document</em> (<var>transformedDocument</var>) and
+  <em>proof configuration</em> (<var>proofConfig</var>). The
+  <em>proof configuration</em> MUST contain a type identifier for the
+  <a data-cite="vc-data-integrity#dfn-cryptosuite">
+  cryptographic suite</a> (<var>type</var>) and MAY contain a cryptosuite
+  identifier (<var>cryptosuite</var>). A single <em>hash data</em> value
+  represented as series of bytes is produced as output.
+            </p>
+  
+            <ol class="algorithm">
+              <li>
+  Let <var>transformedDocumentHash</var> be the result of applying the
+  SHA-256 (SHA-2 with 256-bit output) cryptographic hashing algorithm [[RFC6234]]
+  to the <var>transformedDocument</var>. <var>transformedDocumentHash</var> will
+  be exactly 32 bytes in size.
+              </li>
+              <li>
+  Let <var>proofConfigHash</var> be the result of applying the
+  SHA-256 (SHA-2 with 256-bit output) cryptographic hashing algorithm [[RFC6234]]
+  to the <var>canonicalProofConfig</var>. <var>proofConfigHash</var> will be
+  exactly 32 bytes in size.
+              </li>
+  
+              <li>
+  Let <var>hashData</var> be the result of joining <var>proofConfigHash</var> (the
+  first hash) with <var>transformedDocumentHash</var> (the second hash).
+              </li>
+              <li>
+  Return <var>hashData</var> as the <em>hash data</em>.
+              </li>
+            </ol>
+  
+          </section>
+  
+          <section>
+            <h4>Proof Configuration (Ed25519Signature2020)</h4>
+  
+            <p>
+  The following algorithm specifies how to generate a
+  <em>proof configuration</em> from a set of <em>proof options</em>
+  that is used as input to the <a href="#hashing-ed25519signature2020">proof hashing algorithm</a>.
+            </p>
+  
+            <p>
+  The required inputs to this algorithm are <em>proof options</em>
+  (<var>options</var>). The <em>proof options</em> MUST contain a type identifier
+  for the
+  <a data-cite="vc-data-integrity#dfn-cryptosuite">
+  cryptographic suite</a> (<var>type</var>) and MAY contain a cryptosuite
+  identifier (<var>cryptosuite</var>). A <em>proof configuration</em>
+  object is produced as output.
+            </p>
+  
+            <ol class="algorithm">
+              <li>
+  Let <var>proofConfig</var> be an empty object.
+              </li>
+              <li>
+  Set <var>proofConfig</var>.<var>type</var> to
+  <var>options</var>.<var>type</var>.
+              </li>
+              <li>
+  If <var>options</var>.<var>cryptosuite</var> is set, set
+  <var>proofConfig</var>.<var>cryptosuite</var> to its value.
+              </li>
+              <li>
+  If <var>options</var>.<var>type</var> is not set to `Ed25519Signature2020`, an
+  `INVALID_PROOF_CONFIGURATION` error MUST be raised.
+              </li>
+              <li>
+  Set <var>proofConfig</var>.<var>created</var> to
+  <var>options</var>.<var>created</var>. If the value is not a valid
+  [[XMLSCHEMA11-2]] datetime, an `INVALID_PROOF_DATETIME` error MUST be raised.
+              </li>
+              <li>
+  Set <var>proofConfig</var>.<var>verificationMethod</var> to
+  <var>options</var>.<var>verificationMethod</var>.
+              </li>
+              <li>
+  Set <var>proofConfig</var>.<var>proofPurpose</var> to
+  <var>options</var>.<var>proofPurpose</var>.
+              </li>
+              <li>
+  Set <var>proofConfig</var>.<var>@context</var> to
+  <var>unsecuredDocument</var>.<var>@context</var>
+              </li>
+              <li>
+  Let <var>canonicalProofConfig</var> be the result of applying the
+  Universal RDF Dataset Canonicalization Algorithm
+  [[RDF-CANON]] to the <var>proofConfig</var>.
+              </li>
+              <li>
+  Return <var>canonicalProofConfig</var>.
+              </li>  
+            </ol>
+  
+          </section>
+  
+          <section>
+            <h4>Proof Serialization (Ed25519Signature2020)</h4>
+  
+            <p>
+  The following algorithm specifies how to serialize a digital signature from
+  a set of cryptographic hash data. This
+  algorithm is designed to be used in conjunction with the algorithms defined
+  in the Data Integrity [[VC-DATA-INTEGRITY]] specification,
+  <a data-cite="vc-data-integrity#algorithms">
+  Section 4: Algorithms</a>. Required inputs are
+  cryptographic hash data (<var>hashData</var>) and
+  <em>proof options</em> (<var>options</var>). The
+  <em>proof options</em> MUST contain a type identifier for the
+  <a data-cite="vc-data-integrity#dfn-cryptosuite">
+  cryptographic suite</a> (<var>type</var>) and MAY contain a cryptosuite
+  identifier (<var>cryptosuite</var>). A single <em>digital proof</em> value
+  represented as series of bytes is produced as output.
+            </p>
+  
+            <ol class="algorithm">
+              <li>
+  Let <var>privateKeyBytes</var> be the result of retrieving the
+  private key bytes associated with the
+  <var>options</var>.<var>verificationMethod</var> value as described in the
+  Data Integrity [[VC-DATA-INTEGRITY]] specification,
+  <a data-cite="vc-data-integrity#algorithms">
+  Section 4: Retrieving Cryptographic Material</a>.
+              </li>
+              <li>
+  Let <var>proofBytes</var> be the result of applying the Edwards-Curve Digital
+  Signature Algorithm (EdDSA) [[RFC8032]], using the `Ed25519` variant
+  (Pure EdDSA), with <var>hashData</var> as the data to be signed using
+  the private key specified by <var>privateKeyBytes</var>.
+  <var>proofBytes</var> will be exactly 64 bytes in size.
+              </li>
+              <li>
+  Return <var>proofBytes</var> as the <em>digital proof</em>.
+              </li>
+            </ol>
+  
+          </section>
+  
+          <section>
+            <h4>Proof Verification (Ed25519Signature2020)</h4>
+  
+            <p>
+  The following algorithm specifies how to verify a digital signature from
+  a set of cryptographic hash data. This
+  algorithm is designed to be used in conjunction with the algorithms defined
+  in the Data Integrity [[VC-DATA-INTEGRITY]] specification,
+  <a data-cite="vc-data-integrity#algorithms">
+  Section 4: Algorithms</a>. Required inputs are
+  cryptographic hash data (<var>hashData</var>),
+  a digital signature (<var>proofBytes</var>) and
+  proof options (<var>options</var>). A <em>verification result</em>
+  represented as a boolean value is produced as output.
+            </p>
+  
+            <ol class="algorithm">
+              <li>
+  Let <var>publicKeyBytes</var> be the result of retrieving the
+  public key bytes associated with the
+  <var>options</var>.<var>verificationMethod</var> value as described in the
+  Data Integrity [[VC-DATA-INTEGRITY]] specification,
+  <a data-cite="vc-data-integrity#algorithms">
+  Section 4: Retrieving Cryptographic Material</a>.
+              </li>
+              <li>
+  Let <var>verificationResult</var> be the result of applying the verification
+  algorithm for the Edwards-Curve Digital Signature Algorithm (EdDSA)
+  [[RFC8032]], using the `Ed25519` variant (Pure EdDSA),
+  with <var>hashData</var> as the data to be verified against the
+  <var>proofBytes</var> using the public key specified by
+  <var>publicKeyBytes</var>.
+              </li>
+              <li>
+  Return <var>verificationResult</var> as the <em>verification result</em>.
+              </li>
+            </ol>
+  
+          </section>
+        </section>
+      </section>
+    </section>
+
+
+    <section class="appendix informative">
+      <h2>Test Vectors</h2>
+      <section>
+        <h3>Representation: eddsa-2022</h3>
+        <p>
+The signer needs to generate a private/public key pair with the private key used
+for signing and the public key made available for verification. The
+[[MULTIBASE]]/[[MULTICODEC]] representation for the public key, <code>ed25519-pub</code>,
+and the representation for the private key, <code>ed25519-priv</code>, are shown below.
+        </p>
+        <pre class="example" title="Private and Public keys for Signature">
+{
+    publicKeyMultibase: "z6MkrJVnaZkeFzdQyMZu1cgjg7k1pZZ6pvBQ7XJPt4swbTQ2",
+    privateKeyMultibase: "z3u2en7t5LR2WtQH5PfFqMqwVHBeXouLzo6haApm8XHqvjxq"
+}
+        </pre>
+
+        <p>
+Signing begins with a credential without an attached proof, which is converted
+to canonical form, and then hashed, as shown in the following three examples.
+        </p>
+
+        <pre class="example" title="Credential without Proof" data-include="TestVectors/unsigned.json" 
+        data-include-format="text"></pre>
+
+        <pre class="example" title="Canonical Credential without Proof" data-include="TestVectors/eddsa-2022/canonDocDataInt.txt"
+        data-include-format="text"></pre>
+
+
+        <pre class="example" title="Hash of Canonical Credential without Proof (hex)"
+        data-include="TestVectors/eddsa-2022/docHashDataInt.txt" data-include-format="text"></pre>
+
+        <p>
+The next step is to take the proof options document, convert it to canonical form,
+and obtain its hash, as shown in the next three examples.
+        </p>
+
+        <pre class="example" title="Proof Options Document" 
+        data-include="TestVectors/eddsa-2022/proofConfigDataInt.json" data-include-format="text"></pre>
+
+        <pre class="example" title="Canonical Proof Options Document"
+        data-include="TestVectors/eddsa-2022/proofCanonDataInt.txt" data-include-format="text"></pre>
+
+        <pre class="example" title="Hash of Canonical Proof Options Document (hex)"
+        data-include="TestVectors/eddsa-2022/proofHashDataInt.txt" data-include-format="text"></pre>
+
+        <p>
+Finally, we concatenate the hash of the proof options followed by the hash of the credential without proof, use the private key with the combined hash to
+compute the Ed25519 signature, and then base58-btc encode the signature.
+        </p>
+
+        <pre class="example" title="Combine hashes of Proof Options and Credential (hex)"
+        data-include="TestVectors/eddsa-2022/combinedHashDataInt.txt" data-include-format="text"></pre>
+
+        <pre class="example" title="Signature of Combined Hashes (hex)"
+        data-include="TestVectors/eddsa-2022/sigHexDataInt.txt" data-include-format="text"></pre>
+
+        <pre class="example" title="Signature of Combined Hashes base58-btc"
+        data-include="TestVectors/eddsa-2022/sigBTC58DataInt.txt" data-include-format="text"></pre>
+
+        <p>Assemble the signed credential with the following two steps:</p>
+        <ol>
+          <li>
+Add the <code>proofValue</code> field with the previously computed base58-btc
+value to the proof options document.
+          </li>
+          <li>
+Set the <code>proof</code> field of the credential to the augmented proof
+option document.
+          </li>
+        </ol>
+
+        <pre class="example" title="Signed Credential"
+        data-include="TestVectors/eddsa-2022/signedDataInt.json" data-include-format="text"></pre>
+      </section>
+      <section>
+        <h3>Representation: jcs-eddsa-2022</h3>
+        <p>
+The signer needs to generate a private/public key pair with the private key used
+for signing and the public key made available for verification. The
+[[MULTIBASE]]/[[MULTICODEC]] representation for the public key, <code>ed25519-pub</code>,
+and the representation for the private key, <code>ed25519-priv</code>, are shown below.
+        </p>
+        <pre class="example" title="Private and Public keys for Signature">
+{
+  publicKeyMultibase: "z6MkrJVnaZkeFzdQyMZu1cgjg7k1pZZ6pvBQ7XJPt4swbTQ2",
+  privateKeyMultibase: "z3u2en7t5LR2WtQH5PfFqMqwVHBeXouLzo6haApm8XHqvjxq"
+}
+        </pre>
+
+        <p>
+Signing begins with a credential without an attached proof, which is converted
+to canonical form, and then hashed, as shown in the following three examples.
+        </p>
+
+        <pre class="example" title="Credential without Proof" data-include="TestVectors/unsigned.json" 
+        data-include-format="text"></pre>
+
+        <pre class="example" title="Canonical Credential without Proof" data-include="TestVectors/jcs-eddsa-2022/canonDocJCS.txt"
+        data-include-format="text"></pre>
+
+
+        <pre class="example" title="Hash of Canonical Credential without Proof (hex)"
+        data-include="TestVectors/jcs-eddsa-2022/docHashJCS.txt" data-include-format="text"></pre>
+
+        <p>
+The next step is to take the proof options document, convert it to canonical form,
+and obtain its hash, as shown in the next three examples.
+        </p>
+
+        <pre class="example" title="Proof Options Document" 
+        data-include="TestVectors/jcs-eddsa-2022/proofConfigJCS.json" data-include-format="text"></pre>
+
+        <pre class="example" title="Canonical Proof Options Document"
+        data-include="TestVectors/jcs-eddsa-2022/proofCanonJCS.txt" data-include-format="text"></pre>
+
+        <pre class="example" title="Hash of Canonical Proof Options Document (hex)"
+        data-include="TestVectors/jcs-eddsa-2022/proofHashJCS.txt" data-include-format="text"></pre>
+
+        <p>
+Finally, we concatenate the hash of the proof options followed by the hash of the credential without proof, use the private key with the combined hash to
+compute the Ed25519 signature, and then base58-btc encode the signature.
+        </p>
+
+        <pre class="example" title="Combine hashes of Proof Options and Credential (hex)"
+        data-include="TestVectors/jcs-eddsa-2022/combinedHashJCS.txt" data-include-format="text"></pre>
+
+        <pre class="example" title="Signature of Combined Hashes (hex)"
+        data-include="TestVectors/jcs-eddsa-2022/sigHexJCS.txt" data-include-format="text"></pre>
+
+        <pre class="example" title="Signature of Combined Hashes base58-btc"
+        data-include="TestVectors/jcs-eddsa-2022/sigBTC58JCS.txt" data-include-format="text"></pre>
+
+        <p>Assemble the signed credential with the following two steps:</p>
+        <ol>
+          <li>
+Add the <code>proofValue</code> field with the previously computed base58-btc
+value to the proof options document.
+          </li>
+          <li>
+Set the <code>proof</code> field of the credential to the augmented proof
+option document.
+          </li>
+        </ol>
+
+        <pre class="example" title="Signed Credential"
+        data-include="TestVectors/jcs-eddsa-2022/signedJCS.json" data-include-format="text"></pre>
+      </section>    
+      <section>
+        <h3>Representation: Ed25519Signature2020</h3>
+        <p>
+The signer needs to generate a private/public key pair with the private key used
+for signing and the public key made available for verification. The
+[[MULTIBASE]]/[[MULTICODEC]] representation for the public key, <code>ed25519-pub</code>,
+and the representation for the private key, <code>ed25519-priv</code>, are shown below.
+        </p>
+        <pre class="example" title="Private and Public keys for Signature">
+{
+    publicKeyMultibase: "z6MkrJVnaZkeFzdQyMZu1cgjg7k1pZZ6pvBQ7XJPt4swbTQ2",
+    privateKeyMultibase: "z3u2en7t5LR2WtQH5PfFqMqwVHBeXouLzo6haApm8XHqvjxq"
+}
+        </pre>
+
+        <p>
+Signing begins with a credential without an attached proof, which is converted
+to canonical form, and then hashed, as shown in the following three examples.
+        </p>
+
+        <pre class="example" title="Credential without Proof" data-include="TestVectors/unsigned.json" 
+        data-include-format="text"></pre>
+
+        <pre class="example" title="Canonical Credential without Proof" data-include="TestVectors/Ed25519Signature2020/canonDocEdSig.txt"
+        data-include-format="text"></pre>
+
+
+        <pre class="example" title="Hash of Canonical Credential without Proof (hex)"
+        data-include="TestVectors/Ed25519Signature2020/docHashEdSig.txt" data-include-format="text"></pre>
+
+        <p>
+The next step is to take the proof options document, convert it to canonical form,
+and obtain its hash, as shown in the next three examples.
+        </p>
+
+        <pre class="example" title="Proof Options Document" 
+        data-include="TestVectors/Ed25519Signature2020/proofConfigEdSig.json" data-include-format="text"></pre>
+
+        <pre class="example" title="Canonical Proof Options Document"
+        data-include="TestVectors/Ed25519Signature2020/proofCanonEdSig.txt" data-include-format="text"></pre>
+
+        <pre class="example" title="Hash of Canonical Proof Options Document (hex)"
+        data-include="TestVectors/Ed25519Signature2020/proofHashEdSig.txt" data-include-format="text"></pre>
+
+        <p>
+Finally, we concatenate the hash of the proof options followed by the hash of the credential without proof, use the private key with the combined hash to
+compute the Ed25519 signature, and then base58-btc encode the signature.
+        </p>
+
+        <pre class="example" title="Combine hashes of Proof Options and Credential (hex)"
+        data-include="TestVectors/Ed25519Signature2020/combinedHashEdSig.txt" data-include-format="text"></pre>
+
+        <pre class="example" title="Signature of Combined Hashes (hex)"
+        data-include="TestVectors/Ed25519Signature2020/sigHexEdSig.txt" data-include-format="text"></pre>
+
+        <pre class="example" title="Signature of Combined Hashes base58-btc"
+        data-include="TestVectors/Ed25519Signature2020/sigBTC58EdSig.txt" data-include-format="text"></pre>
+
+        <p>Assemble the signed credential with the following two steps:</p>
+          <ol>
+            <li>
+Add the <code>proofValue</code> field with the previously computed base58-btc
+value to the proof options document.
+            </li>
+            <li>
+Set the <code>proof</code> field of the credential to the augmented proof
+option document.
+            </li>
+          </ol>
+
+        <pre class="example" title="Signed Credential"
+        data-include="TestVectors/Ed25519Signature2020/signedEdSig.json" data-include-format="text"></pre>
+      </section>
+    </section>
+  </body>
+</html>

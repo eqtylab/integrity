@@ -30,6 +30,7 @@ version = "0.20"
 
 [dependencies.cacaos]
 version = "0.5.1"
+path = "../cacaos-0.5.1"
 
 [dependencies.flate2]
 version = "1.0"
@@ -39,6 +40,7 @@ version = "2.2.2"
 
 [dependencies.libipld]
 version = "0.14"
+path = "../libipld-0.14.0"
 features = [
     "dag-cbor",
     "derive",
@@ -47,6 +49,7 @@ default-features = false
 
 [dependencies.multihash]
 version = "0.16"
+path = "../multihash-0.16.3"
 features = ["blake3"]
 default-features = false
 
