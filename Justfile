@@ -4,11 +4,36 @@ _:
 
 # Format Rust code using rustfmt
 fmt:
-    cargo fmt --all --
+    cargo fmt \
+        --package integrity \
+        --package integrity-blob \
+        --package integrity-cid \
+        --package integrity-dsse \
+        --package integrity-ffi \
+        --package integrity-intoto-attestation \
+        --package integrity-jsonld \
+        --package integrity-lineage-models \
+        --package integrity-model-signing \
+        --package integrity-signer \
+        --package integrity-sigstore \
+        --package integrity-vc
 
 # Check if code is formatted correctly without modifying files
 fmt-check:
-    cargo fmt --check
+    cargo fmt \
+        --package integrity \
+        --package integrity-blob \
+        --package integrity-cid \
+        --package integrity-dsse \
+        --package integrity-ffi \
+        --package integrity-intoto-attestation \
+        --package integrity-jsonld \
+        --package integrity-lineage-models \
+        --package integrity-model-signing \
+        --package integrity-signer \
+        --package integrity-sigstore \
+        --package integrity-vc \
+        --check
 
 # Build the project for native target
 build:

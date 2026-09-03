@@ -1333,8 +1333,6 @@ dependencies = [
 [[package]]
 name = "cacaos"
 version = "0.5.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "92680fcbb8e24eaa4640c6deca0042db02da17c8b92fde62a0c517bcb6769d7d"
 dependencies = [
  "async-trait",
  "hex",
@@ -4311,7 +4309,7 @@ dependencies = [
 
 [[package]]
 name = "integrity"
-version = "0.0.14"
+version = "0.0.15"
 dependencies = [
  "anyhow",
  "base64 0.21.7",
@@ -4335,7 +4333,7 @@ dependencies = [
 
 [[package]]
 name = "integrity-blob"
-version = "0.0.14"
+version = "0.0.15"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -4355,7 +4353,7 @@ dependencies = [
 
 [[package]]
 name = "integrity-cid"
-version = "0.0.14"
+version = "0.0.15"
 dependencies = [
  "anyhow",
  "blake3",
@@ -4375,7 +4373,7 @@ dependencies = [
 
 [[package]]
 name = "integrity-dsse"
-version = "0.0.14"
+version = "0.0.15"
 dependencies = [
  "anyhow",
  "base64 0.21.7",
@@ -4386,7 +4384,7 @@ dependencies = [
 
 [[package]]
 name = "integrity-ffi"
-version = "0.0.14"
+version = "0.0.15"
 dependencies = [
  "anyhow",
  "hex",
@@ -4402,7 +4400,7 @@ dependencies = [
 
 [[package]]
 name = "integrity-intoto-attestation"
-version = "0.0.14"
+version = "0.0.15"
 dependencies = [
  "anyhow",
  "base64 0.21.7",
@@ -4417,7 +4415,7 @@ dependencies = [
 
 [[package]]
 name = "integrity-jsonld"
-version = "0.0.14"
+version = "0.0.15"
 dependencies = [
  "anyhow",
  "blake3",
@@ -4441,7 +4439,7 @@ dependencies = [
 
 [[package]]
 name = "integrity-lineage-models"
-version = "0.0.14"
+version = "0.0.15"
 dependencies = [
  "anyhow",
  "base64 0.21.7",
@@ -4469,7 +4467,7 @@ dependencies = [
 
 [[package]]
 name = "integrity-model-signing"
-version = "0.0.14"
+version = "0.0.15"
 dependencies = [
  "anyhow",
  "bs58 0.5.1",
@@ -4488,7 +4486,7 @@ dependencies = [
 
 [[package]]
 name = "integrity-signer"
-version = "0.0.14"
+version = "0.0.15"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -4516,7 +4514,7 @@ dependencies = [
 
 [[package]]
 name = "integrity-sigstore"
-version = "0.0.14"
+version = "0.0.15"
 dependencies = [
  "serde",
  "serde_json",
@@ -4524,7 +4522,7 @@ dependencies = [
 
 [[package]]
 name = "integrity-vc"
-version = "0.0.14"
+version = "0.0.15"
 dependencies = [
  "anyhow",
  "chrono",
@@ -5522,8 +5520,6 @@ checksum = "bcc35a38544a891a5f7c865aca548a982ccb3b8650a5b06d0fd33a10283c56fc"
 [[package]]
 name = "libipld"
 version = "0.14.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ac9c3aa309c260aa2f174bac968901eddc546e9d85950c28eae6a7bec402f926"
 dependencies = [
  "async-trait",
  "cached",
@@ -5542,8 +5538,6 @@ dependencies = [
 [[package]]
 name = "libipld-cbor"
 version = "0.14.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8dd1ab68c9d26f20c7d0dfea6eecbae8c00359875210001b33ca27d4a02f3d09"
 dependencies = [
  "byteorder",
  "libipld-core",
@@ -5579,8 +5573,6 @@ dependencies = [
 [[package]]
 name = "libipld-json"
 version = "0.14.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "18aa481a87f084d98473dd9ece253a9569c762b75f6bbba8217d54e48c9d63b3"
 dependencies = [
  "libipld-core",
  "multihash 0.16.3",
@@ -5591,8 +5583,6 @@ dependencies = [
 [[package]]
 name = "libipld-macro"
 version = "0.14.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "852c011562ae5059b67c3a917f9f5945af5a68df8e39ede4444fff33274d25e2"
 dependencies = [
  "libipld-core",
 ]
@@ -8584,8 +8574,6 @@ dependencies = [
 [[package]]
 name = "ssi"
 version = "0.7.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8d6e7ea685d83ca9683a0c7876c6b99196049d000dc22dfabb1398603b935e56"
 dependencies = [
  "ssi-caips 0.1.0",
  "ssi-core 0.1.0",
@@ -9374,8 +9362,6 @@ dependencies = [
 [[package]]
 name = "ssi-ucan"
 version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0982f62c7860922026a9d9edc6c604de79693ee4c5c6bd65be11e2ff66b1df09"
 dependencies = [
  "base64 0.12.3",
  "chrono",

@@ -1,6 +1,5 @@
 [workspace]
 members = [
-  ".",
   "integrity-blob",
   "integrity-cid",
   "integrity-dsse",
@@ -13,17 +12,23 @@ members = [
   "integrity-signer",
   "integrity-vc",
 ]
+exclude = [
+  "vendor/cacaos-0.5.1",
+  "vendor/cid-0.8.6",
+  "vendor/libipld-0.14.0",
+  "vendor/libipld-cbor-0.14.0",
+  "vendor/libipld-core-0.14.0",
+  "vendor/libipld-json-0.14.0",
+  "vendor/libipld-macro-0.14.0",
+  "vendor/multihash-0.16.3",
+  "vendor/ssi-0.7.0",
+  "vendor/ssi-ucan-0.1.1",
+  "vendor/ssi-vc-0.2.1",
+]
 resolver = "2"
 
 [workspace.package]
-version = "0.0.14"
-
-# See vendor/README.md for the rationale and local modifications.
-[patch.crates-io]
-cid = { path = "vendor/cid-0.8.6" }
-libipld-core = { path = "vendor/libipld-core-0.14.0" }
-multihash = { path = "vendor/multihash-0.16.3" }
-ssi-vc = { path = "vendor/ssi-vc-0.2.1" }
+version = "0.0.15"
 
 [package]
 name = "integrity"
