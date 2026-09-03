@@ -29,7 +29,17 @@ version = "0.0.13"
 #   - add two explicit lifetimes (src/lib.rs, src/revocation.rs) so it compiles
 # `ssi` 0.7 requires the 0.2.x API, so upgrading ssi-vc isn't an option; a
 # patched vendored copy is the only way to apply these changes.
+#
+# The same legacy dependency graph pins cid 0.8.6, libipld-core 0.14.0, and
+# multihash 0.16.3 to the yanked core2 crate. These vendored copies preserve
+# their published APIs while replacing core2 0.4 with its maintained,
+# API-compatible successor, no_std_io2 0.8.1. libipld-core also uses explicit
+# trait dispatch for one Encode call that Rust 1.89 otherwise rejects under
+# the crate's deny(warnings) policy.
 [patch.crates-io]
+cid = { path = "vendor/cid-0.8.6" }
+libipld-core = { path = "vendor/libipld-core-0.14.0" }
+multihash = { path = "vendor/multihash-0.16.3" }
 ssi-vc = { path = "vendor/ssi-vc-0.2.1" }
 
 [package]
