@@ -929,6 +929,11 @@ mod tests {
 
     use super::*;
 
+    const CAPTURED_LEGACY_ED25519_VC: &str = include_str!("../../fixtures/legacy-vc/ed25519.json");
+
+    const CAPTURED_LEGACY_SECP256K1_VC: &str =
+        include_str!("../../fixtures/legacy-vc/secp256k1.json");
+
     #[tokio::test]
     async fn test_issue_vc_with_simple_subject() {
         let _ = env_logger::builder().is_test(true).try_init();
@@ -1337,14 +1342,139 @@ mod tests {
     async fn test_verify_captured_old_vc() {
         let _ = env_logger::builder().is_test(true).try_init();
 
-        let captured = r#"{"@context":["https://www.w3.org/ns/credentials/v2","https://w3id.org/security/v2"],"id":"urn:uuid:cf35933b-b49d-4b18-82ee-0e594912ec87","type":["VerifiableCredential"],"credentialSubject":{"id":"urn:cid:bafkr4ibthuzk3zug7ghmx63yjqaiu6rx4hhfdv3453j5bodskgw57bx2ya"},"issuer":"did:key:z6Mkt1QV8soXyenn4uUYtrMzFDnWWq8e8Mu71t2KmBsWi2mv","issuanceDate":"2026-05-14T13:43:44Z","proof":{"type":"Ed25519Signature2018","proofPurpose":"assertionMethod","verificationMethod":"did:key:z6Mkt1QV8soXyenn4uUYtrMzFDnWWq8e8Mu71t2KmBsWi2mv#z6Mkt1QV8soXyenn4uUYtrMzFDnWWq8e8Mu71t2KmBsWi2mv","created":"2026-05-14T13:43:44Z","jws":"eyJhbGciOiJFZERTQSIsImNyaXQiOlsiYjY0Il0sImI2NCI6ZmFsc2V9..P1CYP_-UNuPSyJUfE3EfLnHDZxHE1rZt961j1UQ6wx0f4ftTs3cUNmQ6pINp6VECGscjWnmvYtt4r2jt1-0YDg"},"validFrom":"2026-05-14T13:43:44Z"}"#;
-
-        assert!(is_legacy_vc(captured), "should detect as legacy");
-        let result = verify_vc(captured, None).await;
         assert!(
-            result.is_ok(),
-            "captured OLD-issued VC should verify via legacy path: {:?}",
-            result.err()
+            is_legacy_vc(CAPTURED_LEGACY_ED25519_VC),
+            "should detect as legacy"
+        );
+        assert_eq!(
+            verify_vc(CAPTURED_LEGACY_ED25519_VC, None)
+                .await
+                .expect("captured OLD-issued VC should verify via legacy path"),
+            "VC verification result: ok (legacy path)"
+        );
+    }
+
+    /// Captured from the same pre-ssi-0.16 implementation as the Ed25519
+    /// fixture, using a deterministic secp256k1 test key. This covers the
+    /// third proof suite that older Integrity releases could issue.
+    #[tokio::test]
+    async fn test_verify_captured_old_vc_secp256k1() {
+        assert!(
+            is_legacy_vc(CAPTURED_LEGACY_SECP256K1_VC),
+            "should detect as legacy"
+        );
+        assert_eq!(
+            verify_vc(CAPTURED_LEGACY_SECP256K1_VC, None)
+                .await
+                .expect("captured secp256k1 VC should verify via legacy path"),
+            "VC verification result: ok (legacy path)"
+        );
+    }
+
+    #[test]
+    fn test_legacy_vc_detection_boundaries() {
+        let cases = [
+            (
+                "legacy hybrid shape",
+                serde_json::json!({
+                    "@context": ["https://www.w3.org/ns/credentials/v2"],
+                    "issuanceDate": "2026-05-14T13:43:44Z"
+                })
+                .to_string(),
+                true,
+            ),
+            (
+                "v1 context",
+                serde_json::json!({
+                    "@context": ["https://www.w3.org/2018/credentials/v1"],
+                    "issuanceDate": "2026-05-14T13:43:44Z"
+                })
+                .to_string(),
+                false,
+            ),
+            (
+                "modern v2 shape",
+                serde_json::json!({
+                    "@context": ["https://www.w3.org/ns/credentials/v2"],
+                    "validFrom": "2026-05-14T13:43:44Z"
+                })
+                .to_string(),
+                false,
+            ),
+            (
+                "non-array context",
+                serde_json::json!({
+                    "@context": "https://www.w3.org/ns/credentials/v2",
+                    "issuanceDate": "2026-05-14T13:43:44Z"
+                })
+                .to_string(),
+                false,
+            ),
+            ("malformed JSON", "{".to_string(), false),
+        ];
+
+        for (name, vc_json, expected) in cases {
+            assert_eq!(is_legacy_vc(&vc_json), expected, "case: {name}");
+        }
+    }
+
+    #[tokio::test]
+    async fn test_legacy_vc_rejects_tampered_payload() {
+        let mut tampered: Value = serde_json::from_str(CAPTURED_LEGACY_ED25519_VC).unwrap();
+        tampered["credentialSubject"]["id"] = Value::String(
+            "urn:cid:bagb6qaq6edsd23d466wxytmkkdjqjfagkccwhtgetbfrkyqql3xdmgepe5s5k".to_string(),
+        );
+
+        let error = verify_vc(&tampered.to_string(), None)
+            .await
+            .expect_err("a modified legacy VC payload must not verify");
+        assert!(
+            error.to_string().contains("legacy VC verification failed"),
+            "unexpected error: {error}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_legacy_vc_rejects_corrupted_signature() {
+        let mut corrupted: Value = serde_json::from_str(CAPTURED_LEGACY_ED25519_VC).unwrap();
+        let jws = corrupted["proof"]["jws"].as_str().unwrap();
+        let mut corrupted_jws = jws[..jws.len() - 1].to_string();
+        corrupted_jws.push(if jws.ends_with('A') { 'B' } else { 'A' });
+        corrupted["proof"]["jws"] = Value::String(corrupted_jws);
+
+        let error = verify_vc(&corrupted.to_string(), None)
+            .await
+            .expect_err("a legacy VC with a corrupted signature must not verify");
+        assert!(
+            error.to_string().contains("legacy VC verification failed"),
+            "unexpected error: {error}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_legacy_vc_status_behavior() {
+        assert_eq!(
+            check_credential_status(CAPTURED_LEGACY_ED25519_VC, "did:key:not-consulted")
+                .await
+                .expect("legacy status checks should not perform network access"),
+            CredentialStatus {
+                revoked: None,
+                suspended: None,
+            }
+        );
+
+        let error = update_credential_status(
+            CAPTURED_LEGACY_ED25519_VC,
+            StatusPurpose::Revocation,
+            true,
+            "http://127.0.0.1:1",
+            "not-consulted",
+        )
+        .await
+        .expect_err("legacy status mutation must be rejected before network access");
+        assert_eq!(
+            error.to_string(),
+            "legacy VCs do not carry credentialStatus; nothing to update"
         );
     }
 
