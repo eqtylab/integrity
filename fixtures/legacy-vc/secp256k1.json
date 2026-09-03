@@ -1,0 +1,23 @@
+{
+  "@context": [
+    "https://www.w3.org/ns/credentials/v2",
+    "https://w3id.org/security/v2"
+  ],
+  "id": "urn:uuid:56b5e198-e00e-47ef-8cb3-6e5b01e6d495",
+  "type": [
+    "VerifiableCredential"
+  ],
+  "credentialSubject": {
+    "id": "urn:cid:bafkr4ibthuzk3zug7ghmx63yjqaiu6rx4hhfdv3453j5bodskgw57bx2ya"
+  },
+  "issuer": "did:key:zQ3shgVXZLaMzm5S5x7XzGUG6YFHFLtoEMiv9ao2Bqa7hGyg2",
+  "issuanceDate": "2026-09-02T22:48:21Z",
+  "proof": {
+    "type": "EcdsaSecp256k1Signature2019",
+    "proofPurpose": "assertionMethod",
+    "verificationMethod": "did:key:zQ3shgVXZLaMzm5S5x7XzGUG6YFHFLtoEMiv9ao2Bqa7hGyg2#zQ3shgVXZLaMzm5S5x7XzGUG6YFHFLtoEMiv9ao2Bqa7hGyg2",
+    "created": "2026-09-02T22:48:21Z",
+    "jws": "eyJhbGciOiJFUzI1NksiLCJjcml0IjpbImI2NCJdLCJiNjQiOmZhbHNlfQ..--YxotSBULuqwoY-bOdtakVKiia7HXXIlx47A9alRTgfm3nFaX_M3edBo-pvYc_PbYLfGC559GF5DX1DRwB77w"
+  },
+  "validFrom": "2026-09-02T22:48:21Z"
+}
