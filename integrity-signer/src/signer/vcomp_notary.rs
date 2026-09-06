@@ -53,6 +53,23 @@ impl VCompNotarySigner {
         Ok(did_doc)
     }
 
+    /// Whether the notary can serve keys and signatures yet.
+    ///
+    /// The notary answers `/v1/isReady` with 200 `{"status":"ready"}` once its
+    /// CoCo observer has emitted the session, and 503 (`{"status":"pending"}`)
+    /// until then; `system-only` notaries are always ready.
+    pub async fn is_ready(url: &str) -> Result<bool> {
+        let resp = reqwest::Client::new()
+            .get(format!("{url}/v1/isReady"))
+            .send()
+            .await?;
+        if !resp.status().is_success() {
+            return Ok(false);
+        }
+        let body: Value = resp.json().await?;
+        Ok(body.get("status").and_then(Value::as_str) == Some("ready"))
+    }
+
     /// Creates a new VCompNotarySigner by connecting to a verified computing notary service.
     ///
     /// # Arguments
@@ -65,6 +82,12 @@ impl VCompNotarySigner {
     /// A new `VCompNotarySigner` with the DID document and registration data from the service.
     pub async fn create(url: &str, pub_key: Option<String>) -> Result<Self> {
         let client = reqwest::Client::new();
+
+        // The notary 503s every endpoint below until its CoCo observer reaches
+        // READY, so confirm readiness before fetching keys.
+        if !Self::is_ready(url).await? {
+            bail!("VComp Notary at {url} is not ready (/v1/isReady)");
+        }
 
         let pub_key = if let Some(pub_key) = pub_key {
             pub_key
@@ -87,7 +110,7 @@ impl VCompNotarySigner {
         let did_doc = Self::did_doc_from_public_key(&pub_key)?;
 
         let response = client
-            .get(format!("{url}/get_dids"))
+            .get(format!("{url}/v1/get_dids"))
             .send()
             .await?
             .json::<Value>()
@@ -103,8 +126,8 @@ impl VCompNotarySigner {
             .and_then(|v| v.as_str())
             .map(String::from);
 
-        let request = client.get(format!("{url}/v1/did_registration"));
-        log::trace!("Downloading VCOMP DID Registration. {request:?}");
+        let request = client.get(format!("{url}/v1/credential"));
+        log::trace!("Downloading VCOMP credential manifest. {request:?}");
 
         let manifest = request.send().await?.json::<Value>().await?;
 
