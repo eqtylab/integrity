@@ -68,14 +68,22 @@ the legacy verifier before publishing.
 Changes are intentionally limited to dependency and compiler compatibility.
 No public APIs or VC verification behavior are changed.
 
+Each vendored directory keeps two manifest representations:
+
+- `Cargo.toml` is Cargo's normalized manifest with the local compatibility and
+  path changes described below.
+- `Cargo.toml.upstream` is a byte-for-byte copy of the release's original
+  `Cargo.toml.orig` from crates.io. It is reference material and is never used
+  as a Cargo manifest.
+
 ### Path-only crates
 
 The source code in `ssi` 0.7.0, `ssi-ucan` 0.1.1, `cacaos` 0.5.1, `libipld`
 0.14.0, `libipld-cbor` 0.14.0, `libipld-json` 0.14.0, and `libipld-macro`
-0.14.0 is unchanged from crates.io. Their normalized `Cargo.toml` files and,
-where present, `Cargo.toml.orig` files differ only by relative path declarations
-that connect the graph shown above. Dev-dependency edges to the same legacy
-IPLD crates are also local so isolated maintenance tests use one source identity.
+0.14.0 is unchanged from crates.io. Their normalized `Cargo.toml` files differ
+only by relative path declarations that connect the graph shown above.
+Dev-dependency edges to the same legacy IPLD crates are also local so isolated
+maintenance tests use one source identity.
 
 ### `ssi-vc` 0.2.1
 
@@ -95,22 +103,21 @@ The local copy differs from crates.io as follows:
 
 ### `cid` 0.8.6
 
-- `Cargo.toml` and `Cargo.toml.orig`: replace the `core2` 0.4 dependency and
-  `core2/alloc` feature with `no_std_io2` 0.8.1 equivalents.
+- `Cargo.toml`: replaces the `core2` 0.4 dependency and `core2/alloc` feature
+  with `no_std_io2` 0.8.1 equivalents.
 - `src/cid.rs` and `src/error.rs`: import `no_std_io2::io` in `no_std` builds.
 
 ### `multihash` 0.16.3
 
-- `Cargo.toml` and `Cargo.toml.orig`: replace the `core2` 0.4 dependency and
-  `core2/alloc` feature with `no_std_io2` 0.8.1 equivalents.
+- `Cargo.toml`: replaces the `core2` 0.4 dependency and `core2/alloc` feature
+  with `no_std_io2` 0.8.1 equivalents.
 - `src/error.rs`, `src/hasher_impl.rs`, and `src/multihash.rs`: use the
   equivalent `no_std_io2` error and I/O types in `no_std` builds.
 
 ### `libipld-core` 0.14.0
 
-- `Cargo.toml` and `Cargo.toml.orig`: replace the `core2` 0.4 dependency with
-  `no_std_io2` 0.8.1, preserving the `alloc` feature and disabled default
-  features.
+- `Cargo.toml`: replaces the `core2` 0.4 dependency with `no_std_io2` 0.8.1,
+  preserving the `alloc` feature and disabled default features.
 - `src/lib.rs`: import `no_std_io2::io` in `no_std` builds.
 - `src/codec.rs`: use explicit `Encode` trait dispatch. Rust 1.89 otherwise
   reports the old double-reference method call through
@@ -124,12 +131,19 @@ configurations remain supported.
 Registry checksum files are omitted because the manifest changes make the
 original crates.io checksums stale. Nested crate lockfiles are also omitted;
 the repository's root `Cargo.lock` is authoritative for its own builds.
+`Cargo.toml.orig` files are omitted because Cargo reserves that filename and
+rejects it during `cargo package`, including the package-list operation used by
+Nix tools such as Crane to vendor Git dependencies. The `.upstream` suffix is
+not reserved and passes that packaging flow. Cargo may generate its own
+`Cargo.toml.orig` inside a package archive; Crane already filters that generated
+file from its package list.
 
 ## Maintenance
 
 - Keep changes to vendored sources minimal and document every difference here.
-- When a crate includes both `Cargo.toml` and `Cargo.toml.orig`, keep their
-  dependency declarations aligned. Cargo builds the normalized `Cargo.toml`.
+- Keep `Cargo.toml.upstream` identical to the corresponding crates.io release.
+  Apply dependency changes only to the normalized `Cargo.toml`, and do not
+  restore the reserved `Cargo.toml.orig` filename.
 - Preserve the upstream version and relative path topology in each manifest.
 - Keep vendored crates in `workspace.exclude` and do not explicitly add `"."`
   to `workspace.members`.
