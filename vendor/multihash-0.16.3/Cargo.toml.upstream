@@ -17,7 +17,7 @@ resolver = "2"
 [features]
 default = ["std", "derive", "multihash-impl", "secure-hashes"]
 std = ["unsigned-varint/std", "multihash-derive/std", "alloc"]
-alloc = ["no_std_io2/alloc"]
+alloc = ["core2/alloc"]
 multihash-impl = ["derive"]
 derive = ["multihash-derive"]
 arb = ["quickcheck", "rand", "arbitrary"]
@@ -54,7 +54,7 @@ sha-3 = { version = "0.10.0", default-features = false, optional = true, package
 strobe-rs = { version = "0.7.0", default-features = false, optional = true }
 ripemd-rs = { package = "ripemd", version = "0.1.1", optional = true}
 
-no_std_io2 = { version = "0.8.1", default-features = false }
+core2 = { version = "0.4.0", default-features = false }
 
 [dev-dependencies]
 criterion = "0.3.3"
