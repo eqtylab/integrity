@@ -58,31 +58,40 @@ impl StatementTrait for VcStatement {
             refs.push(uri.as_str().to_owned());
         }
 
-        // include credential evidence
-        for ev in &self.credential.evidence {
-            // Custom evidence properties live in `extra_properties` after the
-            // v2 syntax migration.
-            for key in [
-                // `report` and `certificateChain` are used in everything but Azure
-                "report",
-                "certificateChain",
-                // `report` + the rest are used in TPM-based Azure attestation
-                "reportCertificateChain",
-                "tpmQuote",
-                "tpmQuoteSignature",
-                "tpmAKCertificate",
-                "tpmLog",
-                "azureBootLog",
-            ] {
-                if let Some(val) = ev.extra_properties.get(key) {
-                    if let Ok(serde_json::Value::String(id)) = serde_json::to_value(val) {
-                        refs.push(id);
-                    }
-                }
-            }
+        // Walk the whole credential for blob CIDs. Attestation VCs embed blob
+        // references in shapes that vary per attestation type (legacy
+        // `evidence[].report`/`certificateChain`/etc, or newer
+        // `credentialSubject.identity.*` nested objects for VComp hardware/
+        // workload attestations) -- rather than maintaining a per-shape
+        // allowlist of field names, collect any string value anywhere in the
+        // credential that looks like a CID URN.
+        if let Ok(value) = serde_json::to_value(&self.credential) {
+            collect_cid_urns(&value, &mut refs);
         }
 
         refs
+    }
+}
+
+/// Recursively collects every string value that looks like a `urn:cid:...` blob reference, anywhere in a JSON value.
+fn collect_cid_urns(value: &serde_json::Value, out: &mut Vec<String>) {
+    match value {
+        serde_json::Value::String(s) => {
+            if s.starts_with("urn:cid:") {
+                out.push(s.clone());
+            }
+        }
+        serde_json::Value::Array(items) => {
+            for item in items {
+                collect_cid_urns(item, out);
+            }
+        }
+        serde_json::Value::Object(map) => {
+            for item in map.values() {
+                collect_cid_urns(item, out);
+            }
+        }
+        _ => {}
     }
 }
 
@@ -248,6 +257,54 @@ mod tests {
             refs.contains(&"urn:uuid:12345678-1234-1234-1234-123456789012".to_string()),
             "Should reference the credential ID"
         );
+    }
+
+    #[tokio::test]
+    async fn referenced_cids_extracts_nested_identity_attestation_blobs() {
+        // Mirrors real VComp attestation credentials (e.g. VCompIntelTdxV1,
+        // CoCoPodVmV1), which embed blob CIDs under credentialSubject.identity
+        // rather than the legacy evidence[] array.
+        let vc_json = json!({
+            "@context": ["https://www.w3.org/ns/credentials/v2"],
+            "type": ["VerifiableCredential", "IdentityAttestation"],
+            "issuer": "did:key:z6Mkw2PvzC9DHXiYQHMDRwyxCCV9n4EDc6vqqp1uyi9nrwsP",
+            "validFrom": "2024-01-01T00:00:00Z",
+            "credentialSubject": {
+                "id": "did:key:tester",
+                "identity": {
+                    "type": "CoCoPodVmV1",
+                    "containers": [
+                        {"config": "urn:cid:bafkr4iconfigone0000000000000000000000000000000000000000000"},
+                        {"config": "urn:cid:bafkr4iconfigtwo0000000000000000000000000000000000000000000"}
+                    ],
+                    "initdata": "urn:cid:bafkr4iinitdata0000000000000000000000000000000000000000000",
+                    "metaStore": "urn:cid:bafkr4imetastore0000000000000000000000000000000000000000000"
+                }
+            }
+        });
+        let credential: JsonCredential = serde_json::from_value(vc_json).unwrap();
+
+        let statement = VcStatement::create(
+            credential,
+            "did:key:z6Mkw2PvzC9DHXiYQHMDRwyxCCV9n4EDc6vqqp1uyi9nrwsP".to_owned(),
+            Some("2024-06-27T21:40:37Z".to_owned()),
+        )
+        .await
+        .unwrap();
+
+        let refs = statement.referenced_cids();
+
+        for expected in [
+            "urn:cid:bafkr4iconfigone0000000000000000000000000000000000000000000",
+            "urn:cid:bafkr4iconfigtwo0000000000000000000000000000000000000000000",
+            "urn:cid:bafkr4iinitdata0000000000000000000000000000000000000000000",
+            "urn:cid:bafkr4imetastore0000000000000000000000000000000000000000000",
+        ] {
+            assert!(
+                refs.iter().any(|r| r == expected),
+                "expected {expected} in referenced_cids, got {refs:?}"
+            );
+        }
     }
 
     #[tokio::test]
