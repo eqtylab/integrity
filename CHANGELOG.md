@@ -9,7 +9,7 @@ the repository's Git tag version. The FFI ABI version is independent.
 Only plain `vX.Y.Z` tags receive versioned sections; candidate and unofficial
 tag changes stay under `Unreleased`.
 
-History covers tags from `v0.0.0` onward and was backfilled on 2026-09-09 from
+History covers tags from `v0.0.0` onward and was backfilled through 2026-09-10 from
 Git commit messages and diffs. Historical dates are the tagged commits' committer
 dates, not verified GitHub publication dates. Early Cargo package versions did
 not always match the Git tags; section versions follow the tags.
@@ -21,6 +21,15 @@ not always match the Git tags; section versions follow the tags.
 - A changelog and contributor instructions for documenting PRs and releases.
 - A release CI check requiring a matching changelog heading for stable tags
   before native FFI builds begin.
+
+## [0.0.17] - 2026-09-10
+
+### Fixed
+
+- Recursively discover `urn:cid:` blob references throughout VC statements,
+  including nested objects and arrays in `credentialSubject.identity`, so blobs
+  referenced by newer attestation schemas are included during resolution.
+  ([#46](https://github.com/eqtylab/integrity/pull/46))
 
 ## [0.0.16] - 2026-09-06
 
@@ -259,7 +268,8 @@ not always match the Git tags; section versions follow the tags.
 - Correct shell commands used to stage native release artifacts.
   ([#4](https://github.com/eqtylab/integrity/pull/4))
 
-[Unreleased]: https://github.com/eqtylab/integrity/compare/v0.0.16...main
+[Unreleased]: https://github.com/eqtylab/integrity/compare/v0.0.17...main
+[0.0.17]: https://github.com/eqtylab/integrity/compare/v0.0.16...v0.0.17
 [0.0.16]: https://github.com/eqtylab/integrity/compare/v0.0.15...v0.0.16
 [0.0.15]: https://github.com/eqtylab/integrity/compare/v0.0.14...v0.0.15
 [0.0.14]: https://github.com/eqtylab/integrity/compare/v0.0.13...v0.0.14
