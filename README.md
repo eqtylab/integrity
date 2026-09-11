@@ -4,6 +4,9 @@ Library for data integrity, signing, verifiable credentials, and content-address
 
 This crate provides tools for creating tamper-evident data structures using cryptographic hashing, digital signatures, and W3C standards like Verifiable Credentials and JSON-LD.
 
+See [CHANGELOG.md](CHANGELOG.md) for release history and
+[CONTRIBUTING.md](CONTRIBUTING.md) for changelog and release instructions.
+
 ## Feature Flags
 
 Signer and blob backends are now split into dedicated workspace crates and are feature-gated.
@@ -59,7 +62,8 @@ GitHub Actions can publish prebuilt native FFI artifacts for each supported syst
 Workflow: `.github/workflows/release-native-ffi.yml`
 
 - Push a version tag like `v0.3.0` to build and attach release assets to that GitHub Release.
-- Use `workflow_dispatch` to run the build matrix and collect workflow artifacts without publishing a Release.
+- Use `workflow_dispatch` with the default `dry_run: true` to build and collect artifacts without publishing a Release.
+- Stable tags require a matching version heading in `CHANGELOG.md` before builds begin.
 
 Build native FFI artifacts locally:
 
