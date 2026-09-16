@@ -64,6 +64,7 @@ pre-commit:
 # Run unit tests with cargo
 test:
     cargo test --workspace
+    cargo test -p integrity-signer --features signer-auth-service,signer-p256 --test auth_bound
 
 # Run WASM tests in Node.js and browsers (Chrome, Firefox) Note: for macOS test Safari with --safari
 test-wasm:

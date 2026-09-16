@@ -10,6 +10,8 @@ use serde::{Deserialize, Serialize};
 pub mod akv_signer;
 #[cfg(feature = "signer-auth-service")]
 pub mod auth_service_signer;
+#[cfg(feature = "signer-auth-service")]
+pub mod bound_auth_service_signer;
 #[cfg(feature = "signer-ed25519")]
 pub mod ed25519_signer;
 #[cfg(any(
@@ -31,6 +33,8 @@ pub mod yubikey_signer;
 pub use akv_signer::{AkvConfig, AkvSigner};
 #[cfg(feature = "signer-auth-service")]
 pub use auth_service_signer::AuthServiceSigner;
+#[cfg(feature = "signer-auth-service")]
+pub use bound_auth_service_signer::{AuthSigningPurpose, BoundAuthServiceSigner};
 #[cfg(feature = "signer-ed25519")]
 pub use ed25519_signer::Ed25519Signer;
 #[cfg(feature = "signer-p256")]
@@ -67,6 +71,8 @@ pub enum SignerType {
     P256(P256Signer),
     #[cfg(feature = "signer-auth-service")]
     AuthService(AuthServiceSigner),
+    #[cfg(feature = "signer-auth-service")]
+    BoundAuthService(BoundAuthServiceSigner),
     #[cfg(feature = "signer-vcomp-notary")]
     VCompNotarySigner(VCompNotarySigner),
     #[cfg(feature = "signer-akv")]
@@ -86,6 +92,8 @@ impl fmt::Display for SignerType {
             Self::P256(_) => write!(_f, "p256"),
             #[cfg(feature = "signer-auth-service")]
             Self::AuthService(_) => write!(_f, "auth_service"),
+            #[cfg(feature = "signer-auth-service")]
+            Self::BoundAuthService(_) => write!(_f, "bound_auth_service"),
             #[cfg(feature = "signer-vcomp-notary")]
             Self::VCompNotarySigner(_) => write!(_f, "vcomp_notary"),
             #[cfg(feature = "signer-akv")]
@@ -117,6 +125,8 @@ impl SignerType {
             Self::P256(signer) => signer.sign(_data).await,
             #[cfg(feature = "signer-auth-service")]
             Self::AuthService(signer) => signer.sign(_data).await,
+            #[cfg(feature = "signer-auth-service")]
+            Self::BoundAuthService(signer) => signer.sign(_data).await,
             #[cfg(feature = "signer-vcomp-notary")]
             Self::VCompNotarySigner(signer) => signer.sign(_data).await,
             #[cfg(feature = "signer-akv")]
@@ -146,6 +156,8 @@ impl SignerType {
             Self::P256(signer) => signer.did_doc.clone(),
             #[cfg(feature = "signer-auth-service")]
             Self::AuthService(signer) => signer.did_doc.clone(),
+            #[cfg(feature = "signer-auth-service")]
+            Self::BoundAuthService(signer) => signer.did_document().clone(),
             #[cfg(feature = "signer-vcomp-notary")]
             Self::VCompNotarySigner(signer) => signer.did_doc.clone(),
             #[cfg(feature = "signer-akv")]

@@ -93,3 +93,8 @@ Available recipes:
     test          # Run unit tests with cargo
     test-wasm     # Run WASM tests in Node.js and browsers (Chrome, Firefox) Note: for macOS test Safari with --safari
 ```
+
+### Version-bound Auth signing
+
+For the opt-in Guardian F3 signing contract, legacy compatibility and release
+requirements, see [Auth signing](docs/auth-signing.md).

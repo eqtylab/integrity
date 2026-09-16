@@ -60,3 +60,7 @@ slh-dsa = { version = "0.0.3", optional = true }
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "net"], optional = true }
 yubikey = { version = "0.8.0", features = ["untested"], optional = true }
 x509-cert = { version = "0.2.5", optional = true }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "time"] }
+wiremock = "0.6"
