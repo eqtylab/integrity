@@ -1,10 +1,15 @@
 # Contributing to Integrity
 
+Integrity is open source, but we are not accepting outside contributions at this
+time. Please do not submit external pull requests.
+
+The guidance below is for the internal maintainers working on changes and releases.
+
 Build prerequisites and development checks are in [README.md](README.md#development).
 Maintain [CHANGELOG.md](CHANGELOG.md) as part of PR review and release preparation,
 following [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## Pull requests
+## Internal pull requests
 
 Add concise bullets under `Unreleased` for changes affecting users: Rust APIs,
 feature flags, signing and verification, credential formats, JSON-LD contexts,
