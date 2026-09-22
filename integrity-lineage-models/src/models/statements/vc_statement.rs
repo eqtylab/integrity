@@ -1,9 +1,11 @@
+use std::collections::HashMap;
+
 use anyhow::Result;
 use integrity_jsonld::ig_common_context_link;
 use serde::{Deserialize, Serialize};
 use ssi::claims::vc::v2::syntax::JsonCredential;
 
-use super::{compute_cid, format_timestamp, get_jsonld_filename, StatementTrait};
+use super::{compute_cid_with_contexts, format_timestamp, get_jsonld_filename, StatementTrait};
 
 /// Records a W3C Verifiable Credential
 ///
@@ -112,6 +114,21 @@ impl VcStatement {
         registered_by: String,
         timestamp: Option<String>,
     ) -> Result<Self> {
+        Self::create_with_contexts(credential, registered_by, timestamp, None).await
+    }
+
+    /// [`Self::create`] with caller-supplied JSON-LD context documents.
+    ///
+    /// The statement CID is computed over the embedded credential too, so a
+    /// credential whose `@context` names a document outside the static bundle
+    /// needs that document supplied here (keyed by URL) - the same map the
+    /// credential was signed with via `integrity_vc::sign_vc`.
+    pub async fn create_with_contexts(
+        credential: JsonCredential,
+        registered_by: String,
+        timestamp: Option<String>,
+        contexts: Option<HashMap<String, String>>,
+    ) -> Result<Self> {
         let type_ = "CredentialRegistration".to_owned();
 
         let statement = Self {
@@ -124,7 +141,7 @@ impl VcStatement {
         };
 
         // compute real CID and set
-        let id = compute_cid(&statement).await?;
+        let id = compute_cid_with_contexts(&statement, contexts).await?;
         let statement = Self { id, ..statement };
 
         Ok(statement)
@@ -188,6 +205,83 @@ mod tests {
         assert!(
             statement.id.starts_with("urn:cid:"),
             "ID should be a CID URN"
+        );
+    }
+
+    /// A credential whose `@context` names a document the static bundle does not
+    /// carry: `create` cannot resolve it, `create_with_contexts` can when handed it.
+    const CUSTOM_CONTEXT_URL: &str = "https://example.com/ctx/v1";
+
+    fn create_custom_context_credential() -> JsonCredential {
+        let vc_json = json!({
+            "@context": [
+                "https://www.w3.org/ns/credentials/v2",
+                CUSTOM_CONTEXT_URL
+            ],
+            "type": ["VerifiableCredential", "ExampleCredential"],
+            "id": "urn:uuid:12345678-1234-1234-1234-123456789012",
+            "issuer": "did:key:z6Mkw2PvzC9DHXiYQHMDRwyxCCV9n4EDc6vqqp1uyi9nrwsP",
+            "validFrom": "2024-01-01T00:00:00Z",
+            "credentialSubject": {
+                "id": "urn:cid:bafkr4ibthuzk3zug7ghmx63yjqaiu6rx4hhfdv3453j5bodskgw57bx2ya",
+                "example": "value"
+            }
+        });
+
+        serde_json::from_value(vc_json).unwrap()
+    }
+
+    fn custom_contexts() -> HashMap<String, String> {
+        let doc = json!({
+            "@context": {
+                "@protected": true,
+                "ExampleCredential": "https://example.com/terms/ExampleCredential",
+                "example": "https://example.com/terms/example"
+            }
+        });
+        HashMap::from([(CUSTOM_CONTEXT_URL.to_owned(), doc.to_string())])
+    }
+
+    #[tokio::test]
+    async fn create_fails_on_unresolvable_credential_context() {
+        let credential = create_custom_context_credential();
+        let registered_by = "did:key:z6Mkw2PvzC9DHXiYQHMDRwyxCCV9n4EDc6vqqp1uyi9nrwsP";
+
+        let result = VcStatement::create(credential, registered_by.to_owned(), None).await;
+
+        assert!(
+            result.is_err(),
+            "a context outside the static bundle must not resolve without being supplied"
+        );
+    }
+
+    #[tokio::test]
+    async fn create_with_contexts_resolves_supplied_context() {
+        let credential = create_custom_context_credential();
+        let registered_by = "did:key:z6Mkw2PvzC9DHXiYQHMDRwyxCCV9n4EDc6vqqp1uyi9nrwsP";
+        let timestamp = "2024-06-27T21:40:37Z";
+
+        let create = || {
+            VcStatement::create_with_contexts(
+                create_custom_context_credential(),
+                registered_by.to_owned(),
+                Some(timestamp.to_owned()),
+                Some(custom_contexts()),
+            )
+        };
+        let statement = create().await.unwrap();
+        let again = create().await.unwrap();
+
+        assert!(
+            statement.id.starts_with("urn:cid:"),
+            "ID should be a CID URN"
+        );
+        assert_eq!(statement.id, again.id, "CID must be deterministic");
+        assert_eq!(statement.type_, "CredentialRegistration");
+        assert_eq!(
+            serde_json::to_value(&statement.credential).unwrap(),
+            serde_json::to_value(&credential).unwrap(),
+            "credential is embedded unchanged"
         );
     }
 

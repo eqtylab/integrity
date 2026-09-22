@@ -18,6 +18,10 @@ not always match the Git tags; section versions follow the tags.
 
 ### Added
 
+- `VcStatement::create_with_contexts` and `compute_cid_with_contexts`, which take
+  caller-supplied JSON-LD context documents so a statement can embed a credential
+  whose `@context` is not in the static bundle (such as the vc-schema
+  `https://ns.eqtylab.io/vc/...` contexts). `create` and `compute_cid` are unchanged.
 - A changelog and contributor instructions for documenting PRs and releases.
 - A release CI check requiring a matching changelog heading for stable tags
   before native FFI builds begin.
