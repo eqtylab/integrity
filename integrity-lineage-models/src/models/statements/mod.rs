@@ -37,6 +37,8 @@ pub use vc_statement::VcStatement;
 /// Verifiable credential statement for W3C VCs
 pub mod vc_statement;
 
+use std::collections::HashMap;
+
 use anyhow::{anyhow, bail, Result};
 use chrono::{SecondsFormat, Utc};
 use integrity_jsonld::to_nquads::jsonld_to_nquads;
@@ -116,6 +118,24 @@ pub async fn compute_cid<S>(statement: &S) -> Result<String>
 where
     S: StatementTrait + Serialize,
 {
+    compute_cid_with_contexts(statement, None).await
+}
+
+/// [`compute_cid`] with caller-supplied JSON-LD context documents, keyed by URL.
+///
+/// The CID covers the canonicalized RDF of the whole statement, including any
+/// document it embeds (a `CredentialRegistration` carries the full credential),
+/// so every `@context` reachable from the statement must resolve. Contexts that
+/// are not in the static bundle - a still-evolving vocabulary such as the
+/// vc-schema `https://ns.eqtylab.io/vc/...` documents - are passed here, the
+/// same map `integrity_vc::sign_vc` takes. Nothing is fetched over the network.
+pub async fn compute_cid_with_contexts<S>(
+    statement: &S,
+    contexts: Option<HashMap<String, String>>,
+) -> Result<String>
+where
+    S: StatementTrait + Serialize,
+{
     let mut statement = serde_json::to_value(statement)?;
 
     let statement_stripped_id = {
@@ -127,7 +147,7 @@ where
         statement
     };
 
-    let nquads = jsonld_to_nquads(statement_stripped_id, None).await?;
+    let nquads = jsonld_to_nquads(statement_stripped_id, contexts).await?;
     let canon_nquads = canonicalize_nquads(nquads)?;
 
     let cid = blake3_cid(multicodec::RDFC_1_0, canon_nquads.as_bytes())?;

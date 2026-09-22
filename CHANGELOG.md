@@ -16,8 +16,14 @@ not always match the Git tags; section versions follow the tags.
 
 ## [Unreleased]
 
+## [0.0.18] - 2026-09-22
+
 ### Added
 
+- `VcStatement::create_with_contexts` and `compute_cid_with_contexts`, which take
+  caller-supplied JSON-LD context documents so a statement can embed a credential
+  whose `@context` is not in the static bundle (such as the vc-schema
+  `https://ns.eqtylab.io/vc/...` contexts). `create` and `compute_cid` are unchanged.
 - A changelog and contributor instructions for documenting PRs and releases.
 - A release CI check requiring a matching changelog heading for stable tags
   before native FFI builds begin.
@@ -268,7 +274,8 @@ not always match the Git tags; section versions follow the tags.
 - Correct shell commands used to stage native release artifacts.
   ([#4](https://github.com/eqtylab/integrity/pull/4))
 
-[Unreleased]: https://github.com/eqtylab/integrity/compare/v0.0.17...main
+[Unreleased]: https://github.com/eqtylab/integrity/compare/v0.0.18...main
+[0.0.18]: https://github.com/eqtylab/integrity/compare/v0.0.17...v0.0.18
 [0.0.17]: https://github.com/eqtylab/integrity/compare/v0.0.16...v0.0.17
 [0.0.16]: https://github.com/eqtylab/integrity/compare/v0.0.15...v0.0.16
 [0.0.15]: https://github.com/eqtylab/integrity/compare/v0.0.14...v0.0.15
