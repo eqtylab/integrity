@@ -23,11 +23,13 @@ not always match the Git tags; section versions follow the tags.
   so a credential that has since expired fails without its signature being checked;
   `verify_vc_at` at a time inside its validity period, such as its proof's `created`
   time, checks the signature for real. `verify_vc` is unchanged.
+  ([#50](https://github.com/eqtylab/integrity/pull/50))
 - `integrity-vc`: `VcVerificationError`, the reason `verify_vc` or `verify_vc_at`
   did not accept a credential: `Expired`, `NotYetValid`, `InvalidClaims`,
   `InvalidSignature`, `InvalidProof`, `Unverifiable` (the proof could not be
   checked at all) or `Legacy`. It is carried inside the returned `anyhow::Error`
   and recovered with `downcast_ref`; the error messages keep their prefixes.
+  ([#50](https://github.com/eqtylab/integrity/pull/50))
 
 ## [0.0.18] - 2026-09-22
 
