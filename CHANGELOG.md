@@ -21,8 +21,8 @@ not always match the Git tags; section versions follow the tags.
 - `integrity-vc`: `verify_vc_at`, which verifies a credential as of a given time
   instead of now. `verify_vc` validates `validFrom` / `validUntil` before the proof,
   so a credential that has since expired fails without its signature being checked;
-  `verify_vc_at` at a time inside its validity period, such as its proof's `created`
-  time, checks the signature for real. `verify_vc` is unchanged.
+  `verify_vc_at` at a time inside its validity period checks the signature for real.
+  `verify_vc` is unchanged.
   ([#50](https://github.com/eqtylab/integrity/pull/50))
 - `integrity-vc`: `VcVerificationError`, the reason `verify_vc` or `verify_vc_at`
   did not accept a credential: `Expired`, `NotYetValid`, `InvalidClaims`,

@@ -391,11 +391,14 @@ impl From<Invalid> for VcVerificationError {
 /// `validFrom` / `validUntil` are judged against. The claims are validated
 /// before the proof, so under [`verify_vc`] a credential that has since
 /// expired fails without its signature ever being checked. Verifying at a
-/// time inside its validity period, such as its proof's `created` time,
-/// answers whether it was genuinely signed and in force then.
+/// time inside its validity period answers whether it was genuinely signed
+/// and in force then.
 ///
 /// The caller chooses `at`, and the result is only as meaningful as that
-/// choice. Pre-ssi-0.16 credentials, which take the legacy path, are
+/// choice. The proof's `created` is a natural one when it falls inside the
+/// period, but not always: [`sign_vc`] backdates `created` by an hour, so a
+/// credential given its own `validFrom` of the signing time has a proof
+/// created before that; its `validFrom` is the time to use then. Pre-ssi-0.16 credentials, which take the legacy path, are
 /// verified exactly as [`verify_vc`] verifies them: `at` does not reach it.
 #[cfg(not(target_arch = "wasm32"))]
 pub async fn verify_vc_at(
