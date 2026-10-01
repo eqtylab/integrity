@@ -981,8 +981,11 @@ async fn verify_legacy_vc(vc_json: &str) -> Result<String> {
     use did_method_key_legacy::DIDKey;
     use ssi_legacy::vc::Credential;
 
-    let vc = Credential::from_json_unsigned(vc_json)
-        .map_err(|e| anyhow!("failed to parse legacy VC: {e}"))?;
+    // A credential that does not parse is malformed, as on the current path; a
+    // loader built from the bundled contexts failing is ours, and stays untyped.
+    let vc = Credential::from_json_unsigned(vc_json).map_err(|e| {
+        VcVerificationError::InvalidProof(format!("not a well-formed legacy credential: {e}"))
+    })?;
 
     let mut loader = ssi_legacy::jsonld::ContextLoader::empty()
         .with_context_map_from(legacy_context_overrides())
@@ -1864,6 +1867,14 @@ mod tests {
         assert!(matches!(
             reason(verify_vc_at(&unknown_context, None, now).await),
             VcVerificationError::Unverifiable(_)
+        ));
+
+        // A legacy credential that does not parse is malformed too.
+        let mut malformed: Value = serde_json::from_str(CAPTURED_LEGACY_ED25519_VC).unwrap();
+        malformed["proof"]["jws"] = Value::from(123);
+        assert!(matches!(
+            reason(verify_vc(&malformed.to_string(), None).await),
+            VcVerificationError::InvalidProof(_)
         ));
 
         // A rejected legacy credential says when `at` was not applied.
