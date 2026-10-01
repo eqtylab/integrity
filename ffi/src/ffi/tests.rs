@@ -143,6 +143,57 @@ fn ffi_vc_issue_and_verify_smoke() {
     assert!(verify_result.contains("VC verification result"));
     assert!(is_valid);
 
+    // ig_vc_verify_at: accepted now with no reason; altered, it says why.
+    let mut reason_ptr = ptr::null_mut();
+    let status = vc::ig_vc_verify_at(
+        runtime_handle,
+        vc_json_c.as_ptr(),
+        ptr::null(),
+        ptr::null(),
+        &mut verify_result_ptr,
+        &mut is_valid,
+        &mut reason_ptr,
+        &mut err_out,
+    );
+    assert_ok(status, err_out);
+    take_owned_c_string(verify_result_ptr);
+    assert!(reason_ptr.is_null());
+
+    let mut altered = issued_vc.clone();
+    altered["credentialSubject"]["id"] =
+        Value::String("did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK".into());
+    let altered_c = cstring(&altered.to_string());
+    let at = cstring(issued_vc["validFrom"].as_str().expect("validFrom"));
+    let status = vc::ig_vc_verify_at(
+        runtime_handle,
+        altered_c.as_ptr(),
+        ptr::null(),
+        at.as_ptr(),
+        &mut verify_result_ptr,
+        &mut is_valid,
+        &mut reason_ptr,
+        &mut err_out,
+    );
+    assert_eq!(status, IgStatus::VerificationFailed);
+    assert_eq!(take_owned_c_string(reason_ptr), "invalid_signature");
+    take_owned_c_string(err_out);
+    err_out = ptr::null_mut();
+
+    let bad_at = cstring("yesterday");
+    let status = vc::ig_vc_verify_at(
+        runtime_handle,
+        vc_json_c.as_ptr(),
+        ptr::null(),
+        bad_at.as_ptr(),
+        &mut verify_result_ptr,
+        &mut is_valid,
+        &mut reason_ptr,
+        &mut err_out,
+    );
+    assert_eq!(status, IgStatus::InvalidInput);
+    assert!(reason_ptr.is_null());
+    take_owned_c_string(err_out);
+
     signer::ig_signer_free(signer_handle);
     runtime::ig_runtime_free(runtime_handle);
 }
@@ -506,7 +557,7 @@ fn ffi_lineage_statement_create_did_regular_smoke() {
 #[test]
 fn ffi_versions_smoke() {
     assert_eq!(super::version::ig_abi_version_major(), 0);
-    assert_eq!(super::version::ig_abi_version_minor(), 4);
+    assert_eq!(super::version::ig_abi_version_minor(), 5);
 
     let mut err_out = ptr::null_mut();
     let mut version_ptr = ptr::null_mut();
@@ -514,5 +565,5 @@ fn ffi_versions_smoke() {
     assert_ok(status, err_out);
 
     let version = take_owned_c_string(version_ptr);
-    assert_eq!(version, "0.4.0");
+    assert_eq!(version, "0.5.0");
 }

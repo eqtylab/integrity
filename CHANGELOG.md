@@ -16,6 +16,37 @@ not always match the Git tags; section versions follow the tags.
 
 ## [Unreleased]
 
+### Added
+
+- `integrity-vc`: `verify_vc_at`, which verifies a credential as of a given time
+  instead of now. `verify_vc` validates `validFrom` / `validUntil` before the proof,
+  so a credential that has since expired fails without its signature being checked;
+  `verify_vc_at` at a time inside its validity period checks the signature for real.
+  `verify_vc` is unchanged.
+  ([#50](https://github.com/eqtylab/integrity/pull/50))
+- `integrity-vc`: `VcVerificationError`, the reason `verify_vc` or `verify_vc_at`
+  did not accept a credential: `Expired`, `NotYetValid`, `InvalidClaims`,
+  `InvalidSignature`, `InvalidProof`, `Unverifiable` (the proof could not be
+  checked at all) or `Legacy`, with a stable `code()`. It is `#[non_exhaustive]`,
+  carried inside the returned `anyhow::Error` and recovered with `downcast_ref`.
+  ([#50](https://github.com/eqtylab/integrity/pull/50))
+- FFI: `ig_vc_verify_at`, `ig_vc_verify` with a check time (`at_rfc3339`) and a
+  reason code on failure (`out_reason`). Advance the FFI ABI from `0.4.0` to
+  `0.5.0`. ([#50](https://github.com/eqtylab/integrity/pull/50))
+
+### Changed
+
+- `integrity-vc`: a claim or proof failure's error message keeps its prefix, but
+  what follows is no longer ssi's Debug output: `invalid VC proof: Claims(Expired
+  { .. })` now reads `invalid VC proof: expired: valid until …, judged at …`.
+  Match on `VcVerificationError` rather than the message.
+  ([#50](https://github.com/eqtylab/integrity/pull/50))
+- FFI: `ig_vc_verify`'s status for a credential that does not verify comes from
+  its `VcVerificationError`: `IG_STATUS_VERIFICATION_FAILED` for every verdict
+  (before, a bad signature or an expired credential could read
+  `IG_STATUS_INVALID_INPUT`), and `IG_STATUS_NOT_SUPPORTED` when it could not be
+  checked at all. ([#50](https://github.com/eqtylab/integrity/pull/50))
+
 ## [0.0.18] - 2026-09-22
 
 ### Added

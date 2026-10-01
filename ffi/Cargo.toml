@@ -34,6 +34,7 @@ signer-all = ["integrity-signer/signer-all"]
 
 [dependencies]
 anyhow = { version = "1", features = ["backtrace"] }
+chrono = { version = "0.4.37", default-features = false }
 integrity = { path = "..", default-features = false, features = ["cid", "dsse", "intoto-attestation", "lineage", "model-signing", "sigstore", "vc"] }
 integrity-blob = { path = "../integrity-blob", default-features = false }
 integrity-signer = { path = "../integrity-signer", default-features = false }
