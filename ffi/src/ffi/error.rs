@@ -54,6 +54,14 @@ impl FfiError {
 }
 
 fn classify_anyhow(err: &anyhow::Error) -> IgStatus {
+    // A credential's verdict is read from its typed reason, not its message.
+    if let Some(reason) = err.downcast_ref::<crate::vc::VcVerificationError>() {
+        return match reason {
+            crate::vc::VcVerificationError::Unverifiable(_) => IgStatus::NotSupported,
+            _ => IgStatus::VerificationFailed,
+        };
+    }
+
     if err.downcast_ref::<serde_json::Error>().is_some() {
         return IgStatus::JsonError;
     }

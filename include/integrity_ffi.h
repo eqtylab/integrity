@@ -186,6 +186,22 @@ IgStatus ig_vc_verify(
     bool *out_valid,
     char **err_out
 );
+/* Like ig_vc_verify, but judges validFrom / validUntil at `at_rfc3339` (an RFC
+ * 3339 time; NULL means now). On failure, `*out_reason` (if `out_reason` is not
+ * NULL) is a reason code to free with ig_string_free: "expired",
+ * "not_yet_valid", "invalid_claims", "invalid_signature", "invalid_proof",
+ * "unverifiable" or "legacy_rejected"; NULL when the failure is not a verdict on
+ * the credential. On success it is NULL. */
+IgStatus ig_vc_verify_at(
+    const IgRuntimeHandle *runtime,
+    const char *credential_json,
+    const char *contexts_json,
+    const char *at_rfc3339,
+    char **out_verify_result_json,
+    bool *out_valid,
+    char **out_reason,
+    char **err_out
+);
 
 IgStatus ig_intoto_sign_statement(
     const IgRuntimeHandle *runtime,

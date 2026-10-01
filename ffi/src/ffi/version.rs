@@ -6,8 +6,9 @@ use crate::ffi::{
 };
 
 // 0.4.0: `ig_vc_sign` and `ig_vc_verify` gained a `contexts_json` parameter.
+// 0.5.0: `ig_vc_verify_at`.
 const ABI_VERSION_MAJOR: u32 = 0;
-const ABI_VERSION_MINOR: u32 = 4;
+const ABI_VERSION_MINOR: u32 = 5;
 const ABI_VERSION_PATCH: u32 = 0;
 
 #[no_mangle]
