@@ -18,7 +18,7 @@ the legacy VC implementation, so the affected versions are patched locally.
 | `ssi` | [0.7.0](https://crates.io/crates/ssi/0.7.0) | Entry point for legacy VC parsing and verification. It is the only vendored crate referenced directly by first-party code. |
 | `ssi-vc` | [0.2.1](https://crates.io/crates/ssi-vc/0.2.1) | Implements VCs and Verifiable Presentations for `ssi` 0.7. It requires compatibility changes for the current HTTP dependency graph and Rust toolchain. |
 | `ssi-ucan` | [0.1.1](https://crates.io/crates/ssi-ucan/0.1.1) | An unconditional `ssi` 0.7 dependency and a second route into `libipld` 0.14. |
-| `cacaos` | [0.5.1](https://crates.io/crates/cacaos/0.5.1) | An `ssi-vc` dependency and a third route into `libipld` 0.14. |
+| `cacaos` | [0.5.1](https://crates.io/crates/cacaos/0.5.1) | An `ssi-vc` dependency and a third route into `libipld` 0.14. Its `lib.rs` allows one lint that current Rust denies in the `DagCbor` derive output; see below. |
 | `libipld` | [0.14.0](https://crates.io/crates/libipld/0.14.0) | Aggregates the legacy IPLD core, codecs, macros, and multihash implementation. |
 | `libipld-cbor` | [0.14.0](https://crates.io/crates/libipld-cbor/0.14.0) | DAG-CBOR support enabled by all three legacy IPLD consumers. |
 | `libipld-json` | [0.14.0](https://crates.io/crates/libipld-json/0.14.0) | DAG-JSON support enabled by `ssi-ucan`. |
@@ -78,12 +78,19 @@ Each vendored directory keeps two manifest representations:
 
 ### Path-only crates
 
-The source code in `ssi` 0.7.0, `ssi-ucan` 0.1.1, `cacaos` 0.5.1, `libipld`
+The source code in `ssi` 0.7.0, `ssi-ucan` 0.1.1, `libipld`
 0.14.0, `libipld-cbor` 0.14.0, `libipld-json` 0.14.0, and `libipld-macro`
 0.14.0 is unchanged from crates.io. Their normalized `Cargo.toml` files differ
 only by relative path declarations that connect the graph shown above.
 Dev-dependency edges to the same legacy IPLD crates are also local so isolated
 maintenance tests use one source identity.
+
+### `cacaos` 0.5.1
+
+- `src/lib.rs`: allows `dependency_on_unit_never_type_fallback`. The
+  `DagCbor` derive expands to code that Rust 1.89 and later reject as a
+  deny-by-default future-incompatibility lint; the generated code behaves as
+  before.
 
 ### `ssi-vc` 0.2.1
 

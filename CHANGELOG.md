@@ -16,6 +16,20 @@ not always match the Git tags; section versions follow the tags.
 
 ## [Unreleased]
 
+### Security
+
+- Clears the open Trivy findings on `aws-smithy-json` (CVE-2026-18140, now 0.62.7)
+  and `hickory-resolver` (GHSA-5j98-2g5x-46v6, GHSA-6w6g-hm98-mhgm). `iroh-blobs`
+  moves from 0.100 to 0.103, which brings iroh 1.x and drops the pinned
+  `hickory-resolver` beta; the aws crates move to releases that include the fix.
+
+### Changed
+
+- The pinned Rust toolchain moves from 1.89.0 to 1.94.1 (the fixed aws crates need
+  1.94.1), and the `rust-overlay` input in `flake.lock` is updated so the Nix shell
+  provides it. The vendored `cacaos` allows `dependency_on_unit_never_type_fallback`,
+  which current Rust denies in its `DagCbor` derive output.
+
 ## [0.0.18] - 2026-09-22
 
 ### Added
