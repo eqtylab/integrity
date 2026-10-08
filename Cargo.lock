@@ -4387,6 +4387,7 @@ name = "integrity-ffi"
 version = "0.0.18"
 dependencies = [
  "anyhow",
+ "chrono",
  "hex",
  "integrity",
  "integrity-blob",

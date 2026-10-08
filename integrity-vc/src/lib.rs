@@ -22,7 +22,8 @@ use ssi::{
     claims::{
         data_integrity::{AnySuite, CryptographicSuite, DataIntegrity, ProofOptions},
         vc::v2::syntax::JsonCredential,
-        SignatureEnvironment, VerificationParameters,
+        Invalid, InvalidClaims, InvalidProof, ProofValidationError, SignatureEnvironment,
+        VerificationParameters,
     },
     dids::{AnyDidMethod, VerificationMethodDIDResolver},
     verification_methods::{AnyMethod, ProofPurpose},
@@ -292,24 +293,284 @@ pub async fn sign_vc(
 /// against a partial vocabulary. It is ignored for pre-ssi-0.16 credentials,
 /// which resolve against their own pinned documents.
 ///
-/// Returns a human-readable summary on success.
+/// Returns a human-readable summary on success. When the credential is not
+/// accepted, the error carries a [`VcVerificationError`] saying why; recover it
+/// with `err.downcast_ref::<VcVerificationError>()` rather than matching on the
+/// message.
 #[cfg(not(target_arch = "wasm32"))]
 pub async fn verify_vc(vc_json: &str, contexts: Option<HashMap<String, String>>) -> Result<String> {
+    verify_vc_with_date_time(vc_json, contexts, None).await
+}
+
+/// Why [`verify_vc`] or [`verify_vc_at`] did not accept a credential.
+///
+/// It travels inside the returned `anyhow::Error`, so the functions' signatures
+/// are unchanged; `err.downcast_ref::<VcVerificationError>()` recovers it, and
+/// [`code`](Self::code) gives a stable reason code. The messages keep their
+/// prefixes (`invalid VC proof:`, `verification error:`, `legacy VC verification
+/// failed:`), but what follows a claim or proof failure's prefix is new text,
+/// no longer ssi's Debug output: `Claims(Expired { .. })` now reads `expired:
+/// valid until …, judged at …`. Match on the variant, not the message. ssi
+/// reports an unsupported suite, a context that did not load and a key that did
+/// not resolve all as one untyped error, so `UnsupportedSuite`,
+/// `UnresolvedContext` and `UnresolvedKey` are recognised from the start of its
+/// message; one that is not recognised is `Unverifiable`. Errors
+/// that say nothing about the credential itself, such as a caller-supplied
+/// context that does not parse, are not of this type.
+#[cfg(not(target_arch = "wasm32"))]
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum VcVerificationError {
+    /// `validUntil` is before the time the credential was judged at. The claims
+    /// are validated before the proof, so the signature was not checked.
+    Expired {
+        /// The credential's `validUntil`.
+        valid_until: DateTime<Utc>,
+        /// The time it was judged at: now, or the `at` of [`verify_vc_at`].
+        at: DateTime<Utc>,
+    },
+    /// `validFrom` is after the time the credential was judged at. The
+    /// signature was not checked.
+    NotYetValid {
+        /// The credential's `validFrom`.
+        valid_from: DateTime<Utc>,
+        /// The time it was judged at.
+        at: DateTime<Utc>,
+    },
+    /// Another claim failed validation. The signature was not checked.
+    InvalidClaims(String),
+    /// The signature does not verify under the issuer's key.
+    InvalidSignature,
+    /// The proof is present but does not fit the key or algorithm it names.
+    InvalidProof(String),
+    /// The input is not a well-formed credential: it is not JSON, or the JSON
+    /// does not have a credential's shape. A bad request, not a verdict; the FFI
+    /// reports it as `IG_STATUS_JSON_ERROR`, as it did before this type existed.
+    Malformed(String),
+    /// The credential has no proof.
+    MissingProof,
+    /// The proof's cryptographic suite is not one this library verifies, so it
+    /// could not be checked. Not a verdict on the credential.
+    UnsupportedSuite(String),
+    /// A JSON-LD context the credential names did not resolve, so the proof
+    /// could not be checked. Not a verdict on the credential.
+    UnresolvedContext(String),
+    /// The key the proof names did not resolve: the issuer's DID could not be
+    /// resolved, or its document has no such key. Not a verdict on the
+    /// credential.
+    UnresolvedKey(String),
+    /// The proof could not be checked at all, for a reason the other variants
+    /// do not name. Not a verdict on the credential.
+    Unverifiable(String),
+    /// The pre-ssi-0.16 verifier rejected the credential, with its errors.
+    Legacy(Vec<String>),
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+impl VcVerificationError {
+    /// A stable reason code: `expired`, `not_yet_valid`, `invalid_claims`,
+    /// `invalid_signature`, `missing_proof`, `invalid_proof`, `malformed`,
+    /// `unsupported_suite`, `unresolved_context`, `unresolved_key`,
+    /// `unverifiable` or `legacy_rejected`.
+    pub fn code(&self) -> &'static str {
+        match self {
+            Self::Expired { .. } => "expired",
+            Self::NotYetValid { .. } => "not_yet_valid",
+            Self::InvalidClaims(_) => "invalid_claims",
+            Self::InvalidSignature => "invalid_signature",
+            Self::InvalidProof(_) => "invalid_proof",
+            Self::Malformed(_) => "malformed",
+            Self::MissingProof => "missing_proof",
+            Self::UnsupportedSuite(_) => "unsupported_suite",
+            Self::UnresolvedContext(_) => "unresolved_context",
+            Self::UnresolvedKey(_) => "unresolved_key",
+            Self::Unverifiable(_) => "unverifiable",
+            Self::Legacy(_) => "legacy_rejected",
+        }
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+impl std::fmt::Display for VcVerificationError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Expired { valid_until, at } => write!(
+                f,
+                "invalid VC proof: expired: valid until {}, judged at {}",
+                valid_until.to_rfc3339(),
+                at.to_rfc3339()
+            ),
+            Self::NotYetValid { valid_from, at } => write!(
+                f,
+                "invalid VC proof: not yet valid: valid from {}, judged at {}",
+                valid_from.to_rfc3339(),
+                at.to_rfc3339()
+            ),
+            Self::InvalidClaims(e) => write!(f, "invalid VC proof: invalid claims: {e}"),
+            Self::InvalidSignature => write!(f, "invalid VC proof: invalid signature"),
+            Self::InvalidProof(e) => write!(f, "invalid VC proof: {e}"),
+            Self::Malformed(e) => write!(f, "malformed VC: {e}"),
+            Self::MissingProof => write!(f, "invalid VC proof: missing proof"),
+            Self::UnsupportedSuite(e) | Self::UnresolvedContext(e) | Self::UnresolvedKey(e) => {
+                write!(f, "verification error: {e}")
+            }
+            Self::Unverifiable(e) => write!(f, "verification error: {e}"),
+            Self::Legacy(errors) => write!(f, "legacy VC verification failed: {errors:?}"),
+        }
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+impl std::error::Error for VcVerificationError {}
+
+#[cfg(not(target_arch = "wasm32"))]
+impl From<Invalid> for VcVerificationError {
+    fn from(e: Invalid) -> Self {
+        match e {
+            Invalid::Claims(InvalidClaims::Expired { now, valid_until }) => Self::Expired {
+                valid_until,
+                at: now,
+            },
+            Invalid::Claims(InvalidClaims::Premature { now, valid_from }) => Self::NotYetValid {
+                valid_from,
+                at: now,
+            },
+            Invalid::Claims(other) => Self::InvalidClaims(other.to_string()),
+            Invalid::Proof(InvalidProof::Signature) => Self::InvalidSignature,
+            Invalid::Proof(InvalidProof::Missing) => Self::MissingProof,
+            Invalid::Proof(other) => Self::InvalidProof(other.to_string()),
+        }
+    }
+}
+
+/// ssi reports some verdicts on the proof as errors from `verify` rather than
+/// as an `Invalid` outcome. Those are verdicts all the same. What stopped the
+/// check from running at all is not a verdict, and gets the variant that names
+/// it (`UnsupportedSuite`, `UnresolvedContext`, `UnresolvedKey`), or
+/// `Unverifiable` when ssi's message is not recognised.
+#[cfg(not(target_arch = "wasm32"))]
+impl From<ProofValidationError> for VcVerificationError {
+    fn from(e: ProofValidationError) -> Self {
+        use ProofValidationError as P;
+        match e {
+            P::InvalidSignature | P::MissingSignature => Self::InvalidSignature,
+            P::InvalidProof
+            | P::InvalidProofOptions
+            | P::InvalidKey
+            | P::MissingPublicKey
+            | P::AmbiguousPublicKey
+            | P::InvalidKeyController
+            | P::InvalidKeyUse
+            | P::MissingAlgorithm
+            | P::InvalidVerificationMethod(_) => Self::InvalidProof(e.to_string()),
+            // ssi reports an unsupported suite, a context that did not load and a
+            // key that did not resolve alike as `Other(String)`, so they are told
+            // apart by the start of the message. A message not recognised here
+            // stays `Unverifiable`, and the tests pin the prefixes against ssi.
+            P::Other(message) => Self::from_unchecked_reason(message),
+            // Context loading (Preparation) and input the suite could not
+            // process stop the check before any verdict.
+            _ => Self::Unverifiable(e.to_string()),
+        }
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+impl VcVerificationError {
+    /// Names why ssi stopped the check before a verdict, from its message.
+    fn from_unchecked_reason(message: String) -> Self {
+        if message.starts_with("unsupported cryptographic suite") {
+            Self::UnsupportedSuite(message)
+        } else if message.starts_with("JSON-LD expansion failed") {
+            Self::UnresolvedContext(message)
+        } else if message.starts_with("internal error: DID resolution failed")
+            || message.starts_with("internal error: could not find resource")
+        {
+            Self::UnresolvedKey(message)
+        } else {
+            Self::Unverifiable(message)
+        }
+    }
+}
+
+/// Verifies a signed VC's Data-Integrity proof as of the time `at`,
+/// instead of the current time.
+///
+/// Behaves exactly like [`verify_vc`], except that the credential's
+/// `validFrom` / `validUntil` are checked against `at` rather than now.
+///
+/// # Why use this
+///
+/// [`verify_vc`] checks the validity period before it checks the signature.
+/// An expired credential is therefore rejected immediately, and its
+/// signature is never examined. To find out whether an expired credential
+/// was genuinely signed and valid at some earlier time, pass a time inside
+/// its validity period as `at`.
+///
+/// # Choosing `at`
+///
+/// The result is only as meaningful as the `at` you pass. Pick a time that
+/// falls within the credential's validity period.
+///
+/// The proof's `created` timestamp is often a good choice, but not always.
+/// [`sign_vc`] backdates `created` by one hour. If the credential's
+/// `validFrom` was set to the signing time, `created` falls *before*
+/// `validFrom` and the check fails. In that case, use `validFrom` as `at`.
+///
+/// # Legacy credentials
+///
+/// Credentials created before ssi 0.16 are verified by a separate legacy
+/// verifier, which cannot take a custom time. They are checked against the
+/// current time, just as in [`verify_vc`], and `at` is ignored. If such a
+/// credential is rejected, the [`VcVerificationError::Legacy`] errors end
+/// with a note saying that `at` was not applied.
+#[cfg(not(target_arch = "wasm32"))]
+pub async fn verify_vc_at(
+    vc_json: &str,
+    contexts: Option<HashMap<String, String>>,
+    at: DateTime<Utc>,
+) -> Result<String> {
+    verify_vc_with_date_time(vc_json, contexts, Some(at)).await
+}
+
+/// Appended to a legacy rejection when the caller asked for a check time.
+#[cfg(not(target_arch = "wasm32"))]
+const LEGACY_AT_NOT_APPLIED: &str =
+    "`at` was not applied: the legacy verifier judges dates at the current time";
+
+#[cfg(not(target_arch = "wasm32"))]
+async fn verify_vc_with_date_time(
+    vc_json: &str,
+    contexts: Option<HashMap<String, String>>,
+    at: Option<DateTime<Utc>>,
+) -> Result<String> {
     if is_legacy_vc(vc_json) {
         // `contexts` deliberately does not reach the legacy path; see
-        // `verify_legacy_vc`.
-        return verify_legacy_vc(vc_json).await;
+        // `verify_legacy_vc`. Nor does `at`, and a rejection says so.
+        return match (verify_legacy_vc(vc_json).await, at) {
+            (Err(e), Some(_)) => match e.downcast::<VcVerificationError>() {
+                Ok(VcVerificationError::Legacy(mut errors)) => {
+                    errors.push(LEGACY_AT_NOT_APPLIED.to_string());
+                    Err(VcVerificationError::Legacy(errors).into())
+                }
+                Ok(other) => Err(other.into()),
+                Err(e) => Err(e),
+            },
+            (result, _) => result,
+        };
     }
 
-    let vc: SignedVc = serde_json::from_str(vc_json)?;
+    let vc: SignedVc = serde_json::from_str(vc_json).map_err(|e| {
+        VcVerificationError::Malformed(format!("not a well-formed signed credential: {e}"))
+    })?;
     let resolver = VerificationMethodDIDResolver::<_, AnyMethod>::new(AnyDidMethod::default());
     let loader = integrity_jsonld::loader::loader(contexts)?;
-    let params = VerificationParameters::from_resolver(resolver).with_json_ld_loader(loader);
-    let outcome = vc
-        .verify(params)
-        .await
-        .map_err(|e| anyhow!("verification error: {e}"))?;
-    outcome.map_err(|e| anyhow!("invalid VC proof: {e:?}"))?;
+    let mut params = VerificationParameters::from_resolver(resolver).with_json_ld_loader(loader);
+    if let Some(at) = at {
+        params = params.with_date_time(at);
+    }
+    let outcome = vc.verify(params).await.map_err(VcVerificationError::from)?;
+    outcome.map_err(VcVerificationError::from)?;
     Ok("VC verification result: ok".to_string())
 }
 
@@ -786,8 +1047,11 @@ async fn verify_legacy_vc(vc_json: &str) -> Result<String> {
     use did_method_key_legacy::DIDKey;
     use ssi_legacy::vc::Credential;
 
-    let vc = Credential::from_json_unsigned(vc_json)
-        .map_err(|e| anyhow!("failed to parse legacy VC: {e}"))?;
+    // A credential that does not parse is malformed, as on the current path; a
+    // loader built from the bundled contexts failing is ours, and stays untyped.
+    let vc = Credential::from_json_unsigned(vc_json).map_err(|e| {
+        VcVerificationError::Malformed(format!("not a well-formed legacy credential: {e}"))
+    })?;
 
     let mut loader = ssi_legacy::jsonld::ContextLoader::empty()
         .with_context_map_from(legacy_context_overrides())
@@ -800,7 +1064,7 @@ async fn verify_legacy_vc(vc_json: &str) -> Result<String> {
         result.checks
     );
     if !result.errors.is_empty() {
-        bail!("legacy VC verification failed: {:?}", result.errors);
+        return Err(VcVerificationError::Legacy(result.errors).into());
     }
     Ok("VC verification result: ok (legacy path)".to_string())
 }
@@ -1429,7 +1693,10 @@ mod tests {
             .await
             .expect_err("a modified legacy VC payload must not verify");
         assert!(
-            error.to_string().contains("legacy VC verification failed"),
+            matches!(
+                error.downcast_ref::<VcVerificationError>(),
+                Some(VcVerificationError::Legacy(_))
+            ),
             "unexpected error: {error}"
         );
     }
@@ -1446,7 +1713,10 @@ mod tests {
             .await
             .expect_err("a legacy VC with a corrupted signature must not verify");
         assert!(
-            error.to_string().contains("legacy VC verification failed"),
+            matches!(
+                error.downcast_ref::<VcVerificationError>(),
+                Some(VcVerificationError::Legacy(_))
+            ),
             "unexpected error: {error}"
         );
     }
@@ -1540,6 +1810,193 @@ mod tests {
             result.is_ok(),
             "caller contexts must not reach the legacy path: {:?}",
             result.err()
+        );
+    }
+
+    /// A credential judged at a time outside its validity period fails
+    /// without its proof being checked; `verify_vc_at` judges it at a time
+    /// inside the period instead, where the proof is checked for real.
+    #[tokio::test]
+    async fn test_verify_vc_at_judges_validity_at_the_given_time() {
+        let _ = env_logger::builder().is_test(true).try_init();
+
+        let signer_type = SignerType::ED25519(Ed25519Signer::create().unwrap());
+        let issuer_did = signer_type.get_did_doc().id;
+        let now = Utc::now();
+        let unsigned = build_unsigned_with_eqty_contexts(
+            "urn:uuid:22222222-2222-2222-2222-222222222222",
+            &issuer_did,
+            serde_json::json!({"id": "urn:cid:bafkr4ibthuzk3zug7ghmx63yjqaiu6rx4hhfdv3453j5bodskgw57bx2ya"}),
+            None,
+            Some(now - chrono::Duration::minutes(5)),
+            Some(now + chrono::Duration::minutes(5)),
+            vec![],
+        )
+        .unwrap();
+        let signed = sign_vc(unsigned, signer_type, None).await.unwrap();
+        let vc_json = serde_json::to_string(&signed).unwrap();
+
+        assert!(
+            verify_vc_at(&vc_json, None, now).await.is_ok(),
+            "in force at `now`"
+        );
+        let reason = |r: Result<String>| r.unwrap_err().downcast::<VcVerificationError>().unwrap();
+        let later = now + chrono::Duration::hours(1);
+        assert!(matches!(
+            reason(verify_vc_at(&vc_json, None, later).await),
+            VcVerificationError::Expired { at, .. } if at == later
+        ));
+        assert!(matches!(
+            reason(verify_vc_at(&vc_json, None, now - chrono::Duration::hours(1)).await),
+            VcVerificationError::NotYetValid { .. }
+        ));
+
+        // Inside the period the proof is really checked: an altered subject fails
+        // on its signature, where outside the period it would read as expired.
+        let mut tampered: Value = serde_json::from_str(&vc_json).unwrap();
+        tampered["credentialSubject"]["id"] = Value::String(
+            "urn:cid:bafkr4iaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa".into(),
+        );
+        assert_eq!(
+            reason(verify_vc_at(&tampered.to_string(), None, now).await),
+            VcVerificationError::InvalidSignature
+        );
+        assert!(matches!(
+            reason(verify_vc_at(&tampered.to_string(), None, later).await),
+            VcVerificationError::Expired { .. }
+        ));
+        assert!(matches!(
+            reason(verify_vc_at("{\"not\": \"a credential\"}", None, now).await),
+            VcVerificationError::Malformed(_)
+        ));
+        assert!(matches!(
+            reason(verify_vc_at("{\"truncated\": ", None, now).await),
+            VcVerificationError::Malformed(_)
+        ));
+    }
+
+    /// Each way a proof can fail reads as the right variant: a corrupted
+    /// signature is a verdict, never "could not be checked".
+    #[tokio::test]
+    async fn test_vc_verification_error_variants() {
+        let _ = env_logger::builder().is_test(true).try_init();
+
+        let signer_type = SignerType::ED25519(Ed25519Signer::create().unwrap());
+        let issuer_did = signer_type.get_did_doc().id;
+        let now = Utc::now();
+        let unsigned = build_unsigned_with_eqty_contexts(
+            "urn:uuid:33333333-3333-3333-3333-333333333333",
+            &issuer_did,
+            serde_json::json!({"id": "urn:cid:bafkr4ibthuzk3zug7ghmx63yjqaiu6rx4hhfdv3453j5bodskgw57bx2ya"}),
+            None,
+            Some(now - chrono::Duration::minutes(5)),
+            Some(now + chrono::Duration::minutes(5)),
+            vec![],
+        )
+        .unwrap();
+        let signed = sign_vc(unsigned, signer_type, None).await.unwrap();
+        let vc: Value = serde_json::to_value(&signed).unwrap();
+        let jws = vc["proof"]["jws"].as_str().unwrap().to_string();
+        let with = |edit: &dyn Fn(&mut Value)| {
+            let mut v = vc.clone();
+            edit(&mut v);
+            v.to_string()
+        };
+        let reason = |r: Result<String>| r.unwrap_err().downcast::<VcVerificationError>().unwrap();
+
+        let truncated =
+            with(&|v| v["proof"]["jws"] = Value::String(jws[..jws.len() - 10].to_string()));
+        assert_eq!(
+            reason(verify_vc_at(&truncated, None, now).await),
+            VcVerificationError::InvalidSignature
+        );
+        // A signature that is not even a JWS does not parse as a credential.
+        let garbage = with(&|v| v["proof"]["jws"] = Value::String("not-a-jws".into()));
+        assert!(matches!(
+            reason(verify_vc_at(&garbage, None, now).await),
+            VcVerificationError::Malformed(_)
+        ));
+        let unknown_suite =
+            with(&|v| v["proof"]["type"] = Value::String("NoSuchSignature2099".into()));
+        assert!(matches!(
+            reason(verify_vc_at(&unknown_suite, None, now).await),
+            VcVerificationError::UnsupportedSuite(_)
+        ));
+        let no_proof = with(&|v| {
+            v.as_object_mut().unwrap().remove("proof");
+        });
+        assert_eq!(
+            reason(verify_vc_at(&no_proof, None, now).await),
+            VcVerificationError::MissingProof
+        );
+        let unknown_context = with(&|v| {
+            v["@context"]
+                .as_array_mut()
+                .unwrap()
+                .push(Value::String("https://example.invalid/ctx".into()))
+        });
+        assert!(matches!(
+            reason(verify_vc_at(&unknown_context, None, now).await),
+            VcVerificationError::UnresolvedContext(_)
+        ));
+        // A DID method this library does not resolve, and a key the issuer's
+        // document does not hold, are both an unresolved key.
+        let unknown_method = with(&|v| {
+            v["proof"]["verificationMethod"] = Value::String("did:nosuchmethod:abc#k".into())
+        });
+        assert!(matches!(
+            reason(verify_vc_at(&unknown_method, None, now).await),
+            VcVerificationError::UnresolvedKey(_)
+        ));
+        let missing_key = with(&|v| {
+            let did = v["proof"]["verificationMethod"]
+                .as_str()
+                .unwrap()
+                .split('#')
+                .next()
+                .unwrap()
+                .to_string();
+            v["proof"]["verificationMethod"] = Value::String(format!("{did}#no-such-key"));
+        });
+        assert!(matches!(
+            reason(verify_vc_at(&missing_key, None, now).await),
+            VcVerificationError::UnresolvedKey(_)
+        ));
+        // A key or algorithm the proof names that does not fit it is an invalid
+        // proof, and an ssi message not recognised below stays `Unverifiable`.
+        assert!(matches!(
+            VcVerificationError::from(ProofValidationError::InvalidKey),
+            VcVerificationError::InvalidProof(_)
+        ));
+        // What ssi reports that is not recognised stays `Unverifiable`.
+        assert_eq!(
+            VcVerificationError::from_unchecked_reason("something else".into()),
+            VcVerificationError::Unverifiable("something else".into())
+        );
+
+        // A legacy credential that does not parse is malformed too.
+        let mut malformed: Value = serde_json::from_str(CAPTURED_LEGACY_ED25519_VC).unwrap();
+        malformed["proof"]["jws"] = Value::from(123);
+        assert!(matches!(
+            reason(verify_vc(&malformed.to_string(), None).await),
+            VcVerificationError::Malformed(_)
+        ));
+
+        // A rejected legacy credential says when `at` was not applied.
+        let mut legacy: Value = serde_json::from_str(CAPTURED_LEGACY_ED25519_VC).unwrap();
+        legacy["credentialSubject"]["id"] = Value::String("urn:cid:tampered".into());
+        match reason(verify_vc_at(&legacy.to_string(), None, now).await) {
+            VcVerificationError::Legacy(errors) => {
+                assert_eq!(
+                    errors.last().map(String::as_str),
+                    Some(LEGACY_AT_NOT_APPLIED)
+                )
+            }
+            other => panic!("expected Legacy, got {other:?}"),
+        }
+        assert_eq!(
+            VcVerificationError::InvalidSignature.code(),
+            "invalid_signature"
         );
     }
 
