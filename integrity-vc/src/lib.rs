@@ -310,7 +310,11 @@ pub async fn verify_vc(vc_json: &str, contexts: Option<HashMap<String, String>>)
 /// prefixes (`invalid VC proof:`, `verification error:`, `legacy VC verification
 /// failed:`), but what follows a claim or proof failure's prefix is new text,
 /// no longer ssi's Debug output: `Claims(Expired { .. })` now reads `expired:
-/// valid until …, judged at …`. Match on the variant, not the message. Errors
+/// valid until …, judged at …`. Match on the variant, not the message. ssi
+/// reports an unsupported suite, a context that did not load and a key that did
+/// not resolve all as one untyped error, so `UnsupportedSuite`,
+/// `UnresolvedContext` and `UnresolvedKey` are recognised from the start of its
+/// message; one that is not recognised is `Unverifiable`. Errors
 /// that say nothing about the credential itself, such as a caller-supplied
 /// context that does not parse, are not of this type.
 #[cfg(not(target_arch = "wasm32"))]
@@ -337,12 +341,26 @@ pub enum VcVerificationError {
     InvalidClaims(String),
     /// The signature does not verify under the issuer's key.
     InvalidSignature,
-    /// The proof is missing or malformed, or does not match the key or
-    /// algorithm it names.
+    /// The proof is present but does not fit the key or algorithm it names.
     InvalidProof(String),
-    /// The proof could not be checked at all: its cryptographic suite is not
-    /// one this library verifies, or a context or key it needs did not resolve.
-    /// Not a verdict on the credential.
+    /// The input is not a well-formed credential: it is not JSON, or the JSON
+    /// does not have a credential's shape. A bad request, not a verdict; the FFI
+    /// reports it as `IG_STATUS_JSON_ERROR`, as it did before this type existed.
+    Malformed(String),
+    /// The credential has no proof.
+    MissingProof,
+    /// The proof's cryptographic suite is not one this library verifies, so it
+    /// could not be checked. Not a verdict on the credential.
+    UnsupportedSuite(String),
+    /// A JSON-LD context the credential names did not resolve, so the proof
+    /// could not be checked. Not a verdict on the credential.
+    UnresolvedContext(String),
+    /// The key the proof names did not resolve: the issuer's DID could not be
+    /// resolved, or its document has no such key. Not a verdict on the
+    /// credential.
+    UnresolvedKey(String),
+    /// The proof could not be checked at all, for a reason the other variants
+    /// do not name. Not a verdict on the credential.
     Unverifiable(String),
     /// The pre-ssi-0.16 verifier rejected the credential, with its errors.
     Legacy(Vec<String>),
@@ -351,8 +369,9 @@ pub enum VcVerificationError {
 #[cfg(not(target_arch = "wasm32"))]
 impl VcVerificationError {
     /// A stable reason code: `expired`, `not_yet_valid`, `invalid_claims`,
-    /// `invalid_signature`, `invalid_proof`, `unverifiable` or
-    /// `legacy_rejected`.
+    /// `invalid_signature`, `missing_proof`, `invalid_proof`, `malformed`,
+    /// `unsupported_suite`, `unresolved_context`, `unresolved_key`,
+    /// `unverifiable` or `legacy_rejected`.
     pub fn code(&self) -> &'static str {
         match self {
             Self::Expired { .. } => "expired",
@@ -360,6 +379,11 @@ impl VcVerificationError {
             Self::InvalidClaims(_) => "invalid_claims",
             Self::InvalidSignature => "invalid_signature",
             Self::InvalidProof(_) => "invalid_proof",
+            Self::Malformed(_) => "malformed",
+            Self::MissingProof => "missing_proof",
+            Self::UnsupportedSuite(_) => "unsupported_suite",
+            Self::UnresolvedContext(_) => "unresolved_context",
+            Self::UnresolvedKey(_) => "unresolved_key",
             Self::Unverifiable(_) => "unverifiable",
             Self::Legacy(_) => "legacy_rejected",
         }
@@ -385,6 +409,11 @@ impl std::fmt::Display for VcVerificationError {
             Self::InvalidClaims(e) => write!(f, "invalid VC proof: invalid claims: {e}"),
             Self::InvalidSignature => write!(f, "invalid VC proof: invalid signature"),
             Self::InvalidProof(e) => write!(f, "invalid VC proof: {e}"),
+            Self::Malformed(e) => write!(f, "malformed VC: {e}"),
+            Self::MissingProof => write!(f, "invalid VC proof: missing proof"),
+            Self::UnsupportedSuite(e) | Self::UnresolvedContext(e) | Self::UnresolvedKey(e) => {
+                write!(f, "verification error: {e}")
+            }
             Self::Unverifiable(e) => write!(f, "verification error: {e}"),
             Self::Legacy(errors) => write!(f, "legacy VC verification failed: {errors:?}"),
         }
@@ -408,14 +437,17 @@ impl From<Invalid> for VcVerificationError {
             },
             Invalid::Claims(other) => Self::InvalidClaims(other.to_string()),
             Invalid::Proof(InvalidProof::Signature) => Self::InvalidSignature,
+            Invalid::Proof(InvalidProof::Missing) => Self::MissingProof,
             Invalid::Proof(other) => Self::InvalidProof(other.to_string()),
         }
     }
 }
 
 /// ssi reports some verdicts on the proof as errors from `verify` rather than
-/// as an `Invalid` outcome. Those are verdicts all the same; only what stopped
-/// the check from running at all is `Unverifiable`.
+/// as an `Invalid` outcome. Those are verdicts all the same. What stopped the
+/// check from running at all is not a verdict, and gets the variant that names
+/// it (`UnsupportedSuite`, `UnresolvedContext`, `UnresolvedKey`), or
+/// `Unverifiable` when ssi's message is not recognised.
 #[cfg(not(target_arch = "wasm32"))]
 impl From<ProofValidationError> for VcVerificationError {
     fn from(e: ProofValidationError) -> Self {
@@ -431,10 +463,32 @@ impl From<ProofValidationError> for VcVerificationError {
             | P::InvalidKeyUse
             | P::MissingAlgorithm
             | P::InvalidVerificationMethod(_) => Self::InvalidProof(e.to_string()),
-            // Context loading (Preparation), input the suite could not process,
-            // keys or controllers that did not resolve, and unsupported suites
-            // (`Other`) stop the check before any verdict.
+            // ssi reports an unsupported suite, a context that did not load and a
+            // key that did not resolve alike as `Other(String)`, so they are told
+            // apart by the start of the message. A message not recognised here
+            // stays `Unverifiable`, and the tests pin the prefixes against ssi.
+            P::Other(message) => Self::from_unchecked_reason(message),
+            // Context loading (Preparation) and input the suite could not
+            // process stop the check before any verdict.
             _ => Self::Unverifiable(e.to_string()),
+        }
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+impl VcVerificationError {
+    /// Names why ssi stopped the check before a verdict, from its message.
+    fn from_unchecked_reason(message: String) -> Self {
+        if message.starts_with("unsupported cryptographic suite") {
+            Self::UnsupportedSuite(message)
+        } else if message.starts_with("JSON-LD expansion failed") {
+            Self::UnresolvedContext(message)
+        } else if message.starts_with("internal error: DID resolution failed")
+            || message.starts_with("internal error: could not find resource")
+        {
+            Self::UnresolvedKey(message)
+        } else {
+            Self::Unverifiable(message)
         }
     }
 }
@@ -507,7 +561,7 @@ async fn verify_vc_with_date_time(
     }
 
     let vc: SignedVc = serde_json::from_str(vc_json).map_err(|e| {
-        VcVerificationError::InvalidProof(format!("not a well-formed signed credential: {e}"))
+        VcVerificationError::Malformed(format!("not a well-formed signed credential: {e}"))
     })?;
     let resolver = VerificationMethodDIDResolver::<_, AnyMethod>::new(AnyDidMethod::default());
     let loader = integrity_jsonld::loader::loader(contexts)?;
@@ -996,7 +1050,7 @@ async fn verify_legacy_vc(vc_json: &str) -> Result<String> {
     // A credential that does not parse is malformed, as on the current path; a
     // loader built from the bundled contexts failing is ours, and stays untyped.
     let vc = Credential::from_json_unsigned(vc_json).map_err(|e| {
-        VcVerificationError::InvalidProof(format!("not a well-formed legacy credential: {e}"))
+        VcVerificationError::Malformed(format!("not a well-formed legacy credential: {e}"))
     })?;
 
     let mut loader = ssi_legacy::jsonld::ContextLoader::empty()
@@ -1813,7 +1867,11 @@ mod tests {
         ));
         assert!(matches!(
             reason(verify_vc_at("{\"not\": \"a credential\"}", None, now).await),
-            VcVerificationError::InvalidProof(_)
+            VcVerificationError::Malformed(_)
+        ));
+        assert!(matches!(
+            reason(verify_vc_at("{\"truncated\": ", None, now).await),
+            VcVerificationError::Malformed(_)
         ));
     }
 
@@ -1852,24 +1910,25 @@ mod tests {
             reason(verify_vc_at(&truncated, None, now).await),
             VcVerificationError::InvalidSignature
         );
+        // A signature that is not even a JWS does not parse as a credential.
         let garbage = with(&|v| v["proof"]["jws"] = Value::String("not-a-jws".into()));
         assert!(matches!(
             reason(verify_vc_at(&garbage, None, now).await),
-            VcVerificationError::InvalidProof(_)
+            VcVerificationError::Malformed(_)
         ));
         let unknown_suite =
             with(&|v| v["proof"]["type"] = Value::String("NoSuchSignature2099".into()));
         assert!(matches!(
             reason(verify_vc_at(&unknown_suite, None, now).await),
-            VcVerificationError::Unverifiable(_)
+            VcVerificationError::UnsupportedSuite(_)
         ));
         let no_proof = with(&|v| {
             v.as_object_mut().unwrap().remove("proof");
         });
-        assert!(matches!(
+        assert_eq!(
             reason(verify_vc_at(&no_proof, None, now).await),
-            VcVerificationError::InvalidProof(_)
-        ));
+            VcVerificationError::MissingProof
+        );
         let unknown_context = with(&|v| {
             v["@context"]
                 .as_array_mut()
@@ -1878,15 +1937,49 @@ mod tests {
         });
         assert!(matches!(
             reason(verify_vc_at(&unknown_context, None, now).await),
-            VcVerificationError::Unverifiable(_)
+            VcVerificationError::UnresolvedContext(_)
         ));
+        // A DID method this library does not resolve, and a key the issuer's
+        // document does not hold, are both an unresolved key.
+        let unknown_method = with(&|v| {
+            v["proof"]["verificationMethod"] = Value::String("did:nosuchmethod:abc#k".into())
+        });
+        assert!(matches!(
+            reason(verify_vc_at(&unknown_method, None, now).await),
+            VcVerificationError::UnresolvedKey(_)
+        ));
+        let missing_key = with(&|v| {
+            let did = v["proof"]["verificationMethod"]
+                .as_str()
+                .unwrap()
+                .split('#')
+                .next()
+                .unwrap()
+                .to_string();
+            v["proof"]["verificationMethod"] = Value::String(format!("{did}#no-such-key"));
+        });
+        assert!(matches!(
+            reason(verify_vc_at(&missing_key, None, now).await),
+            VcVerificationError::UnresolvedKey(_)
+        ));
+        // A key or algorithm the proof names that does not fit it is an invalid
+        // proof, and an ssi message not recognised below stays `Unverifiable`.
+        assert!(matches!(
+            VcVerificationError::from(ProofValidationError::InvalidKey),
+            VcVerificationError::InvalidProof(_)
+        ));
+        // What ssi reports that is not recognised stays `Unverifiable`.
+        assert_eq!(
+            VcVerificationError::from_unchecked_reason("something else".into()),
+            VcVerificationError::Unverifiable("something else".into())
+        );
 
         // A legacy credential that does not parse is malformed too.
         let mut malformed: Value = serde_json::from_str(CAPTURED_LEGACY_ED25519_VC).unwrap();
         malformed["proof"]["jws"] = Value::from(123);
         assert!(matches!(
             reason(verify_vc(&malformed.to_string(), None).await),
-            VcVerificationError::InvalidProof(_)
+            VcVerificationError::Malformed(_)
         ));
 
         // A rejected legacy credential says when `at` was not applied.

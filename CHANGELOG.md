@@ -26,12 +26,15 @@ not always match the Git tags; section versions follow the tags.
   ([#50](https://github.com/eqtylab/integrity/pull/50))
 - `integrity-vc`: `VcVerificationError`, the reason `verify_vc` or `verify_vc_at`
   did not accept a credential: `Expired`, `NotYetValid`, `InvalidClaims`,
-  `InvalidSignature`, `InvalidProof`, `Unverifiable` (the proof could not be
-  checked at all) or `Legacy`, with a stable `code()`. It is `#[non_exhaustive]`,
+  `InvalidSignature`, `MissingProof`, `InvalidProof`, `Malformed` (the input is
+  not a well-formed credential), `UnsupportedSuite`, `UnresolvedContext`,
+  `UnresolvedKey` (the proof could not be checked: its suite is not supported, a
+  context did not load, or its key did not resolve), `Unverifiable` (could not
+  be checked, for another reason) or `Legacy`, with a stable `code()`. It is `#[non_exhaustive]`,
   carried inside the returned `anyhow::Error` and recovered with `downcast_ref`.
   ([#50](https://github.com/eqtylab/integrity/pull/50))
-- FFI: `ig_vc_verify_at`, `ig_vc_verify` with a check time (`at_rfc3339`) and a
-  reason code on failure (`out_reason`). Advance the FFI ABI from `0.4.0` to
+- FFI: `ig_vc_verify_at`: like `ig_vc_verify`, with a check time (`at_rfc3339`)
+  and a failure reason code (`out_reason`). Advance the FFI ABI from `0.4.0` to
   `0.5.0`. ([#50](https://github.com/eqtylab/integrity/pull/50))
 
 ### Changed
@@ -45,7 +48,9 @@ not always match the Git tags; section versions follow the tags.
   its `VcVerificationError`: `IG_STATUS_VERIFICATION_FAILED` for every verdict
   (before, a bad signature or an expired credential could read
   `IG_STATUS_INVALID_INPUT`), and `IG_STATUS_NOT_SUPPORTED` when it could not be
-  checked at all. ([#50](https://github.com/eqtylab/integrity/pull/50))
+  checked at all. Input that is not a well-formed credential keeps reading
+  `IG_STATUS_JSON_ERROR`, now with the reason `malformed`.
+  ([#50](https://github.com/eqtylab/integrity/pull/50))
 
 ## [0.0.18] - 2026-09-22
 

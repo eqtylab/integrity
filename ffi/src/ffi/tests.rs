@@ -179,6 +179,48 @@ fn ffi_vc_issue_and_verify_smoke() {
     take_owned_c_string(err_out);
     err_out = ptr::null_mut();
 
+    // Input that is not a credential is a JSON error, as it was before
+    // `ig_vc_verify_at`, and says so as its reason.
+    for bad in ["{\"truncated\": ", "{\"not\": \"a credential\"}"] {
+        let bad_c = cstring(bad);
+        let status = vc::ig_vc_verify_at(
+            runtime_handle,
+            bad_c.as_ptr(),
+            ptr::null(),
+            ptr::null(),
+            &mut verify_result_ptr,
+            &mut is_valid,
+            &mut reason_ptr,
+            &mut err_out,
+        );
+        assert_eq!(status, IgStatus::JsonError);
+        assert_eq!(take_owned_c_string(reason_ptr), "malformed");
+        take_owned_c_string(err_out);
+        err_out = ptr::null_mut();
+        reason_ptr = ptr::null_mut();
+    }
+
+    // A credential whose suite is not supported could not be checked: not
+    // supported, and the reason says which.
+    let mut odd_suite = issued_vc.clone();
+    odd_suite["proof"]["type"] = Value::String("NoSuchSignature2099".into());
+    let odd_suite_c = cstring(&odd_suite.to_string());
+    let status = vc::ig_vc_verify_at(
+        runtime_handle,
+        odd_suite_c.as_ptr(),
+        ptr::null(),
+        ptr::null(),
+        &mut verify_result_ptr,
+        &mut is_valid,
+        &mut reason_ptr,
+        &mut err_out,
+    );
+    assert_eq!(status, IgStatus::NotSupported);
+    assert_eq!(take_owned_c_string(reason_ptr), "unsupported_suite");
+    take_owned_c_string(err_out);
+    err_out = ptr::null_mut();
+    reason_ptr = ptr::null_mut();
+
     let bad_at = cstring("yesterday");
     let status = vc::ig_vc_verify_at(
         runtime_handle,

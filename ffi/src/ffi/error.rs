@@ -57,7 +57,13 @@ fn classify_anyhow(err: &anyhow::Error) -> IgStatus {
     // A credential's verdict is read from its typed reason, not its message.
     if let Some(reason) = err.downcast_ref::<crate::vc::VcVerificationError>() {
         return match reason {
-            crate::vc::VcVerificationError::Unverifiable(_) => IgStatus::NotSupported,
+            // The check could not be run: not a verdict on the credential.
+            crate::vc::VcVerificationError::UnsupportedSuite(_)
+            | crate::vc::VcVerificationError::UnresolvedContext(_)
+            | crate::vc::VcVerificationError::UnresolvedKey(_)
+            | crate::vc::VcVerificationError::Unverifiable(_) => IgStatus::NotSupported,
+            // As before the typed reasons: input that does not parse is a JSON error.
+            crate::vc::VcVerificationError::Malformed(_) => IgStatus::JsonError,
             _ => IgStatus::VerificationFailed,
         };
     }

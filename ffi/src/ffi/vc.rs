@@ -148,9 +148,11 @@ pub extern "C" fn ig_vc_verify(
 /// at `at_rfc3339` (an RFC 3339 time; `NULL` means now), and reports why a
 /// credential was not accepted. On failure `*out_reason`, when `out_reason` is
 /// not `NULL`, is set to a reason code (`expired`, `not_yet_valid`,
-/// `invalid_claims`, `invalid_signature`, `invalid_proof`, `unverifiable`,
-/// `legacy_rejected`) for the caller to free, or to `NULL` when the failure is
-/// not a verdict on the credential. On success it is set to `NULL`.
+/// `invalid_claims`, `invalid_signature`, `missing_proof`, `invalid_proof`,
+/// `malformed`, `unsupported_suite`, `unresolved_context`, `unresolved_key`,
+/// `unverifiable`, `legacy_rejected`) for the caller to free, or to `NULL` when
+/// the failure is not about the credential (a bad `at_rfc3339`, for example).
+/// On success it is set to `NULL`.
 #[no_mangle]
 #[allow(clippy::too_many_arguments)]
 pub extern "C" fn ig_vc_verify_at(
