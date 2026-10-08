@@ -439,25 +439,37 @@ impl From<ProofValidationError> for VcVerificationError {
     }
 }
 
-/// Verifies a signed VC's Data-Integrity proof as of `at` instead of now.
+/// Verifies a signed VC's Data-Integrity proof as of the time `at`,
+/// instead of the current time.
 ///
-/// Identical to [`verify_vc`] except for the moment the credential's
-/// `validFrom` / `validUntil` are judged against. The claims are validated
-/// before the proof, so under [`verify_vc`] a credential that has since
-/// expired fails without its signature ever being checked. Verifying at a
-/// time inside its validity period answers whether it was genuinely signed
-/// and in force then.
+/// Behaves exactly like [`verify_vc`], except that the credential's
+/// `validFrom` / `validUntil` are checked against `at` rather than now.
 ///
-/// The caller chooses `at`, and the result is only as meaningful as that
-/// choice. The proof's `created` is a natural one when it falls inside the
-/// period, but not always: [`sign_vc`] backdates `created` by an hour, so a
-/// credential given its own `validFrom` of the signing time has a proof
-/// created before that; its `validFrom` is the time to use then.
+/// # Why use this
 ///
-/// Pre-ssi-0.16 credentials, which take the legacy path, are verified as
-/// [`verify_vc`] verifies them, at the current time: `at` does not reach that
-/// verifier. When one is rejected, its [`VcVerificationError::Legacy`] errors
-/// end with a note saying `at` was not applied.
+/// [`verify_vc`] checks the validity period before it checks the signature.
+/// An expired credential is therefore rejected immediately, and its
+/// signature is never examined. To find out whether an expired credential
+/// was genuinely signed and valid at some earlier time, pass a time inside
+/// its validity period as `at`.
+///
+/// # Choosing `at`
+///
+/// The result is only as meaningful as the `at` you pass. Pick a time that
+/// falls within the credential's validity period.
+///
+/// The proof's `created` timestamp is often a good choice, but not always.
+/// [`sign_vc`] backdates `created` by one hour. If the credential's
+/// `validFrom` was set to the signing time, `created` falls *before*
+/// `validFrom` and the check fails. In that case, use `validFrom` as `at`.
+///
+/// # Legacy credentials
+///
+/// Credentials created before ssi 0.16 are verified by a separate legacy
+/// verifier, which cannot take a custom time. They are checked against the
+/// current time, just as in [`verify_vc`], and `at` is ignored. If such a
+/// credential is rejected, the [`VcVerificationError::Legacy`] errors end
+/// with a note saying that `at` was not applied.
 #[cfg(not(target_arch = "wasm32"))]
 pub async fn verify_vc_at(
     vc_json: &str,
