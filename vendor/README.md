@@ -78,12 +78,19 @@ Each vendored directory keeps two manifest representations:
 
 ### Path-only crates
 
-The source code in `ssi` 0.7.0, `ssi-ucan` 0.1.1, `cacaos` 0.5.1, `libipld`
+The source code in `ssi` 0.7.0, `ssi-ucan` 0.1.1, `libipld`
 0.14.0, `libipld-cbor` 0.14.0, `libipld-json` 0.14.0, and `libipld-macro`
 0.14.0 is unchanged from crates.io. Their normalized `Cargo.toml` files differ
 only by relative path declarations that connect the graph shown above.
 Dev-dependency edges to the same legacy IPLD crates are also local so isolated
 maintenance tests use one source identity.
+
+### `cacaos` 0.5.1
+
+- `src/lib.rs`: allows `dependency_on_unit_never_type_fallback`. The
+  `DagCbor` derive expands to code that current Rust (1.97) rejects as a
+  deny-by-default future-incompatibility lint; the generated code behaves as
+  before.
 
 ### `ssi-vc` 0.2.1
 
