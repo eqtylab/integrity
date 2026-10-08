@@ -88,7 +88,7 @@ maintenance tests use one source identity.
 ### `cacaos` 0.5.1
 
 - `src/lib.rs`: allows `dependency_on_unit_never_type_fallback`. The
-  `DagCbor` derive expands to code that current Rust (1.97) rejects as a
+  `DagCbor` derive expands to code that Rust 1.89 and later reject as a
   deny-by-default future-incompatibility lint; the generated code behaves as
   before.
 
