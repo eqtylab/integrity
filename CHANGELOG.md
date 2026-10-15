@@ -35,9 +35,18 @@ not always match the Git tags; section versions follow the tags.
 - The pinned Rust toolchain moves from 1.89.0 to 1.94.1, and the `rust-overlay` input
   in `flake.lock` is updated so the Nix shell provides it. The Nix shell no longer
   adds nixpkgs' own `cargo` and `clippy`, so `cargo` and `cargo clippy` come from the
-  pinned toolchain. The vendored `cacaos` allows
+  pinned toolchain, and `RUST_SRC_PATH` points at that toolchain's `rust-src`. The
+  shell is now the flake's `devShells.<system>.default` output, replacing the legacy
+  `devShell`; `nix develop` works as before. The vendored `cacaos` allows
   `dependency_on_unit_never_type_fallback`, which Rust 1.92 and later deny in its
   `DagCbor` derive output.
+
+### Removed
+
+- The flake's `defaultPackage` and its `naersk` input. It had not evaluated since
+  0.0.12, because naersk can't read `version.workspace = true`. Even when it builds,
+  it installs nothing: naersk copies only executables, and the root crate builds none.
+  The native library is `integrity-ffi`, which the release workflow builds.
 
 ### Fixed
 
@@ -46,11 +55,6 @@ not always match the Git tags; section versions follow the tags.
   hash, so a model-signing manifest built from the collection could leave a file out.
 - Exporting a manifest logs an error when an iroh collection it references can't be
   read. Before, the collection's file blobs were left out without a message.
-- The flake's `defaultPackage` evaluates again and is built with the pinned
-  toolchain. It had failed since 0.0.12, because naersk can't read
-  `version.workspace = true`; the flake now passes the name and version itself.
-  Its output is still empty: naersk installs only executables, and the root crate
-  builds none.
 
 ## [0.0.18] - 2026-09-22
 
