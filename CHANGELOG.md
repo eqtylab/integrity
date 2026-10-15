@@ -25,7 +25,8 @@ not always match the Git tags; section versions follow the tags.
   `verify_vc` is unchanged. A legacy (pre-ssi-0.16) credential is judged at the
   current time, because the legacy verifier takes no other; its result, accepted or
   not, says that `at` was not applied, and `is_legacy_vc` (now public) tells a
-  caller beforehand. `verify_vc_with_date_time` takes an optional time for callers
+  caller beforehand. `at_applied` says, for a result, whether the dates were judged
+  at `at`. `verify_vc_with_date_time` takes an optional time for callers
   that may have none.
   ([#50](https://github.com/eqtylab/integrity/pull/50))
 - `integrity-vc`: `VcVerificationError`, the reason `verify_vc` or `verify_vc_at`

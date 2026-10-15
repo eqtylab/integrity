@@ -562,6 +562,28 @@ pub async fn verify_vc_at(
 const LEGACY_AT_NOT_APPLIED: &str =
     "`at` was not applied: the legacy verifier judges dates at the current time";
 
+/// Whether the credential's dates were judged at `at` (or now, when `at` is
+/// `None`), given `outcome`, the result of [`verify_vc_with_date_time`] for the
+/// same `vc_json` and `at`.
+///
+/// It is `false` when the credential was never checked: the call failed before
+/// a verdict, or with [`VcVerificationError::Malformed`] (input that is not a
+/// well-formed credential, including JSON-LD that does not expand). It is also
+/// `false` when `at` was given but the credential is a legacy one
+/// ([`is_legacy_vc`]), which is judged at the current time. Otherwise it is
+/// `true`, whether the credential was accepted or rejected.
+#[cfg(not(target_arch = "wasm32"))]
+pub fn at_applied(vc_json: &str, at: Option<DateTime<Utc>>, outcome: &Result<String>) -> bool {
+    let checked = match outcome {
+        Ok(_) => true,
+        Err(e) => matches!(
+            e.downcast_ref::<VcVerificationError>(),
+            Some(reason) if !matches!(reason, VcVerificationError::Malformed(_))
+        ),
+    };
+    checked && !(at.is_some() && is_legacy_vc(vc_json))
+}
+
 /// [`verify_vc`] when `at` is `None`, [`verify_vc_at`] otherwise, for callers
 /// whose check time is optional.
 #[cfg(not(target_arch = "wasm32"))]
@@ -2026,6 +2048,28 @@ mod tests {
         // result says `at` was not applied, and `is_legacy_vc` says so beforehand.
         assert!(is_legacy_vc(CAPTURED_LEGACY_ED25519_VC));
         assert!(!is_legacy_vc(&vc.to_string()));
+
+        // `at_applied`: judged at `at` unless legacy (with `at`) or never checked.
+        let legacy_vc = CAPTURED_LEGACY_ED25519_VC;
+        let current_vc = vc.to_string();
+        for (vc_json, at, expected) in [
+            (legacy_vc, Some(now), false),
+            (legacy_vc, None, true),
+            (current_vc.as_str(), Some(now), true),
+            (
+                current_vc.as_str(),
+                Some(now + chrono::Duration::hours(1)),
+                true,
+            ),
+            ("{\"truncated\": ", Some(now), false),
+        ] {
+            let outcome = verify_vc_with_date_time(vc_json, None, at).await;
+            assert_eq!(
+                at_applied(vc_json, at, &outcome),
+                expected,
+                "{vc_json:.40} at {at:?}"
+            );
+        }
         assert_eq!(
             verify_vc_at(CAPTURED_LEGACY_ED25519_VC, None, now)
                 .await

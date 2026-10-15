@@ -200,29 +200,20 @@ pub extern "C" fn ig_vc_verify_at(
             })
             .transpose()?;
 
-        // Parsed for the legacy check only when the caller asks.
-        let at_applied =
-            out_at_applied.is_null() || at.is_none() || !vc::is_legacy_vc(&credential_json);
         let outcome =
             runtime.block_on(vc::verify_vc_with_date_time(&credential_json, contexts, at));
-        // Only once the credential was checked: accepted, or rejected for a reason
-        // other than input that did not parse. A failure before the check leaves
-        // it `false`.
-        let checked = match &outcome {
-            Ok(_) => true,
-            Err(e) => matches!(
-                e.downcast_ref::<vc::VcVerificationError>(),
-                Some(reason) if !matches!(reason, vc::VcVerificationError::Malformed(_))
-            ),
-        };
-        if checked && !out_at_applied.is_null() {
-            write_bool(out_at_applied, at_applied, "out_at_applied")?;
+        // `at_applied` parses the credential again, so only when the caller asks.
+        if !out_at_applied.is_null() {
+            let applied = vc::at_applied(&credential_json, at, &outcome);
+            write_bool(out_at_applied, applied, "out_at_applied")?;
         }
-        if let Err(e) = &outcome {
-            if !out_reason.is_null() {
-                if let Some(reason) = e.downcast_ref::<vc::VcVerificationError>() {
-                    write_c_string(out_reason, reason.code().to_string(), "out_reason")?;
-                }
+        if !out_reason.is_null() {
+            let reason = outcome
+                .as_ref()
+                .err()
+                .and_then(|e| e.downcast_ref::<vc::VcVerificationError>());
+            if let Some(reason) = reason {
+                write_c_string(out_reason, reason.code().to_string(), "out_reason")?;
             }
         }
         let result = map_anyhow(outcome)?;
