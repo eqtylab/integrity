@@ -31,4 +31,6 @@ blake3 = "1.5"
 iroh-blake3 = "1.4.5"
 
 [dev-dependencies]
+async-trait = "0.1"
+integrity-blob = { path = "../integrity-blob", default-features = false, features = ["blob-memory"] }
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }

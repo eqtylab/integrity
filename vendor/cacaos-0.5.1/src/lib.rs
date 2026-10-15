@@ -1,3 +1,5 @@
+#![allow(dependency_on_unit_never_type_fallback)]
+
 use std::fmt::Debug;
 
 use async_trait::async_trait;

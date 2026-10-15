@@ -4,7 +4,6 @@ use anyhow::{anyhow, bail, Result};
 use bytes::Bytes;
 use cid::{multihash::Multihash as MultihashGeneric, Cid};
 use integrity_blob::BlobStore;
-use iroh_blobs::{hashseq::HashSeq, Hash};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
@@ -73,36 +72,50 @@ async fn get_iroh_collection_blobs(
     Ok((collection_blob, meta_blob))
 }
 
-/// Creates a HashMap of <Item Name, Item CID> from the provided blobs
-fn hashmap_from_iroh_collection_blobs(
+/// Creates a HashMap of <Item Name, Item CID> from an iroh collection's hash sequence
+/// blob and its meta blob, for callers that already hold both
+pub fn hashmap_from_iroh_collection_blobs(
     collection_blob: impl Into<Bytes>,
     meta_blob: impl Into<Bytes>,
 ) -> Result<HashMap<String, String>> {
     let collection_blob = collection_blob.into();
     let meta_blob = meta_blob.into();
 
-    let mut hash_seq = HashSeq::try_from(collection_blob)?;
+    // A hash sequence is a concatenation of 32-byte BLAKE3 hashes; the first is the meta blob's.
+    if collection_blob.len() % 32 != 0 {
+        bail!("Hash sequence length is not a multiple of 32");
+    }
+    let mut hash_seq = collection_blob.chunks_exact(32);
 
     let meta_hash = hash_seq
-        .pop_front()
+        .next()
         .ok_or_else(|| anyhow!("No meta hash found"))?;
 
-    let meta_blob_hash = Hash::from(iroh_blake3::hash(&meta_blob).as_bytes());
+    let meta_blob_hash = iroh_blake3::hash(&meta_blob);
 
-    if meta_hash != meta_blob_hash {
-        bail!("Meta hash mismatch: {meta_hash} != {meta_blob_hash}");
+    if meta_hash != meta_blob_hash.as_bytes() {
+        bail!(
+            "Meta hash mismatch: {} != {}",
+            iroh_blake3::Hash::from(<[u8; 32]>::try_from(meta_hash)?).to_hex(),
+            meta_blob_hash.to_hex()
+        );
     }
 
     let meta = postcard::from_bytes::<CollectionMeta>(&meta_blob)?;
 
-    let collection_map = if meta.names.len() == hash_seq.len() {
+    if meta.header != COLLECTION_HEADER {
+        bail!("Meta blob is not a CollectionV0 collection");
+    }
+
+    let names_len = meta.names.len();
+    let collection_map = if names_len == hash_seq.len() {
         meta.names
             .into_iter()
             .zip(hash_seq)
-            .collect::<HashMap<String, Hash>>()
+            .collect::<HashMap<String, &[u8]>>()
             .into_iter()
             .map(|(k, v)| {
-                let multihash = Multihash::wrap(crate::multihash::BLAKE3, v.as_bytes())
+                let multihash = Multihash::wrap(crate::multihash::BLAKE3, v)
                     .expect("Failed to wrap the collection hash {v:?}");
                 (
                     k,
@@ -113,6 +126,10 @@ fn hashmap_from_iroh_collection_blobs(
     } else {
         bail!("Meta names and hash seq length mismatch");
     };
+
+    if collection_map.len() != names_len {
+        bail!("Collection lists the same name more than once");
+    }
 
     Ok(collection_map)
 }
@@ -152,14 +169,112 @@ fn pretty_print_from_iroh_collection_blobs(
     Ok(pretty)
 }
 
+/// Encodes an iroh collection (`CollectionV0`) as its (meta blob, hash sequence blob) pair.
+///
+/// The meta blob is the postcard-encoded [`CollectionMeta`]; the hash sequence is the
+/// meta blob's BLAKE3 hash followed by each entry's hash, in order.
+pub(crate) fn collection_blobs(entries: Vec<(String, [u8; 32])>) -> Result<(Bytes, Bytes)> {
+    let (names, hashes): (Vec<_>, Vec<_>) = entries.into_iter().unzip();
+    let meta_blob = postcard::to_allocvec(&CollectionMeta {
+        header: COLLECTION_HEADER,
+        names,
+    })?;
+
+    let mut hash_seq = Vec::with_capacity(32 * (hashes.len() + 1));
+    hash_seq.extend_from_slice(iroh_blake3::hash(&meta_blob).as_bytes());
+    for hash in hashes {
+        hash_seq.extend_from_slice(&hash);
+    }
+
+    Ok((meta_blob.into(), hash_seq.into()))
+}
+
+/// The header every `CollectionV0` meta blob starts with.
+const COLLECTION_HEADER: [u8; 13] = *b"CollectionV0.";
+
 /// Metadata for a collection
 ///
-/// This is the wire format for the metadata blob.
-///
-/// TODO: this is copied from iroh repo
-///       try to get iroh to make this struct public and reference that instead
+/// This is the wire format for the metadata blob, matching iroh-blobs' `CollectionV0`.
 #[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 struct CollectionMeta {
-    header: [u8; 13], // Must contain "CollectionV0."
+    header: [u8; 13], // Must be COLLECTION_HEADER
     names: Vec<String>,
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::PathBuf;
+
+    use super::*;
+    use crate::iroh::{compute_dir_cid, CidIgnoreConfig, HashingConfig};
+
+    #[tokio::test]
+    async fn reads_back_the_fixture_iroh_collection() {
+        let fixture_dir =
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../fixtures/iroh-collection");
+
+        let dir_result = compute_dir_cid(
+            &fixture_dir,
+            HashingConfig::default(),
+            CidIgnoreConfig::default(),
+        )
+        .await
+        .expect("should compute dir cid");
+
+        let map = hashmap_from_iroh_collection_blobs(
+            dir_result.collection.blob.clone(),
+            dir_result.meta.blob.clone(),
+        )
+        .expect("should read the collection back");
+
+        assert_eq!(
+            map,
+            dir_result
+                .file_hashes
+                .into_iter()
+                .collect::<HashMap<_, _>>()
+        );
+
+        let mut wrong_meta = dir_result.meta.blob.to_vec();
+        wrong_meta.push(0);
+        assert!(
+            hashmap_from_iroh_collection_blobs(dir_result.collection.blob.clone(), wrong_meta)
+                .is_err()
+        );
+
+        let truncated = dir_result
+            .collection
+            .blob
+            .slice(..dir_result.collection.blob.len() - 1);
+        assert!(hashmap_from_iroh_collection_blobs(truncated, dir_result.meta.blob).is_err());
+    }
+
+    #[test]
+    fn rejects_a_collection_that_lists_a_name_twice() {
+        let (meta, hash_seq) = collection_blobs(vec![
+            ("model.bin".to_owned(), [1; 32]),
+            ("model.bin".to_owned(), [2; 32]),
+        ])
+        .expect("should encode");
+
+        assert!(hashmap_from_iroh_collection_blobs(hash_seq, meta).is_err());
+    }
+
+    #[test]
+    fn rejects_a_meta_blob_without_the_collection_header() {
+        let meta: Bytes = postcard::to_allocvec(&CollectionMeta {
+            header: *b"CollectionV1.",
+            names: vec!["model.bin".to_owned()],
+        })
+        .expect("should encode")
+        .into();
+        let mut hash_seq = iroh_blake3::hash(&meta).as_bytes().to_vec();
+        hash_seq.extend_from_slice(&[1; 32]);
+
+        assert!(hashmap_from_iroh_collection_blobs(hash_seq, meta.clone()).is_err());
+
+        let (good_meta, good_seq) =
+            collection_blobs(vec![("model.bin".to_owned(), [1; 32])]).expect("should encode");
+        assert!(hashmap_from_iroh_collection_blobs(good_seq, good_meta).is_ok());
+    }
 }

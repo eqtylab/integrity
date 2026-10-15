@@ -16,6 +16,53 @@ not always match the Git tags; section versions follow the tags.
 
 ## [Unreleased]
 
+### Security
+
+- Clears the open Trivy findings on `aws-smithy-json` (CVE-2026-18140, now 0.62.7)
+  and `hickory-resolver` (GHSA-5j98-2g5x-46v6, GHSA-6w6g-hm98-mhgm). `integrity-cid`
+  no longer depends on `iroh-blobs`, which brought in iroh's networking stack and
+  its pinned `hickory-resolver` beta; the aws crates move to releases that include
+  the fix.
+
+### Changed
+
+- **Breaking:** the `blob-s3` feature (and `blob-all`, which includes it) now needs
+  Rust 1.94.1, because the fixed aws crates require it. Without `blob-s3` the crates
+  still build on Rust 1.89.
+- `integrity-cid` encodes and reads iroh collections (`CollectionV0`) itself instead
+  of through `iroh-blobs`. The encoding is unchanged: the pinned collection CIDs in
+  its tests still match, and a new test reads a collection back.
+- The pinned Rust toolchain moves from 1.89.0 to 1.94.1, and the `rust-overlay` input
+  in `flake.lock` is updated so the Nix shell provides it. The Nix shell no longer
+  adds nixpkgs' own `cargo` and `clippy`, so `cargo` and `cargo clippy` come from the
+  pinned toolchain, and `RUST_SRC_PATH` points at that toolchain's `rust-src`. The
+  shell is now the flake's `devShells.<system>.default` output, replacing the legacy
+  `devShell`; `nix develop` works as before. The vendored `cacaos` allows
+  `dependency_on_unit_never_type_fallback`, which Rust 1.92 and later deny in its
+  `DagCbor` derive output.
+
+### Removed
+
+- The flake's `defaultPackage` and its `naersk` input. It had not evaluated since
+  0.0.12, because naersk can't read `version.workspace = true`. Even when it builds,
+  it installs nothing: naersk copies only executables, and the root crate builds none.
+  The native library is `integrity-ffi`, which the release workflow builds.
+
+### Fixed
+
+- Reading an iroh collection fails if its meta blob lacks the `CollectionV0.` header
+  or lists a name twice. Before, a repeated name silently kept only the last file's
+  hash, so a model-signing manifest built from the collection could leave a file out.
+- Exporting a manifest logs an error when an iroh collection it references can't be
+  read. Before, the collection's file blobs were left out without a message. Export
+  also reads each collection from the blobs it has already fetched, instead of
+  fetching the collection and meta blobs a second time, so a missing meta blob is
+  reported once. `integrity_cid::collection::hashmap_from_iroh_collection_blobs` is
+  now public for callers that already hold both blobs.
+- Exporting a manifest no longer panics on a hash-sequence blob shorter than 32
+  bytes. Before, one truncated or corrupt collection blob failed the whole export;
+  now it is exported as is, with an error logged and its file blobs left out.
+
 ## [0.0.18] - 2026-09-22
 
 ### Added
