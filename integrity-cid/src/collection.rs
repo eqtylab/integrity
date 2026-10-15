@@ -102,7 +102,12 @@ fn hashmap_from_iroh_collection_blobs(
 
     let meta = postcard::from_bytes::<CollectionMeta>(&meta_blob)?;
 
-    let collection_map = if meta.names.len() == hash_seq.len() {
+    if meta.header != COLLECTION_HEADER {
+        bail!("Meta blob is not a CollectionV0 collection");
+    }
+
+    let names_len = meta.names.len();
+    let collection_map = if names_len == hash_seq.len() {
         meta.names
             .into_iter()
             .zip(hash_seq)
@@ -120,6 +125,10 @@ fn hashmap_from_iroh_collection_blobs(
     } else {
         bail!("Meta names and hash seq length mismatch");
     };
+
+    if collection_map.len() != names_len {
+        bail!("Collection lists the same name more than once");
+    }
 
     Ok(collection_map)
 }
@@ -166,7 +175,7 @@ fn pretty_print_from_iroh_collection_blobs(
 pub(crate) fn collection_blobs(entries: Vec<(String, [u8; 32])>) -> Result<(Bytes, Bytes)> {
     let (names, hashes): (Vec<_>, Vec<_>) = entries.into_iter().unzip();
     let meta_blob = postcard::to_allocvec(&CollectionMeta {
-        header: *b"CollectionV0.",
+        header: COLLECTION_HEADER,
         names,
     })?;
 
@@ -179,12 +188,15 @@ pub(crate) fn collection_blobs(entries: Vec<(String, [u8; 32])>) -> Result<(Byte
     Ok((meta_blob.into(), hash_seq.into()))
 }
 
+/// The header every `CollectionV0` meta blob starts with.
+const COLLECTION_HEADER: [u8; 13] = *b"CollectionV0.";
+
 /// Metadata for a collection
 ///
 /// This is the wire format for the metadata blob, matching iroh-blobs' `CollectionV0`.
 #[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 struct CollectionMeta {
-    header: [u8; 13], // Must contain "CollectionV0."
+    header: [u8; 13], // Must be COLLECTION_HEADER
     names: Vec<String>,
 }
 
@@ -234,5 +246,34 @@ mod tests {
             .blob
             .slice(..dir_result.collection.blob.len() - 1);
         assert!(hashmap_from_iroh_collection_blobs(truncated, dir_result.meta.blob).is_err());
+    }
+
+    #[test]
+    fn rejects_a_collection_that_lists_a_name_twice() {
+        let (meta, hash_seq) = collection_blobs(vec![
+            ("model.bin".to_owned(), [1; 32]),
+            ("model.bin".to_owned(), [2; 32]),
+        ])
+        .expect("should encode");
+
+        assert!(hashmap_from_iroh_collection_blobs(hash_seq, meta).is_err());
+    }
+
+    #[test]
+    fn rejects_a_meta_blob_without_the_collection_header() {
+        let meta: Bytes = postcard::to_allocvec(&CollectionMeta {
+            header: *b"CollectionV1.",
+            names: vec!["model.bin".to_owned()],
+        })
+        .expect("should encode")
+        .into();
+        let mut hash_seq = iroh_blake3::hash(&meta).as_bytes().to_vec();
+        hash_seq.extend_from_slice(&[1; 32]);
+
+        assert!(hashmap_from_iroh_collection_blobs(hash_seq, meta.clone()).is_err());
+
+        let (good_meta, good_seq) =
+            collection_blobs(vec![("model.bin".to_owned(), [1; 32])]).expect("should encode");
+        assert!(hashmap_from_iroh_collection_blobs(good_seq, good_meta).is_ok());
     }
 }

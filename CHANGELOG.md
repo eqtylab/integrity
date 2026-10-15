@@ -31,7 +31,9 @@ not always match the Git tags; section versions follow the tags.
   still build on Rust 1.89.
 - `integrity-cid` encodes and reads iroh collections (`CollectionV0`) itself instead
   of through `iroh-blobs`. The encoding is unchanged: the pinned collection CIDs in
-  its tests still match, and a new test reads a collection back.
+  its tests still match, and a new test reads a collection back. Reading a collection
+  now fails if its meta blob lacks the `CollectionV0.` header or lists a name twice;
+  before, a duplicate name silently kept only the last file's hash.
 - The pinned Rust toolchain moves from 1.89.0 to 1.94.1, and the `rust-overlay` input
   in `flake.lock` is updated so the Nix shell provides it. The Nix shell no longer
   adds nixpkgs' own `cargo` and `clippy`, so `cargo` and `cargo clippy` come from the
