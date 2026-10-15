@@ -195,8 +195,10 @@ IgStatus ig_vc_verify(
  * "unresolved_key", "unverifiable" or "legacy_rejected"; NULL when the failure
  * is not about the credential (a bad `at_rfc3339`, for example). On success it
  * is NULL. Every reason but "malformed" (IG_STATUS_JSON_ERROR) is
- * IG_STATUS_VERIFICATION_FAILED: a proof that could not be completed is a
- * rejection, not "not checked". `*out_valid` is false unless the call
+ * IG_STATUS_VERIFICATION_FAILED. Every reason, "malformed" included, is a
+ * rejection, never "not checked": an edited credential can produce any of them.
+ * A legacy (pre-ssi-0.16) credential is judged now, not at `at_rfc3339`; its
+ * result says "`at` was not applied". `*out_valid` is false unless the call
  * succeeds. */
 IgStatus ig_vc_verify_at(
     const IgRuntimeHandle *runtime,

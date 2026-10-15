@@ -205,26 +205,65 @@ fn ffi_vc_issue_and_verify_smoke() {
         reason_ptr = ptr::null_mut();
     }
 
-    // A credential whose suite is not supported is rejected, not left unchecked:
-    // `proof.type` is part of the credential. The reason says which.
+    // A proof that could not be completed is rejected, not left unchecked: its
+    // suite, key and contexts are part of the credential. The reason says which.
+    let vm = issued_vc["proof"]["verificationMethod"]
+        .as_str()
+        .expect("verificationMethod")
+        .to_string();
+    let did = vm.split('#').next().unwrap().to_string();
     let mut odd_suite = issued_vc.clone();
     odd_suite["proof"]["type"] = Value::String("NoSuchSignature2099".into());
-    let odd_suite_c = cstring(&odd_suite.to_string());
+    let mut missing_key = issued_vc.clone();
+    missing_key["proof"]["verificationMethod"] = Value::String(format!("{did}#no-such-key"));
+    let mut extra_context = issued_vc.clone();
+    extra_context["@context"]
+        .as_array_mut()
+        .unwrap()
+        .push(Value::String("https://example.invalid/ctx".into()));
+    for (expected, edited) in [
+        ("unsupported_suite", odd_suite),
+        ("unresolved_key", missing_key),
+        ("unresolved_context", extra_context),
+    ] {
+        let edited_c = cstring(&edited.to_string());
+        is_valid = true;
+        let status = vc::ig_vc_verify_at(
+            runtime_handle,
+            edited_c.as_ptr(),
+            ptr::null(),
+            ptr::null(),
+            &mut verify_result_ptr,
+            &mut is_valid,
+            &mut reason_ptr,
+            &mut err_out,
+        );
+        assert_eq!(status, IgStatus::VerificationFailed, "{expected}");
+        assert!(!is_valid, "{expected}");
+        assert_eq!(take_owned_c_string(reason_ptr), expected);
+        take_owned_c_string(err_out);
+        err_out = ptr::null_mut();
+    }
+
+    // A legacy credential checked at a time is accepted, and says `at` was not
+    // applied: the legacy verifier judges dates only now.
+    let legacy_c = cstring(include_str!("../../../fixtures/legacy-vc/ed25519.json"));
+    let long_ago = cstring("2000-01-01T00:00:00Z");
+    reason_ptr = stale_reason;
     let status = vc::ig_vc_verify_at(
         runtime_handle,
-        odd_suite_c.as_ptr(),
+        legacy_c.as_ptr(),
         ptr::null(),
-        ptr::null(),
+        long_ago.as_ptr(),
         &mut verify_result_ptr,
         &mut is_valid,
         &mut reason_ptr,
         &mut err_out,
     );
-    assert_eq!(status, IgStatus::VerificationFailed);
-    assert!(!is_valid);
-    assert_eq!(take_owned_c_string(reason_ptr), "unsupported_suite");
-    take_owned_c_string(err_out);
-    err_out = ptr::null_mut();
+    assert_ok(status, err_out);
+    assert!(is_valid);
+    assert!(reason_ptr.is_null());
+    assert!(take_owned_c_string(verify_result_ptr).contains("`at` was not applied"));
 
     let bad_at = cstring("yesterday");
     reason_ptr = stale_reason;

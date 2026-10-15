@@ -352,8 +352,11 @@ pub enum VcVerificationError {
     InvalidProof(String),
     /// The input is not a well-formed credential: it is not JSON, the JSON
     /// does not have a credential's shape, or its JSON-LD does not expand (an
-    /// invalid `@type`, for example). A bad request, not a verdict; the FFI
-    /// reports it as `IG_STATUS_JSON_ERROR`, as it did before this type existed.
+    /// invalid `@type`, for example). Like every variant it is a rejection:
+    /// editing a signed credential can produce it (a `proof.jws` that is not a
+    /// JWS, an invalid `@type`), so it must not be read as "not checked". The
+    /// FFI reports it as `IG_STATUS_JSON_ERROR`, as it did before this type
+    /// existed.
     Malformed(String),
     /// The credential has no proof.
     MissingProof,
@@ -370,9 +373,7 @@ pub enum VcVerificationError {
     /// The proof could not be completed, for a reason the other variants do not
     /// name. A rejection: see the type's docs.
     Unverifiable(String),
-    /// The pre-ssi-0.16 verifier rejected the credential, with its errors, or
-    /// [`verify_vc_at`] was asked to judge a legacy credential at a given time,
-    /// which that verifier cannot do (the last error says so).
+    /// The pre-ssi-0.16 verifier rejected the credential, with its errors.
     Legacy(Vec<String>),
 }
 
@@ -496,7 +497,9 @@ impl VcVerificationError {
             // ssi gives every expansion failure this prefix. Only a context that
             // did not load is unresolved; otherwise the credential's own JSON-LD
             // is invalid.
-            if message.contains("loading document") {
+            if message.starts_with(
+                "JSON-LD expansion failed: expansion error: Context processing failed: loading document",
+            ) {
                 Self::UnresolvedContext(message)
             } else {
                 Self::Malformed(message)
@@ -538,10 +541,10 @@ impl VcVerificationError {
 /// # Legacy credentials
 ///
 /// Credentials created before ssi 0.16 are verified by a separate legacy
-/// verifier, which judges dates only at the current time. `verify_vc_at`
-/// therefore never accepts one: it returns [`VcVerificationError::Legacy`],
-/// whose last error says that `at` was not applied, even when the credential
-/// verifies now. Use [`verify_vc`] to check a legacy credential now.
+/// verifier, which judges dates only at the current time, so `at` is not
+/// applied to them. The result says so: on success it reads `VC verification
+/// result: ok (legacy path; `at` was not applied: …)`, and a
+/// [`VcVerificationError::Legacy`] rejection's last error is the same note.
 #[cfg(not(target_arch = "wasm32"))]
 pub async fn verify_vc_at(
     vc_json: &str,
@@ -551,7 +554,8 @@ pub async fn verify_vc_at(
     verify_vc_with_date_time(vc_json, contexts, Some(at)).await
 }
 
-/// The last legacy error when the caller asked for a check time.
+/// Added to a legacy result, success or rejection, when the caller asked for a
+/// check time.
 #[cfg(not(target_arch = "wasm32"))]
 const LEGACY_AT_NOT_APPLIED: &str =
     "`at` was not applied: the legacy verifier judges dates at the current time";
@@ -567,11 +571,11 @@ pub async fn verify_vc_with_date_time(
     if is_legacy_vc(vc_json) {
         // `contexts` deliberately does not reach the legacy path; see
         // `verify_legacy_vc`. Nor does `at`: the legacy verifier judges dates
-        // now, so a check at `at` is never accepted, and the error says why.
+        // now, and the result, accepted or not, says so.
         return match (verify_legacy_vc(vc_json).await, at) {
-            (Ok(_), Some(_)) => {
-                Err(VcVerificationError::Legacy(vec![LEGACY_AT_NOT_APPLIED.to_string()]).into())
-            }
+            (Ok(_), Some(_)) => Ok(format!(
+                "VC verification result: ok (legacy path; {LEGACY_AT_NOT_APPLIED})"
+            )),
             (Err(e), Some(_)) => match e.downcast::<VcVerificationError>() {
                 Ok(VcVerificationError::Legacy(mut errors)) => {
                     errors.push(LEGACY_AT_NOT_APPLIED.to_string());
@@ -2013,12 +2017,13 @@ mod tests {
             VcVerificationError::Malformed(_)
         ));
 
-        // A legacy credential that verifies now is still not accepted at `at`,
-        // because the legacy verifier cannot judge it then.
-        assert!(verify_vc(CAPTURED_LEGACY_ED25519_VC, None).await.is_ok());
+        // A legacy credential that verifies now is accepted at `at` too, but the
+        // result says `at` was not applied.
         assert_eq!(
-            reason(verify_vc_at(CAPTURED_LEGACY_ED25519_VC, None, now).await),
-            VcVerificationError::Legacy(vec![LEGACY_AT_NOT_APPLIED.to_string()])
+            verify_vc_at(CAPTURED_LEGACY_ED25519_VC, None, now)
+                .await
+                .unwrap(),
+            format!("VC verification result: ok (legacy path; {LEGACY_AT_NOT_APPLIED})")
         );
 
         // A rejected legacy credential says when `at` was not applied.

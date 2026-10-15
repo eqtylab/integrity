@@ -22,9 +22,10 @@ not always match the Git tags; section versions follow the tags.
   instead of now. `verify_vc` validates `validFrom` / `validUntil` before the proof,
   so a credential that has since expired fails without its signature being checked;
   `verify_vc_at` at a time inside its validity period checks the signature for real.
-  `verify_vc` is unchanged. A legacy (pre-ssi-0.16) credential is never accepted by
-  `verify_vc_at`, because the legacy verifier judges dates only at the current time;
-  `verify_vc_with_date_time` takes an optional time for callers that may have none.
+  `verify_vc` is unchanged. A legacy (pre-ssi-0.16) credential is judged at the
+  current time, because the legacy verifier takes no other; its result, accepted or
+  not, says that `at` was not applied. `verify_vc_with_date_time` takes an optional
+  time for callers that may have none.
   ([#50](https://github.com/eqtylab/integrity/pull/50))
 - `integrity-vc`: `VcVerificationError`, the reason `verify_vc` or `verify_vc_at`
   did not accept a credential: `Expired`, `NotYetValid`, `InvalidClaims`,
@@ -33,10 +34,10 @@ not always match the Git tags; section versions follow the tags.
   `UnresolvedContext`, `UnresolvedKey` (the proof could not be completed: its suite
   is not supported, a context did not load, or its key did not resolve),
   `Unverifiable` (could not be completed, for another reason) or `Legacy`, with a
-  stable `code()`. Every reason is a rejection: a credential altered in its suite,
-  contexts or key reads the same as one that could not be checked, so none of them
-  means "not checked". It is `#[non_exhaustive]`, carried inside the returned
-  `anyhow::Error` and recovered with `downcast_ref`.
+  stable `code()`. Every reason is a rejection, `Malformed` included: a credential
+  altered in its suite, contexts, key or shape reads the same as one that could not
+  be checked, so none of them means "not checked". It is `#[non_exhaustive]`,
+  carried inside the returned `anyhow::Error` and recovered with `downcast_ref`.
   ([#50](https://github.com/eqtylab/integrity/pull/50))
 - FFI: `ig_vc_verify_at`: like `ig_vc_verify`, with a check time (`at_rfc3339`)
   and a failure reason code (`out_reason`). Advance the FFI ABI from `0.4.0` to
