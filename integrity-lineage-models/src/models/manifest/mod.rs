@@ -171,9 +171,15 @@ pub async fn resolve_blobs(
                             }
 
                             // add iroh file blobs
-                            let Ok(iroh_map) =
-                                hashmap_for_iroh_collection(&cid, blob_store.clone()).await else {
-                                    return blobs;
+                            let iroh_map =
+                                match hashmap_for_iroh_collection(&cid, blob_store.clone()).await {
+                                    Ok(iroh_map) => iroh_map,
+                                    Err(e) => {
+                                        log::error!(
+                                            "Could not read iroh collection '{cid}'; its file blobs are left out: {e}"
+                                        );
+                                        return blobs;
+                                    }
                                 };
 
                             let file_cids = iroh_map.values().cloned().collect::<Vec<_>>();
