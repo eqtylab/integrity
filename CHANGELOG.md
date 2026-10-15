@@ -19,16 +19,24 @@ not always match the Git tags; section versions follow the tags.
 ### Security
 
 - Clears the open Trivy findings on `aws-smithy-json` (CVE-2026-18140, now 0.62.7)
-  and `hickory-resolver` (GHSA-5j98-2g5x-46v6, GHSA-6w6g-hm98-mhgm). `iroh-blobs`
-  moves from 0.100 to 0.103, which brings iroh 1.x and drops the pinned
-  `hickory-resolver` beta; the aws crates move to releases that include the fix.
+  and `hickory-resolver` (GHSA-5j98-2g5x-46v6, GHSA-6w6g-hm98-mhgm). `integrity-cid`
+  no longer depends on `iroh-blobs`, which brought in iroh's networking stack and
+  its pinned `hickory-resolver` beta; the aws crates move to releases that include
+  the fix.
 
 ### Changed
 
-- The pinned Rust toolchain moves from 1.89.0 to 1.94.1 (the fixed aws crates need
-  1.94.1), and the `rust-overlay` input in `flake.lock` is updated so the Nix shell
-  provides it. The vendored `cacaos` allows `dependency_on_unit_never_type_fallback`,
-  which current Rust denies in its `DagCbor` derive output.
+- **Breaking:** the `blob-s3` feature (and `blob-all`, which includes it) now needs
+  Rust 1.94.1, because the fixed aws crates require it. Without `blob-s3` the crates
+  still build on Rust 1.89.
+- `integrity-cid` encodes and reads iroh collections (`CollectionV0`) itself instead
+  of through `iroh-blobs`. The encoding is unchanged: the pinned collection CIDs in
+  its tests still match, and a new test reads a collection back.
+- The pinned Rust toolchain moves from 1.89.0 to 1.94.1, and the `rust-overlay` input
+  in `flake.lock` is updated so the Nix shell provides it. The Nix shell no longer
+  adds nixpkgs' own `cargo` and `clippy`, so `cargo` and `cargo clippy` come from the
+  pinned toolchain. The vendored `cacaos` allows `dependency_on_unit_never_type_fallback`,
+  which Rust 1.92 and later deny in its `DagCbor` derive output.
 
 ## [0.0.18] - 2026-09-22
 
