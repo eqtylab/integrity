@@ -54,7 +54,11 @@ not always match the Git tags; section versions follow the tags.
   or lists a name twice. Before, a repeated name silently kept only the last file's
   hash, so a model-signing manifest built from the collection could leave a file out.
 - Exporting a manifest logs an error when an iroh collection it references can't be
-  read. Before, the collection's file blobs were left out without a message.
+  read. Before, the collection's file blobs were left out without a message. Export
+  also reads each collection from the blobs it has already fetched, instead of
+  fetching the collection and meta blobs a second time, so a missing meta blob is
+  reported once. `integrity_cid::collection::hashmap_from_iroh_collection_blobs` is
+  now public for callers that already hold both blobs.
 - Exporting a manifest no longer panics on a hash-sequence blob shorter than 32
   bytes. Before, one truncated or corrupt collection blob failed the whole export;
   now it is exported as is, with an error logged and its file blobs left out.

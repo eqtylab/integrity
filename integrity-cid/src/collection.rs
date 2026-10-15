@@ -72,8 +72,9 @@ async fn get_iroh_collection_blobs(
     Ok((collection_blob, meta_blob))
 }
 
-/// Creates a HashMap of <Item Name, Item CID> from the provided blobs
-fn hashmap_from_iroh_collection_blobs(
+/// Creates a HashMap of <Item Name, Item CID> from an iroh collection's hash sequence
+/// blob and its meta blob, for callers that already hold both
+pub fn hashmap_from_iroh_collection_blobs(
     collection_blob: impl Into<Bytes>,
     meta_blob: impl Into<Bytes>,
 ) -> Result<HashMap<String, String>> {
