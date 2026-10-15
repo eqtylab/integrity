@@ -14,7 +14,10 @@
     inputs.utils.lib.eachDefaultSystem (system:
       let
         pkgs = import inputs.nixpkgs { inherit system; };
-        naersk-lib = pkgs.callPackage inputs.naersk { };
+        naersk-lib = pkgs.callPackage inputs.naersk {
+          cargo = rust;
+          rustc = rust;
+        };
 
         pkgs-rust = import inputs.nixpkgs-rust {
           inherit system;
@@ -35,7 +38,11 @@
 
       in
       {
-        defaultPackage = naersk-lib.buildPackage ./.;
+        defaultPackage = naersk-lib.buildPackage {
+          pname = "integrity";
+          version = (builtins.fromTOML (builtins.readFile ./Cargo.toml)).workspace.package.version;
+          src = ./.;
+        };
         devShell = with pkgs; mkShell {
           buildInputs = [
             chromedriver
