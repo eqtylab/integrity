@@ -205,8 +205,17 @@ pub extern "C" fn ig_vc_verify_at(
             out_at_applied.is_null() || at.is_none() || !vc::is_legacy_vc(&credential_json);
         let outcome =
             runtime.block_on(vc::verify_vc_with_date_time(&credential_json, contexts, at));
-        // The credential has now been checked, accepted or not.
-        if !out_at_applied.is_null() {
+        // Only once the credential was checked: accepted, or rejected for a reason
+        // other than input that did not parse. A failure before the check leaves
+        // it `false`.
+        let checked = match &outcome {
+            Ok(_) => true,
+            Err(e) => matches!(
+                e.downcast_ref::<vc::VcVerificationError>(),
+                Some(reason) if !matches!(reason, vc::VcVerificationError::Malformed(_))
+            ),
+        };
+        if checked && !out_at_applied.is_null() {
             write_bool(out_at_applied, at_applied, "out_at_applied")?;
         }
         if let Err(e) = &outcome {

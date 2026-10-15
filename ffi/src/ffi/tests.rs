@@ -199,6 +199,7 @@ fn ffi_vc_issue_and_verify_smoke() {
     // `ig_vc_verify_at`, and says so as its reason.
     for bad in ["{\"truncated\": ", "{\"not\": \"a credential\"}"] {
         let bad_c = cstring(bad);
+        at_applied = true;
         let status = vc::ig_vc_verify_at(
             runtime_handle,
             bad_c.as_ptr(),
@@ -212,6 +213,7 @@ fn ffi_vc_issue_and_verify_smoke() {
         );
         assert_eq!(status, IgStatus::JsonError);
         assert!(!is_valid);
+        assert!(!at_applied, "input that does not parse was never checked");
         assert_eq!(take_owned_c_string(reason_ptr), "malformed");
         take_owned_c_string(err_out);
         err_out = ptr::null_mut();

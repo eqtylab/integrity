@@ -42,8 +42,8 @@ not always match the Git tags; section versions follow the tags.
   ([#50](https://github.com/eqtylab/integrity/pull/50))
 - FFI: `ig_vc_verify_at`: like `ig_vc_verify`, with a check time (`at_rfc3339`),
   a failure reason code (`out_reason`) and `out_at_applied`, which is `false` when a
-  legacy credential could only be judged at the current time. Advance the FFI ABI
-  from `0.4.0` to `0.5.0`. ([#50](https://github.com/eqtylab/integrity/pull/50))
+  legacy credential could only be judged at the current time, or when the call fails
+  before the credential is checked. Advance the FFI ABI from `0.4.0` to `0.5.0`. ([#50](https://github.com/eqtylab/integrity/pull/50))
 
 ### Changed
 
