@@ -143,9 +143,14 @@ pub async fn resolve_blobs(
                     Ok(Some(blob)) => {
                         if Cid::try_from(cid.clone()).map(|c| c.codec()).unwrap_or(0) == BLAKE3_HASHSEQ {
                             // add iroh meta blob
-                            let iroh_meta_blob_hash = blob[0..32].to_vec();
+                            let Some(iroh_meta_blob_hash) = blob.get(0..32) else {
+                                log::error!(
+                                    "Blob '{cid}' is too short to be an iroh collection; its file blobs are left out"
+                                );
+                                return vec![(cid.clone(), BASE64.encode(&blob))];
+                            };
                             let iroh_meta_blob_multihash =
-                                MultihashGeneric::wrap(BLAKE3, &iroh_meta_blob_hash).unwrap();
+                                MultihashGeneric::wrap(BLAKE3, iroh_meta_blob_hash).unwrap();
                             let iroh_meta_blob_cid =
                                 Cid::new_v1(RAW_BINARY, iroh_meta_blob_multihash).to_string();
 
@@ -389,4 +394,44 @@ fn statements_to_map(statements: Vec<Statement>) -> Result<HashMap<String, State
     }
 
     Ok(map)
+}
+
+#[cfg(test)]
+mod tests {
+    use integrity_blob::InMemoryStore;
+
+    use super::*;
+    use crate::models::statements::DataStatement;
+
+    #[tokio::test]
+    async fn resolve_blobs_skips_a_collection_blob_shorter_than_a_hash() {
+        // A BLAKE3 hash-sequence CID, so resolve_blobs treats its blob as an iroh collection.
+        let collection_cid = "bagaachraifnmn56rqtgbdxx5x2zvasw4slukuq2t7w3iefcmsqldn7axmrpq";
+        let file_cid = integrity_cid::blake3::blake3_cid_raw_binary(b"file").unwrap();
+
+        let store = InMemoryStore {
+            blobs: HashMap::from([
+                (collection_cid.to_owned(), vec![1, 2, 3]),
+                (file_cid.clone(), b"file".to_vec()),
+            ]),
+        };
+        let statement = DataStatement::create(
+            vec![collection_cid.to_owned(), file_cid.clone()],
+            "did:key:zQ3shtdnadpYS81njBma5RqQMEAL3BenSJdCfZAu2Uj1ukwo9".to_owned(),
+            Some("2024-06-27T21:40:37Z".to_owned()),
+        )
+        .await
+        .unwrap();
+
+        let blobs = resolve_blobs(
+            &vec![Statement::DataRegistration(statement)],
+            Arc::new(store),
+            4,
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(blobs.get(collection_cid), Some(&BASE64.encode([1, 2, 3])));
+        assert_eq!(blobs.get(&file_cid), Some(&BASE64.encode(b"file")));
+    }
 }

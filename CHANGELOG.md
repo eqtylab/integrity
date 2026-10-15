@@ -55,6 +55,9 @@ not always match the Git tags; section versions follow the tags.
   hash, so a model-signing manifest built from the collection could leave a file out.
 - Exporting a manifest logs an error when an iroh collection it references can't be
   read. Before, the collection's file blobs were left out without a message.
+- Exporting a manifest no longer panics on a hash-sequence blob shorter than 32
+  bytes. Before, one truncated or corrupt collection blob failed the whole export;
+  now it is exported as is, with an error logged and its file blobs left out.
 
 ## [0.0.18] - 2026-09-22
 
