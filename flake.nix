@@ -38,7 +38,6 @@
         defaultPackage = naersk-lib.buildPackage ./.;
         devShell = with pkgs; mkShell {
           buildInputs = [
-            cargo
             chromedriver
             geckodriver
             just
@@ -49,7 +48,6 @@
             pkg-config
             rustfmt-nightly
             rust
-            rustPackages.clippy
             wasm-pack
             wasm-bindgen-cli
           ];
