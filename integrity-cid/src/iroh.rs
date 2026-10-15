@@ -8,11 +8,10 @@ use std::{
 use anyhow::{bail, Result};
 use bytes::Bytes;
 use cid::{multihash::Multihash as MultihashGeneric, Cid};
-use iroh_blobs::format::collection::Collection;
 use log::{debug, trace};
 use serde::{Deserialize, Serialize};
 
-use crate::{multicodec, multihash};
+use crate::{collection::collection_blobs, multicodec, multihash};
 
 /// Configuration for hashing algorithms and performance optimizations.
 ///
@@ -132,12 +131,7 @@ pub async fn compute_dir_cid(
         bs
     };
 
-    let collection = Collection::from_iter(path_hash_map.clone().into_iter());
-
-    let (meta_blob, collection_blob) = match collection.to_blobs().collect::<Vec<_>>().as_slice() {
-        [meta_blob, collection_blob] => (meta_blob.clone(), collection_blob.clone()),
-        bs => bail!("Expected two blobs, found {}.", bs.len()),
-    };
+    let (meta_blob, collection_blob) = collection_blobs(path_hash_map.clone())?;
 
     let meta_blob_cid = compute_blob_cid(&meta_blob, multicodec::RAW_BINARY).await?;
     let collection_cid = compute_blob_cid(&collection_blob, multicodec::BLAKE3_HASHSEQ).await?;
@@ -185,12 +179,7 @@ pub async fn compute_iroh_collection_cid(
 
     path_hash_map.sort_by(|a, b| pathname_sort(&a.0, &b.0));
 
-    let collection = Collection::from_iter(path_hash_map);
-
-    let (meta_blob, collection_blob) = match collection.to_blobs().collect::<Vec<_>>().as_slice() {
-        [meta_blob, collection_blob] => (meta_blob.clone(), collection_blob.clone()),
-        bs => bail!("Expected two blobs, found {}.", bs.len()),
-    };
+    let (meta_blob, collection_blob) = collection_blobs(path_hash_map)?;
 
     let meta_blob_cid = compute_blob_cid(&meta_blob, multicodec::RAW_BINARY).await?;
     let collection_cid = compute_blob_cid(&collection_blob, multicodec::BLAKE3_HASHSEQ).await?;
