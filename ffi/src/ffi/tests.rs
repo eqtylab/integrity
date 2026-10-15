@@ -173,6 +173,7 @@ fn ffi_vc_issue_and_verify_smoke() {
         Value::String("did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK".into());
     let altered_c = cstring(&altered.to_string());
     let at = cstring(issued_vc["validFrom"].as_str().expect("validFrom"));
+    at_applied = false;
     let status = vc::ig_vc_verify_at(
         runtime_handle,
         altered_c.as_ptr(),
@@ -282,6 +283,7 @@ fn ffi_vc_issue_and_verify_smoke() {
 
     let bad_at = cstring("yesterday");
     reason_ptr = stale_reason;
+    at_applied = true;
     let status = vc::ig_vc_verify_at(
         runtime_handle,
         vc_json_c.as_ptr(),
@@ -295,6 +297,10 @@ fn ffi_vc_issue_and_verify_smoke() {
     );
     assert_eq!(status, IgStatus::InvalidInput);
     assert!(reason_ptr.is_null());
+    assert!(
+        !at_applied,
+        "nothing was judged at a time that did not parse"
+    );
     take_owned_c_string(err_out);
     drop(unsafe { CString::from_raw(stale_reason) });
 

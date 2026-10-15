@@ -157,9 +157,10 @@ pub extern "C" fn ig_vc_verify(
 /// the failure is not about the credential (a bad `at_rfc3339`, for example).
 /// On success it is set to `NULL`. `*out_valid` is `false` unless the call
 /// succeeds. `*out_at_applied`, when `out_at_applied` is not `NULL`, says
-/// whether the dates were judged at `at_rfc3339`: it is `false` when a time was
-/// given but the credential is a legacy (pre-ssi-0.16) one, which is judged at
-/// the current time, and `true` otherwise.
+/// whether the dates were judged at `at_rfc3339` (or now, when it is `NULL`):
+/// it is `false` when a time was given but the credential is a legacy
+/// (pre-ssi-0.16) one, which is judged at the current time, and `false` when
+/// the call failed before the credential was checked; otherwise `true`.
 #[no_mangle]
 #[allow(clippy::too_many_arguments)]
 pub extern "C" fn ig_vc_verify_at(
@@ -177,7 +178,7 @@ pub extern "C" fn ig_vc_verify_at(
         unsafe { *out_reason = std::ptr::null_mut() };
     }
     if !out_at_applied.is_null() {
-        unsafe { *out_at_applied = true };
+        unsafe { *out_at_applied = false };
     }
     if !out_valid.is_null() {
         unsafe { *out_valid = false };
@@ -200,17 +201,19 @@ pub extern "C" fn ig_vc_verify_at(
             .transpose()?;
 
         // Parsed for the legacy check only when the caller asks.
-        if at.is_some() && !out_at_applied.is_null() && vc::is_legacy_vc(&credential_json) {
-            write_bool(out_at_applied, false, "out_at_applied")?;
-        }
+        let at_applied =
+            out_at_applied.is_null() || at.is_none() || !vc::is_legacy_vc(&credential_json);
         let outcome =
             runtime.block_on(vc::verify_vc_with_date_time(&credential_json, contexts, at));
+        // The credential has now been checked, accepted or not.
+        if !out_at_applied.is_null() {
+            write_bool(out_at_applied, at_applied, "out_at_applied")?;
+        }
         if let Err(e) = &outcome {
-            if let (Some(reason), false) = (
-                e.downcast_ref::<vc::VcVerificationError>(),
-                out_reason.is_null(),
-            ) {
-                write_c_string(out_reason, reason.code().to_string(), "out_reason")?;
+            if !out_reason.is_null() {
+                if let Some(reason) = e.downcast_ref::<vc::VcVerificationError>() {
+                    write_c_string(out_reason, reason.code().to_string(), "out_reason")?;
+                }
             }
         }
         let result = map_anyhow(outcome)?;
