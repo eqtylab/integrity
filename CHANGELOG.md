@@ -31,14 +31,24 @@ not always match the Git tags; section versions follow the tags.
   still build on Rust 1.89.
 - `integrity-cid` encodes and reads iroh collections (`CollectionV0`) itself instead
   of through `iroh-blobs`. The encoding is unchanged: the pinned collection CIDs in
-  its tests still match, and a new test reads a collection back. Reading a collection
-  now fails if its meta blob lacks the `CollectionV0.` header or lists a name twice;
-  before, a duplicate name silently kept only the last file's hash.
+  its tests still match, and a new test reads a collection back.
 - The pinned Rust toolchain moves from 1.89.0 to 1.94.1, and the `rust-overlay` input
   in `flake.lock` is updated so the Nix shell provides it. The Nix shell no longer
   adds nixpkgs' own `cargo` and `clippy`, so `cargo` and `cargo clippy` come from the
-  pinned toolchain. The vendored `cacaos` allows `dependency_on_unit_never_type_fallback`,
-  which Rust 1.92 and later deny in its `DagCbor` derive output.
+  pinned toolchain. The vendored `cacaos` allows
+  `dependency_on_unit_never_type_fallback`, which Rust 1.92 and later deny in its
+  `DagCbor` derive output.
+
+### Fixed
+
+- Reading an iroh collection fails if its meta blob lacks the `CollectionV0.` header
+  or lists a name twice. Before, a repeated name silently kept only the last file's
+  hash, so a model-signing manifest built from the collection could leave a file out.
+- Exporting a manifest logs an error when an iroh collection it references can't be
+  read. Before, the collection's file blobs were left out without a message.
+- The flake's `defaultPackage` evaluates again and is built with the pinned
+  toolchain. It had failed since 0.0.12, because naersk can't read
+  `version.workspace = true`; the flake now passes the name and version itself.
 
 ## [0.0.18] - 2026-09-22
 
