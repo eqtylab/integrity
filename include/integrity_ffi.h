@@ -178,6 +178,7 @@ IgStatus ig_vc_sign(
     char **out_signed_credential_json,
     char **err_out
 );
+/* `*out_valid` is false unless the call succeeds. */
 IgStatus ig_vc_verify(
     const IgRuntimeHandle *runtime,
     const char *credential_json,
@@ -193,7 +194,10 @@ IgStatus ig_vc_verify(
  * "invalid_proof", "malformed", "unsupported_suite", "unresolved_context",
  * "unresolved_key", "unverifiable" or "legacy_rejected"; NULL when the failure
  * is not about the credential (a bad `at_rfc3339`, for example). On success it
- * is NULL. */
+ * is NULL. Every reason but "malformed" (IG_STATUS_JSON_ERROR) is
+ * IG_STATUS_VERIFICATION_FAILED: a proof that could not be completed is a
+ * rejection, not "not checked". `*out_valid` is false unless the call
+ * succeeds. */
 IgStatus ig_vc_verify_at(
     const IgRuntimeHandle *runtime,
     const char *credential_json,

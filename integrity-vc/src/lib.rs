@@ -317,6 +317,13 @@ pub async fn verify_vc(vc_json: &str, contexts: Option<HashMap<String, String>>)
 /// message; one that is not recognised is `Unverifiable`. Errors
 /// that say nothing about the credential itself, such as a caller-supplied
 /// context that does not parse, are not of this type.
+///
+/// Every variant means the credential is not accepted. `UnsupportedSuite`,
+/// `UnresolvedContext`, `UnresolvedKey` and `Unverifiable` say the proof could
+/// not be completed, but what they come from (`proof.type`, `@context`,
+/// `proof.verificationMethod`) is part of the credential, so a credential that
+/// was altered there reads the same way. Treat them as a rejection, never as
+/// "not checked".
 #[cfg(not(target_arch = "wasm32"))]
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
@@ -343,26 +350,29 @@ pub enum VcVerificationError {
     InvalidSignature,
     /// The proof is present but does not fit the key or algorithm it names.
     InvalidProof(String),
-    /// The input is not a well-formed credential: it is not JSON, or the JSON
-    /// does not have a credential's shape. A bad request, not a verdict; the FFI
+    /// The input is not a well-formed credential: it is not JSON, the JSON
+    /// does not have a credential's shape, or its JSON-LD does not expand (an
+    /// invalid `@type`, for example). A bad request, not a verdict; the FFI
     /// reports it as `IG_STATUS_JSON_ERROR`, as it did before this type existed.
     Malformed(String),
     /// The credential has no proof.
     MissingProof,
-    /// The proof's cryptographic suite is not one this library verifies, so it
-    /// could not be checked. Not a verdict on the credential.
+    /// The proof's cryptographic suite is not one this library verifies, so
+    /// the proof could not be completed. A rejection: see the type's docs.
     UnsupportedSuite(String),
-    /// A JSON-LD context the credential names did not resolve, so the proof
-    /// could not be checked. Not a verdict on the credential.
+    /// A JSON-LD context the credential names did not load, so the proof could
+    /// not be completed. A rejection: see the type's docs.
     UnresolvedContext(String),
     /// The key the proof names did not resolve: the issuer's DID could not be
-    /// resolved, or its document has no such key. Not a verdict on the
-    /// credential.
+    /// resolved, or its document has no such key. A rejection: see the type's
+    /// docs.
     UnresolvedKey(String),
-    /// The proof could not be checked at all, for a reason the other variants
-    /// do not name. Not a verdict on the credential.
+    /// The proof could not be completed, for a reason the other variants do not
+    /// name. A rejection: see the type's docs.
     Unverifiable(String),
-    /// The pre-ssi-0.16 verifier rejected the credential, with its errors.
+    /// The pre-ssi-0.16 verifier rejected the credential, with its errors, or
+    /// [`verify_vc_at`] was asked to judge a legacy credential at a given time,
+    /// which that verifier cannot do (the last error says so).
     Legacy(Vec<String>),
 }
 
@@ -411,10 +421,10 @@ impl std::fmt::Display for VcVerificationError {
             Self::InvalidProof(e) => write!(f, "invalid VC proof: {e}"),
             Self::Malformed(e) => write!(f, "malformed VC: {e}"),
             Self::MissingProof => write!(f, "invalid VC proof: missing proof"),
-            Self::UnsupportedSuite(e) | Self::UnresolvedContext(e) | Self::UnresolvedKey(e) => {
-                write!(f, "verification error: {e}")
-            }
-            Self::Unverifiable(e) => write!(f, "verification error: {e}"),
+            Self::UnsupportedSuite(e)
+            | Self::UnresolvedContext(e)
+            | Self::UnresolvedKey(e)
+            | Self::Unverifiable(e) => write!(f, "verification error: {e}"),
             Self::Legacy(errors) => write!(f, "legacy VC verification failed: {errors:?}"),
         }
     }
@@ -445,9 +455,10 @@ impl From<Invalid> for VcVerificationError {
 
 /// ssi reports some verdicts on the proof as errors from `verify` rather than
 /// as an `Invalid` outcome. Those are verdicts all the same. What stopped the
-/// check from running at all is not a verdict, and gets the variant that names
-/// it (`UnsupportedSuite`, `UnresolvedContext`, `UnresolvedKey`), or
-/// `Unverifiable` when ssi's message is not recognised.
+/// proof from being completed gets the variant that names it
+/// (`UnsupportedSuite`, `UnresolvedContext`, `UnresolvedKey`), or
+/// `Unverifiable` when ssi's message is not recognised; each is still a
+/// rejection.
 #[cfg(not(target_arch = "wasm32"))]
 impl From<ProofValidationError> for VcVerificationError {
     fn from(e: ProofValidationError) -> Self {
@@ -482,7 +493,14 @@ impl VcVerificationError {
         if message.starts_with("unsupported cryptographic suite") {
             Self::UnsupportedSuite(message)
         } else if message.starts_with("JSON-LD expansion failed") {
-            Self::UnresolvedContext(message)
+            // ssi gives every expansion failure this prefix. Only a context that
+            // did not load is unresolved; otherwise the credential's own JSON-LD
+            // is invalid.
+            if message.contains("loading document") {
+                Self::UnresolvedContext(message)
+            } else {
+                Self::Malformed(message)
+            }
         } else if message.starts_with("internal error: DID resolution failed")
             || message.starts_with("internal error: could not find resource")
         {
@@ -520,10 +538,10 @@ impl VcVerificationError {
 /// # Legacy credentials
 ///
 /// Credentials created before ssi 0.16 are verified by a separate legacy
-/// verifier, which cannot take a custom time. They are checked against the
-/// current time, just as in [`verify_vc`], and `at` is ignored. If such a
-/// credential is rejected, the [`VcVerificationError::Legacy`] errors end
-/// with a note saying that `at` was not applied.
+/// verifier, which judges dates only at the current time. `verify_vc_at`
+/// therefore never accepts one: it returns [`VcVerificationError::Legacy`],
+/// whose last error says that `at` was not applied, even when the credential
+/// verifies now. Use [`verify_vc`] to check a legacy credential now.
 #[cfg(not(target_arch = "wasm32"))]
 pub async fn verify_vc_at(
     vc_json: &str,
@@ -533,21 +551,27 @@ pub async fn verify_vc_at(
     verify_vc_with_date_time(vc_json, contexts, Some(at)).await
 }
 
-/// Appended to a legacy rejection when the caller asked for a check time.
+/// The last legacy error when the caller asked for a check time.
 #[cfg(not(target_arch = "wasm32"))]
 const LEGACY_AT_NOT_APPLIED: &str =
     "`at` was not applied: the legacy verifier judges dates at the current time";
 
+/// [`verify_vc`] when `at` is `None`, [`verify_vc_at`] otherwise, for callers
+/// whose check time is optional.
 #[cfg(not(target_arch = "wasm32"))]
-async fn verify_vc_with_date_time(
+pub async fn verify_vc_with_date_time(
     vc_json: &str,
     contexts: Option<HashMap<String, String>>,
     at: Option<DateTime<Utc>>,
 ) -> Result<String> {
     if is_legacy_vc(vc_json) {
         // `contexts` deliberately does not reach the legacy path; see
-        // `verify_legacy_vc`. Nor does `at`, and a rejection says so.
+        // `verify_legacy_vc`. Nor does `at`: the legacy verifier judges dates
+        // now, so a check at `at` is never accepted, and the error says why.
         return match (verify_legacy_vc(vc_json).await, at) {
+            (Ok(_), Some(_)) => {
+                Err(VcVerificationError::Legacy(vec![LEGACY_AT_NOT_APPLIED.to_string()]).into())
+            }
             (Err(e), Some(_)) => match e.downcast::<VcVerificationError>() {
                 Ok(VcVerificationError::Legacy(mut errors)) => {
                     errors.push(LEGACY_AT_NOT_APPLIED.to_string());
@@ -1939,6 +1963,13 @@ mod tests {
             reason(verify_vc_at(&unknown_context, None, now).await),
             VcVerificationError::UnresolvedContext(_)
         ));
+        // JSON-LD that does not expand is the credential's own fault, not a
+        // context that did not load.
+        let bad_type = with(&|v| v["credentialSubject"]["@type"] = serde_json::json!({"x": 1}));
+        assert!(matches!(
+            reason(verify_vc_at(&bad_type, None, now).await),
+            VcVerificationError::Malformed(_)
+        ));
         // A DID method this library does not resolve, and a key the issuer's
         // document does not hold, are both an unresolved key.
         let unknown_method = with(&|v| {
@@ -1981,6 +2012,14 @@ mod tests {
             reason(verify_vc(&malformed.to_string(), None).await),
             VcVerificationError::Malformed(_)
         ));
+
+        // A legacy credential that verifies now is still not accepted at `at`,
+        // because the legacy verifier cannot judge it then.
+        assert!(verify_vc(CAPTURED_LEGACY_ED25519_VC, None).await.is_ok());
+        assert_eq!(
+            reason(verify_vc_at(CAPTURED_LEGACY_ED25519_VC, None, now).await),
+            VcVerificationError::Legacy(vec![LEGACY_AT_NOT_APPLIED.to_string()])
+        );
 
         // A rejected legacy credential says when `at` was not applied.
         let mut legacy: Value = serde_json::from_str(CAPTURED_LEGACY_ED25519_VC).unwrap();

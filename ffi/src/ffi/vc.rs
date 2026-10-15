@@ -132,6 +132,9 @@ pub extern "C" fn ig_vc_verify(
     out_valid: *mut bool,
     err_out: *mut *mut c_char,
 ) -> IgStatus {
+    if !out_valid.is_null() {
+        unsafe { *out_valid = false };
+    }
     run_ffi(err_out, || {
         let runtime = as_ref(runtime, "runtime")?;
         let credential_json = cstr_to_string(credential_json, "credential_json")?;
@@ -152,7 +155,8 @@ pub extern "C" fn ig_vc_verify(
 /// `malformed`, `unsupported_suite`, `unresolved_context`, `unresolved_key`,
 /// `unverifiable`, `legacy_rejected`) for the caller to free, or to `NULL` when
 /// the failure is not about the credential (a bad `at_rfc3339`, for example).
-/// On success it is set to `NULL`.
+/// On success it is set to `NULL`. `*out_valid` is `false` unless the call
+/// succeeds.
 #[no_mangle]
 #[allow(clippy::too_many_arguments)]
 pub extern "C" fn ig_vc_verify_at(
@@ -167,6 +171,9 @@ pub extern "C" fn ig_vc_verify_at(
 ) -> IgStatus {
     if !out_reason.is_null() {
         unsafe { *out_reason = std::ptr::null_mut() };
+    }
+    if !out_valid.is_null() {
+        unsafe { *out_valid = false };
     }
     run_ffi(err_out, || {
         let runtime = as_ref(runtime, "runtime")?;
@@ -185,10 +192,8 @@ pub extern "C" fn ig_vc_verify_at(
             })
             .transpose()?;
 
-        let outcome = match at {
-            Some(at) => runtime.block_on(vc::verify_vc_at(&credential_json, contexts, at)),
-            None => runtime.block_on(vc::verify_vc(&credential_json, contexts)),
-        };
+        let outcome =
+            runtime.block_on(vc::verify_vc_with_date_time(&credential_json, contexts, at));
         if let Err(e) = &outcome {
             if let (Some(reason), false) = (
                 e.downcast_ref::<vc::VcVerificationError>(),

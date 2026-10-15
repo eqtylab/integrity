@@ -144,7 +144,9 @@ fn ffi_vc_issue_and_verify_smoke() {
     assert!(is_valid);
 
     // ig_vc_verify_at: accepted now with no reason; altered, it says why.
-    let mut reason_ptr = ptr::null_mut();
+    // `reason_ptr` starts as a stale string, so a success must reset it.
+    let stale_reason = CString::new("stale").unwrap().into_raw();
+    let mut reason_ptr = stale_reason;
     let status = vc::ig_vc_verify_at(
         runtime_handle,
         vc_json_c.as_ptr(),
@@ -158,6 +160,7 @@ fn ffi_vc_issue_and_verify_smoke() {
     assert_ok(status, err_out);
     take_owned_c_string(verify_result_ptr);
     assert!(reason_ptr.is_null());
+    assert!(is_valid);
 
     let mut altered = issued_vc.clone();
     altered["credentialSubject"]["id"] =
@@ -175,6 +178,7 @@ fn ffi_vc_issue_and_verify_smoke() {
         &mut err_out,
     );
     assert_eq!(status, IgStatus::VerificationFailed);
+    assert!(!is_valid, "a failure must not leave the earlier `true`");
     assert_eq!(take_owned_c_string(reason_ptr), "invalid_signature");
     take_owned_c_string(err_out);
     err_out = ptr::null_mut();
@@ -194,14 +198,15 @@ fn ffi_vc_issue_and_verify_smoke() {
             &mut err_out,
         );
         assert_eq!(status, IgStatus::JsonError);
+        assert!(!is_valid);
         assert_eq!(take_owned_c_string(reason_ptr), "malformed");
         take_owned_c_string(err_out);
         err_out = ptr::null_mut();
         reason_ptr = ptr::null_mut();
     }
 
-    // A credential whose suite is not supported could not be checked: not
-    // supported, and the reason says which.
+    // A credential whose suite is not supported is rejected, not left unchecked:
+    // `proof.type` is part of the credential. The reason says which.
     let mut odd_suite = issued_vc.clone();
     odd_suite["proof"]["type"] = Value::String("NoSuchSignature2099".into());
     let odd_suite_c = cstring(&odd_suite.to_string());
@@ -215,13 +220,14 @@ fn ffi_vc_issue_and_verify_smoke() {
         &mut reason_ptr,
         &mut err_out,
     );
-    assert_eq!(status, IgStatus::NotSupported);
+    assert_eq!(status, IgStatus::VerificationFailed);
+    assert!(!is_valid);
     assert_eq!(take_owned_c_string(reason_ptr), "unsupported_suite");
     take_owned_c_string(err_out);
     err_out = ptr::null_mut();
-    reason_ptr = ptr::null_mut();
 
     let bad_at = cstring("yesterday");
+    reason_ptr = stale_reason;
     let status = vc::ig_vc_verify_at(
         runtime_handle,
         vc_json_c.as_ptr(),
@@ -235,6 +241,7 @@ fn ffi_vc_issue_and_verify_smoke() {
     assert_eq!(status, IgStatus::InvalidInput);
     assert!(reason_ptr.is_null());
     take_owned_c_string(err_out);
+    drop(unsafe { CString::from_raw(stale_reason) });
 
     signer::ig_signer_free(signer_handle);
     runtime::ig_runtime_free(runtime_handle);

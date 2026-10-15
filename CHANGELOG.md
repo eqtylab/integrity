@@ -22,16 +22,21 @@ not always match the Git tags; section versions follow the tags.
   instead of now. `verify_vc` validates `validFrom` / `validUntil` before the proof,
   so a credential that has since expired fails without its signature being checked;
   `verify_vc_at` at a time inside its validity period checks the signature for real.
-  `verify_vc` is unchanged.
+  `verify_vc` is unchanged. A legacy (pre-ssi-0.16) credential is never accepted by
+  `verify_vc_at`, because the legacy verifier judges dates only at the current time;
+  `verify_vc_with_date_time` takes an optional time for callers that may have none.
   ([#50](https://github.com/eqtylab/integrity/pull/50))
 - `integrity-vc`: `VcVerificationError`, the reason `verify_vc` or `verify_vc_at`
   did not accept a credential: `Expired`, `NotYetValid`, `InvalidClaims`,
   `InvalidSignature`, `MissingProof`, `InvalidProof`, `Malformed` (the input is
-  not a well-formed credential), `UnsupportedSuite`, `UnresolvedContext`,
-  `UnresolvedKey` (the proof could not be checked: its suite is not supported, a
-  context did not load, or its key did not resolve), `Unverifiable` (could not
-  be checked, for another reason) or `Legacy`, with a stable `code()`. It is `#[non_exhaustive]`,
-  carried inside the returned `anyhow::Error` and recovered with `downcast_ref`.
+  not a well-formed credential, or its JSON-LD does not expand), `UnsupportedSuite`,
+  `UnresolvedContext`, `UnresolvedKey` (the proof could not be completed: its suite
+  is not supported, a context did not load, or its key did not resolve),
+  `Unverifiable` (could not be completed, for another reason) or `Legacy`, with a
+  stable `code()`. Every reason is a rejection: a credential altered in its suite,
+  contexts or key reads the same as one that could not be checked, so none of them
+  means "not checked". It is `#[non_exhaustive]`, carried inside the returned
+  `anyhow::Error` and recovered with `downcast_ref`.
   ([#50](https://github.com/eqtylab/integrity/pull/50))
 - FFI: `ig_vc_verify_at`: like `ig_vc_verify`, with a check time (`at_rfc3339`)
   and a failure reason code (`out_reason`). Advance the FFI ABI from `0.4.0` to
@@ -45,11 +50,13 @@ not always match the Git tags; section versions follow the tags.
   Match on `VcVerificationError` rather than the message.
   ([#50](https://github.com/eqtylab/integrity/pull/50))
 - FFI: `ig_vc_verify`'s status for a credential that does not verify comes from
-  its `VcVerificationError`: `IG_STATUS_VERIFICATION_FAILED` for every verdict
-  (before, a bad signature or an expired credential could read
-  `IG_STATUS_INVALID_INPUT`), and `IG_STATUS_NOT_SUPPORTED` when it could not be
-  checked at all. Input that is not a well-formed credential keeps reading
-  `IG_STATUS_JSON_ERROR`, now with the reason `malformed`.
+  its `VcVerificationError`: `IG_STATUS_VERIFICATION_FAILED` for every reason,
+  including a proof that could not be completed (before, a bad signature or an
+  expired credential could read `IG_STATUS_INVALID_INPUT`, and an unsupported
+  suite `IG_STATUS_NOT_SUPPORTED`). Input that is not a well-formed credential
+  keeps reading `IG_STATUS_JSON_ERROR`, now with the reason `malformed`.
+  `*out_valid` is now `false` whenever the call fails; before, a failure left it
+  unchanged.
   ([#50](https://github.com/eqtylab/integrity/pull/50))
 - **Breaking:** the `blob-s3` feature (and `blob-all`, which includes it) now needs
   Rust 1.94.1, because the fixed aws crates require it. Without `blob-s3` the crates
