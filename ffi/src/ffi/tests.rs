@@ -262,7 +262,7 @@ fn ffi_vc_issue_and_verify_smoke() {
     );
     assert_ok(status, err_out);
     assert!(is_valid);
-    assert!(reason_ptr.is_null());
+    assert_eq!(take_owned_c_string(reason_ptr), "at_not_applied");
     assert!(take_owned_c_string(verify_result_ptr).contains("`at` was not applied"));
 
     let bad_at = cstring("yesterday");

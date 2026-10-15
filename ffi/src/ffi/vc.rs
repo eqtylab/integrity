@@ -155,7 +155,8 @@ pub extern "C" fn ig_vc_verify(
 /// `malformed`, `unsupported_suite`, `unresolved_context`, `unresolved_key`,
 /// `unverifiable`, `legacy_rejected`) for the caller to free, or to `NULL` when
 /// the failure is not about the credential (a bad `at_rfc3339`, for example).
-/// On success it is set to `NULL`. `*out_valid` is `false` unless the call
+/// On success it is set to `NULL`, or to `at_not_applied` when `at_rfc3339` was
+/// given but the credential is a legacy one, judged at the current time. `*out_valid` is `false` unless the call
 /// succeeds.
 #[no_mangle]
 #[allow(clippy::too_many_arguments)]
@@ -192,6 +193,7 @@ pub extern "C" fn ig_vc_verify_at(
             })
             .transpose()?;
 
+        let legacy_at = at.is_some() && vc::is_legacy_vc(&credential_json);
         let outcome =
             runtime.block_on(vc::verify_vc_with_date_time(&credential_json, contexts, at));
         if let Err(e) = &outcome {
@@ -205,6 +207,9 @@ pub extern "C" fn ig_vc_verify_at(
         let result = map_anyhow(outcome)?;
         write_c_string(out_verify_result_json, result, "out_verify_result_json")?;
         write_bool(out_valid, true, "out_valid")?;
+        if legacy_at && !out_reason.is_null() {
+            write_c_string(out_reason, "at_not_applied".to_string(), "out_reason")?;
+        }
         Ok(())
     })
 }

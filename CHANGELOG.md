@@ -24,8 +24,9 @@ not always match the Git tags; section versions follow the tags.
   `verify_vc_at` at a time inside its validity period checks the signature for real.
   `verify_vc` is unchanged. A legacy (pre-ssi-0.16) credential is judged at the
   current time, because the legacy verifier takes no other; its result, accepted or
-  not, says that `at` was not applied. `verify_vc_with_date_time` takes an optional
-  time for callers that may have none.
+  not, says that `at` was not applied, and `is_legacy_vc` (now public) tells a
+  caller beforehand. `verify_vc_with_date_time` takes an optional time for callers
+  that may have none.
   ([#50](https://github.com/eqtylab/integrity/pull/50))
 - `integrity-vc`: `VcVerificationError`, the reason `verify_vc` or `verify_vc_at`
   did not accept a credential: `Expired`, `NotYetValid`, `InvalidClaims`,
@@ -40,8 +41,9 @@ not always match the Git tags; section versions follow the tags.
   carried inside the returned `anyhow::Error` and recovered with `downcast_ref`.
   ([#50](https://github.com/eqtylab/integrity/pull/50))
 - FFI: `ig_vc_verify_at`: like `ig_vc_verify`, with a check time (`at_rfc3339`)
-  and a failure reason code (`out_reason`). Advance the FFI ABI from `0.4.0` to
-  `0.5.0`. ([#50](https://github.com/eqtylab/integrity/pull/50))
+  and a failure reason code (`out_reason`), which is `at_not_applied` when a legacy
+  credential verifies but could only be judged at the current time. Advance the FFI
+  ABI from `0.4.0` to `0.5.0`. ([#50](https://github.com/eqtylab/integrity/pull/50))
 
 ### Changed
 

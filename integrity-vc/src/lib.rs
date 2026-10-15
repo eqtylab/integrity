@@ -497,9 +497,9 @@ impl VcVerificationError {
             // ssi gives every expansion failure this prefix. Only a context that
             // did not load is unresolved; otherwise the credential's own JSON-LD
             // is invalid.
-            if message.starts_with(
-                "JSON-LD expansion failed: expansion error: Context processing failed: loading document",
-            ) {
+            // Both of ssi's expansion errors (the credential's and the proof
+            // configuration's) carry json-ld's own phrase for a failed load.
+            if message.contains("Context processing failed: loading document") {
                 Self::UnresolvedContext(message)
             } else {
                 Self::Malformed(message)
@@ -517,8 +517,9 @@ impl VcVerificationError {
 /// Verifies a signed VC's Data-Integrity proof as of the time `at`,
 /// instead of the current time.
 ///
-/// Behaves exactly like [`verify_vc`], except that the credential's
-/// `validFrom` / `validUntil` are checked against `at` rather than now.
+/// Behaves like [`verify_vc`], except that the credential's `validFrom` /
+/// `validUntil` are checked against `at` rather than now. Legacy credentials
+/// are the exception: see below.
 ///
 /// # Why use this
 ///
@@ -542,8 +543,9 @@ impl VcVerificationError {
 ///
 /// Credentials created before ssi 0.16 are verified by a separate legacy
 /// verifier, which judges dates only at the current time, so `at` is not
-/// applied to them. The result says so: on success it reads `VC verification
-/// result: ok (legacy path; `at` was not applied: …)`, and a
+/// applied to them. [`is_legacy_vc`] says beforehand whether a credential is
+/// one; the result says so too: on success it reads
+/// ``VC verification result: ok (legacy path; `at` was not applied: …)``, and a
 /// [`VcVerificationError::Legacy`] rejection's last error is the same note.
 #[cfg(not(target_arch = "wasm32"))]
 pub async fn verify_vc_at(
@@ -1030,8 +1032,11 @@ async fn check_credential_status_inner(
 /// uniquely identify pre-ssi-0.16 output from this repo, which used a
 /// hybrid v1/v2 shape that ssi 0.16's strict JSON-LD pipeline can't
 /// reproduce the canonical bytes for.
+///
+/// Such a credential is verified by the legacy verifier, which judges dates
+/// only at the current time: [`verify_vc_at`] does not apply its `at` to it.
 #[cfg(not(target_arch = "wasm32"))]
-fn is_legacy_vc(vc_json: &str) -> bool {
+pub fn is_legacy_vc(vc_json: &str) -> bool {
     let v: Value = match serde_json::from_str(vc_json) {
         Ok(v) => v,
         Err(_) => return false,
@@ -2018,7 +2023,9 @@ mod tests {
         ));
 
         // A legacy credential that verifies now is accepted at `at` too, but the
-        // result says `at` was not applied.
+        // result says `at` was not applied, and `is_legacy_vc` says so beforehand.
+        assert!(is_legacy_vc(CAPTURED_LEGACY_ED25519_VC));
+        assert!(!is_legacy_vc(&vc.to_string()));
         assert_eq!(
             verify_vc_at(CAPTURED_LEGACY_ED25519_VC, None, now)
                 .await
