@@ -198,9 +198,9 @@ IgStatus ig_vc_verify(
  * IG_STATUS_VERIFICATION_FAILED. Every reason, "malformed" included, is a
  * rejection, never "not checked": an edited credential can produce any of them.
  * A legacy (pre-ssi-0.16) credential is judged now, not at `at_rfc3339`; its
- * result says "`at` was not applied", and on success with `at_rfc3339` given,
- * `*out_reason` is "at_not_applied" (free it with ig_string_free) instead of
- * NULL. `*out_valid` is false unless the call succeeds. */
+ * result says "`at` was not applied", and `*out_at_applied` (if
+ * `out_at_applied` is not NULL) is false; it is true otherwise. `*out_valid` is
+ * false unless the call succeeds. */
 IgStatus ig_vc_verify_at(
     const IgRuntimeHandle *runtime,
     const char *credential_json,
@@ -209,6 +209,7 @@ IgStatus ig_vc_verify_at(
     char **out_verify_result_json,
     bool *out_valid,
     char **out_reason,
+    bool *out_at_applied,
     char **err_out
 );
 

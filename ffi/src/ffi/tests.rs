@@ -147,6 +147,7 @@ fn ffi_vc_issue_and_verify_smoke() {
     // `reason_ptr` starts as a stale string, so a success must reset it.
     let stale_reason = CString::new("stale").unwrap().into_raw();
     let mut reason_ptr = stale_reason;
+    let mut at_applied = false;
     let status = vc::ig_vc_verify_at(
         runtime_handle,
         vc_json_c.as_ptr(),
@@ -155,12 +156,17 @@ fn ffi_vc_issue_and_verify_smoke() {
         &mut verify_result_ptr,
         &mut is_valid,
         &mut reason_ptr,
+        &mut at_applied,
         &mut err_out,
     );
     assert_ok(status, err_out);
     take_owned_c_string(verify_result_ptr);
     assert!(reason_ptr.is_null());
     assert!(is_valid);
+    assert!(
+        at_applied,
+        "a current credential has its dates judged as asked"
+    );
 
     let mut altered = issued_vc.clone();
     altered["credentialSubject"]["id"] =
@@ -175,10 +181,15 @@ fn ffi_vc_issue_and_verify_smoke() {
         &mut verify_result_ptr,
         &mut is_valid,
         &mut reason_ptr,
+        &mut at_applied,
         &mut err_out,
     );
     assert_eq!(status, IgStatus::VerificationFailed);
     assert!(!is_valid, "a failure must not leave the earlier `true`");
+    assert!(
+        at_applied,
+        "a current credential checked at a time has it applied"
+    );
     assert_eq!(take_owned_c_string(reason_ptr), "invalid_signature");
     take_owned_c_string(err_out);
     err_out = ptr::null_mut();
@@ -195,6 +206,7 @@ fn ffi_vc_issue_and_verify_smoke() {
             &mut verify_result_ptr,
             &mut is_valid,
             &mut reason_ptr,
+            &mut at_applied,
             &mut err_out,
         );
         assert_eq!(status, IgStatus::JsonError);
@@ -236,6 +248,7 @@ fn ffi_vc_issue_and_verify_smoke() {
             &mut verify_result_ptr,
             &mut is_valid,
             &mut reason_ptr,
+            &mut at_applied,
             &mut err_out,
         );
         assert_eq!(status, IgStatus::VerificationFailed, "{expected}");
@@ -258,11 +271,13 @@ fn ffi_vc_issue_and_verify_smoke() {
         &mut verify_result_ptr,
         &mut is_valid,
         &mut reason_ptr,
+        &mut at_applied,
         &mut err_out,
     );
     assert_ok(status, err_out);
     assert!(is_valid);
-    assert_eq!(take_owned_c_string(reason_ptr), "at_not_applied");
+    assert!(reason_ptr.is_null(), "a success leaves out_reason NULL");
+    assert!(!at_applied);
     assert!(take_owned_c_string(verify_result_ptr).contains("`at` was not applied"));
 
     let bad_at = cstring("yesterday");
@@ -275,6 +290,7 @@ fn ffi_vc_issue_and_verify_smoke() {
         &mut verify_result_ptr,
         &mut is_valid,
         &mut reason_ptr,
+        &mut at_applied,
         &mut err_out,
     );
     assert_eq!(status, IgStatus::InvalidInput);

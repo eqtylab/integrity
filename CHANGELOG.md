@@ -40,10 +40,10 @@ not always match the Git tags; section versions follow the tags.
   be checked, so none of them means "not checked". It is `#[non_exhaustive]`,
   carried inside the returned `anyhow::Error` and recovered with `downcast_ref`.
   ([#50](https://github.com/eqtylab/integrity/pull/50))
-- FFI: `ig_vc_verify_at`: like `ig_vc_verify`, with a check time (`at_rfc3339`)
-  and a failure reason code (`out_reason`), which is `at_not_applied` when a legacy
-  credential verifies but could only be judged at the current time. Advance the FFI
-  ABI from `0.4.0` to `0.5.0`. ([#50](https://github.com/eqtylab/integrity/pull/50))
+- FFI: `ig_vc_verify_at`: like `ig_vc_verify`, with a check time (`at_rfc3339`),
+  a failure reason code (`out_reason`) and `out_at_applied`, which is `false` when a
+  legacy credential could only be judged at the current time. Advance the FFI ABI
+  from `0.4.0` to `0.5.0`. ([#50](https://github.com/eqtylab/integrity/pull/50))
 
 ### Changed
 
