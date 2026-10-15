@@ -12,7 +12,7 @@ use base64::engine::{general_purpose::STANDARD as BASE64, Engine};
 use cid::{multihash::Multihash as MultihashGeneric, Cid};
 use futures::{stream, stream::StreamExt};
 use integrity_blob::BlobStore;
-use integrity_cid::collection::hashmap_for_iroh_collection;
+use integrity_cid::collection::hashmap_from_iroh_collection_blobs;
 use integrity_jsonld::loader::static_contexts;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -143,37 +143,46 @@ pub async fn resolve_blobs(
                     Ok(Some(blob)) => {
                         if Cid::try_from(cid.clone()).map(|c| c.codec()).unwrap_or(0) == BLAKE3_HASHSEQ {
                             // add iroh meta blob
-                            let iroh_meta_blob_hash = blob[0..32].to_vec();
+                            let Some(iroh_meta_blob_hash) = blob.get(0..32) else {
+                                log::error!(
+                                    "Blob '{cid}' is too short to be an iroh collection; its file blobs are left out"
+                                );
+                                return vec![(cid.clone(), BASE64.encode(&blob))];
+                            };
                             let iroh_meta_blob_multihash =
-                                MultihashGeneric::wrap(BLAKE3, &iroh_meta_blob_hash).unwrap();
+                                MultihashGeneric::wrap(BLAKE3, iroh_meta_blob_hash).unwrap();
                             let iroh_meta_blob_cid =
                                 Cid::new_v1(RAW_BINARY, iroh_meta_blob_multihash).to_string();
 
                             let mut blobs = vec![(cid.clone(), BASE64.encode(&blob))];
 
-                            match blob_store.get(&iroh_meta_blob_cid).await {
-                                Ok(Some(iroh_meta_blob)) => {
-                                    blobs.push((
-                                        iroh_meta_blob_cid.clone(),
-                                        BASE64.encode(&iroh_meta_blob),
-                                    ));
-                                }
+                            let iroh_meta_blob = match blob_store.get(&iroh_meta_blob_cid).await {
+                                Ok(Some(iroh_meta_blob)) => iroh_meta_blob,
                                 Ok(None) => {
                                     log::warn!(
                                         "Blob '{iroh_meta_blob_cid}' (meta blob for iroh collection '{cid}') was not found in blob store"
                                     );
+                                    return blobs;
                                 }
                                 Err(e) => {
                                     log::error!(
                                         "Error connecting to blob store to get blob '{iroh_meta_blob_cid}': {e}"
                                     );
+                                    return blobs;
                                 }
-                            }
+                            };
+                            blobs.push((iroh_meta_blob_cid.clone(), BASE64.encode(&iroh_meta_blob)));
 
                             // add iroh file blobs
-                            let Ok(iroh_map) =
-                                hashmap_for_iroh_collection(&cid, blob_store.clone()).await else {
-                                    return blobs;
+                            let iroh_map =
+                                match hashmap_from_iroh_collection_blobs(blob, iroh_meta_blob) {
+                                    Ok(iroh_map) => iroh_map,
+                                    Err(e) => {
+                                        log::error!(
+                                            "Could not read iroh collection '{cid}'; its file blobs are left out: {e}"
+                                        );
+                                        return blobs;
+                                    }
                                 };
 
                             let file_cids = iroh_map.values().cloned().collect::<Vec<_>>();
@@ -383,4 +392,147 @@ fn statements_to_map(statements: Vec<Statement>) -> Result<HashMap<String, State
     }
 
     Ok(map)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Mutex;
+
+    use async_trait::async_trait;
+    use integrity_blob::InMemoryStore;
+    use integrity_cid::iroh::compute_iroh_collection_cid;
+
+    use super::*;
+    use crate::models::statements::DataStatement;
+
+    /// An in-memory store that records every CID it is asked for.
+    struct CountingStore {
+        store: InMemoryStore,
+        gets: Mutex<Vec<String>>,
+    }
+
+    #[async_trait]
+    impl BlobStore for CountingStore {
+        async fn init(&mut self) -> Result<()> {
+            Ok(())
+        }
+
+        async fn exists(&self, cid: &str) -> Result<bool> {
+            self.store.exists(cid).await
+        }
+
+        async fn get(&self, cid: &str) -> Result<Option<Vec<u8>>> {
+            self.gets.lock().unwrap().push(cid.to_owned());
+            self.store.get(cid).await
+        }
+
+        async fn put(&self, blob: Vec<u8>, codec: u64, cid: Option<&str>) -> Result<String> {
+            self.store.put(blob, codec, cid).await
+        }
+    }
+
+    async fn data_statement(cids: Vec<String>) -> Statement {
+        Statement::DataRegistration(
+            DataStatement::create(
+                cids,
+                "did:key:zQ3shtdnadpYS81njBma5RqQMEAL3BenSJdCfZAu2Uj1ukwo9".to_owned(),
+                Some("2024-06-27T21:40:37Z".to_owned()),
+            )
+            .await
+            .unwrap(),
+        )
+    }
+
+    #[tokio::test]
+    async fn resolve_blobs_expands_a_collection_fetching_each_blob_once() {
+        let file_cid = integrity_cid::blake3::blake3_cid_raw_binary(b"file").unwrap();
+        let collection =
+            compute_iroh_collection_cid(&HashMap::from([("a.txt".to_owned(), file_cid.clone())]))
+                .await
+                .unwrap();
+
+        let store = Arc::new(CountingStore {
+            store: InMemoryStore {
+                blobs: HashMap::from([
+                    (
+                        collection.collection.cid.clone(),
+                        collection.collection.blob.to_vec(),
+                    ),
+                    (collection.meta.cid.clone(), collection.meta.blob.to_vec()),
+                    (file_cid.clone(), b"file".to_vec()),
+                ]),
+            },
+            gets: Mutex::new(vec![]),
+        });
+
+        let blobs = resolve_blobs(
+            &vec![data_statement(vec![collection.collection.cid.clone()]).await],
+            store.clone(),
+            4,
+        )
+        .await
+        .unwrap();
+
+        let mut resolved = blobs.keys().cloned().collect::<Vec<_>>();
+        resolved.sort();
+        let mut expected = vec![
+            collection.collection.cid.clone(),
+            collection.meta.cid.clone(),
+            file_cid,
+        ];
+        expected.sort();
+        assert_eq!(resolved, expected);
+
+        let mut gets = store.gets.lock().unwrap().clone();
+        gets.sort();
+        assert_eq!(gets, expected, "each blob is fetched exactly once");
+    }
+
+    #[tokio::test]
+    async fn resolve_blobs_keeps_a_collection_whose_meta_blob_is_missing() {
+        let file_cid = integrity_cid::blake3::blake3_cid_raw_binary(b"file").unwrap();
+        let collection =
+            compute_iroh_collection_cid(&HashMap::from([("a.txt".to_owned(), file_cid)]))
+                .await
+                .unwrap();
+        let collection_cid = collection.collection.cid.clone();
+
+        let store = InMemoryStore {
+            blobs: HashMap::from([(collection_cid.clone(), collection.collection.blob.to_vec())]),
+        };
+
+        let blobs = resolve_blobs(
+            &vec![data_statement(vec![collection_cid.clone()]).await],
+            Arc::new(store),
+            4,
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(blobs.keys().collect::<Vec<_>>(), vec![&collection_cid]);
+    }
+
+    #[tokio::test]
+    async fn resolve_blobs_skips_a_collection_blob_shorter_than_a_hash() {
+        // A BLAKE3 hash-sequence CID, so resolve_blobs treats its blob as an iroh collection.
+        let collection_cid = "bagaachraifnmn56rqtgbdxx5x2zvasw4slukuq2t7w3iefcmsqldn7axmrpq";
+        let file_cid = integrity_cid::blake3::blake3_cid_raw_binary(b"file").unwrap();
+
+        let store = InMemoryStore {
+            blobs: HashMap::from([
+                (collection_cid.to_owned(), vec![1, 2, 3]),
+                (file_cid.clone(), b"file".to_vec()),
+            ]),
+        };
+        let blobs = resolve_blobs(
+            &vec![data_statement(vec![collection_cid.to_owned(), file_cid.clone()]).await],
+            Arc::new(store),
+            4,
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(blobs.get(collection_cid), Some(&BASE64.encode([1, 2, 3])));
+        assert_eq!(blobs.get(&file_cid), Some(&BASE64.encode(b"file")));
+    }
 }

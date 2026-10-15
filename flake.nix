@@ -1,6 +1,5 @@
 {
   inputs = {
-    naersk.url = "github:nix-community/naersk/master";
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
     utils.url = "github:numtide/flake-utils";
     nixpkgs-rust.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -14,7 +13,6 @@
     inputs.utils.lib.eachDefaultSystem (system:
       let
         pkgs = import inputs.nixpkgs { inherit system; };
-        naersk-lib = pkgs.callPackage inputs.naersk { };
 
         pkgs-rust = import inputs.nixpkgs-rust {
           inherit system;
@@ -35,10 +33,8 @@
 
       in
       {
-        defaultPackage = naersk-lib.buildPackage ./.;
-        devShell = with pkgs; mkShell {
+        devShells.default = with pkgs; mkShell {
           buildInputs = [
-            cargo
             chromedriver
             geckodriver
             just
@@ -49,11 +45,10 @@
             pkg-config
             rustfmt-nightly
             rust
-            rustPackages.clippy
             wasm-pack
             wasm-bindgen-cli
           ];
-          RUST_SRC_PATH = rustPlatform.rustLibSrc;
+          RUST_SRC_PATH = "${rust}/lib/rustlib/src/rust/library";
         };
       }
     );
