@@ -49,6 +49,8 @@ not always match the Git tags; section versions follow the tags.
 - The flake's `defaultPackage` evaluates again and is built with the pinned
   toolchain. It had failed since 0.0.12, because naersk can't read
   `version.workspace = true`; the flake now passes the name and version itself.
+  It now installs the libraries (`libintegrity.so` and `.rlib`) in `lib/`; before,
+  its output had nothing in it.
 
 ## [0.0.18] - 2026-09-22
 

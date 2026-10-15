@@ -42,6 +42,7 @@
           pname = "integrity";
           version = (builtins.fromTOML (builtins.readFile ./Cargo.toml)).workspace.package.version;
           src = ./.;
+          copyLibs = true;
         };
         devShell = with pkgs; mkShell {
           buildInputs = [
