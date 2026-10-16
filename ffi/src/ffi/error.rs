@@ -54,6 +54,19 @@ impl FfiError {
 }
 
 fn classify_anyhow(err: &anyhow::Error) -> IgStatus {
+    // A credential's verdict is read from its typed reason, not its message.
+    if let Some(reason) = err.downcast_ref::<crate::vc::VcVerificationError>() {
+        use crate::vc::VcVerificationError as V;
+        return match reason {
+            // As before the typed reasons: input that does not parse is a JSON error.
+            V::Malformed(_) => IgStatus::JsonError,
+            // Every other reason is a rejection, including a proof that could not
+            // be completed: its suite, key and contexts are part of the
+            // credential, so an altered credential must not read as unchecked.
+            _ => IgStatus::VerificationFailed,
+        };
+    }
+
     if err.downcast_ref::<serde_json::Error>().is_some() {
         return IgStatus::JsonError;
     }

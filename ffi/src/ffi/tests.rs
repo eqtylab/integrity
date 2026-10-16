@@ -143,6 +143,169 @@ fn ffi_vc_issue_and_verify_smoke() {
     assert!(verify_result.contains("VC verification result"));
     assert!(is_valid);
 
+    // ig_vc_verify_at: accepted now with no reason; altered, it says why.
+    // `reason_ptr` starts as a stale string, so a success must reset it.
+    let stale_reason = CString::new("stale").unwrap().into_raw();
+    let mut reason_ptr = stale_reason;
+    let mut at_applied = false;
+    let status = vc::ig_vc_verify_at(
+        runtime_handle,
+        vc_json_c.as_ptr(),
+        ptr::null(),
+        ptr::null(),
+        &mut verify_result_ptr,
+        &mut is_valid,
+        &mut reason_ptr,
+        &mut at_applied,
+        &mut err_out,
+    );
+    assert_ok(status, err_out);
+    take_owned_c_string(verify_result_ptr);
+    assert!(reason_ptr.is_null());
+    assert!(is_valid);
+    assert!(
+        at_applied,
+        "a current credential has its dates judged as asked"
+    );
+
+    let mut altered = issued_vc.clone();
+    altered["credentialSubject"]["id"] =
+        Value::String("did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK".into());
+    let altered_c = cstring(&altered.to_string());
+    let at = cstring(issued_vc["validFrom"].as_str().expect("validFrom"));
+    at_applied = false;
+    let status = vc::ig_vc_verify_at(
+        runtime_handle,
+        altered_c.as_ptr(),
+        ptr::null(),
+        at.as_ptr(),
+        &mut verify_result_ptr,
+        &mut is_valid,
+        &mut reason_ptr,
+        &mut at_applied,
+        &mut err_out,
+    );
+    assert_eq!(status, IgStatus::VerificationFailed);
+    assert!(!is_valid, "a failure must not leave the earlier `true`");
+    assert!(
+        at_applied,
+        "a current credential checked at a time has it applied"
+    );
+    assert_eq!(take_owned_c_string(reason_ptr), "invalid_signature");
+    take_owned_c_string(err_out);
+    err_out = ptr::null_mut();
+
+    // Input that is not a credential is a JSON error, as it was before
+    // `ig_vc_verify_at`, and says so as its reason.
+    for bad in ["{\"truncated\": ", "{\"not\": \"a credential\"}"] {
+        let bad_c = cstring(bad);
+        at_applied = true;
+        let status = vc::ig_vc_verify_at(
+            runtime_handle,
+            bad_c.as_ptr(),
+            ptr::null(),
+            ptr::null(),
+            &mut verify_result_ptr,
+            &mut is_valid,
+            &mut reason_ptr,
+            &mut at_applied,
+            &mut err_out,
+        );
+        assert_eq!(status, IgStatus::JsonError);
+        assert!(!is_valid);
+        assert!(!at_applied, "input that does not parse was never checked");
+        assert_eq!(take_owned_c_string(reason_ptr), "malformed");
+        take_owned_c_string(err_out);
+        err_out = ptr::null_mut();
+        reason_ptr = ptr::null_mut();
+    }
+
+    // A proof that could not be completed is rejected, not left unchecked: its
+    // suite, key and contexts are part of the credential. The reason says which.
+    let vm = issued_vc["proof"]["verificationMethod"]
+        .as_str()
+        .expect("verificationMethod")
+        .to_string();
+    let did = vm.split('#').next().unwrap().to_string();
+    let mut odd_suite = issued_vc.clone();
+    odd_suite["proof"]["type"] = Value::String("NoSuchSignature2099".into());
+    let mut missing_key = issued_vc.clone();
+    missing_key["proof"]["verificationMethod"] = Value::String(format!("{did}#no-such-key"));
+    let mut extra_context = issued_vc.clone();
+    extra_context["@context"]
+        .as_array_mut()
+        .unwrap()
+        .push(Value::String("https://example.invalid/ctx".into()));
+    for (expected, edited) in [
+        ("unsupported_suite", odd_suite),
+        ("unresolved_key", missing_key),
+        ("unresolved_context", extra_context),
+    ] {
+        let edited_c = cstring(&edited.to_string());
+        is_valid = true;
+        let status = vc::ig_vc_verify_at(
+            runtime_handle,
+            edited_c.as_ptr(),
+            ptr::null(),
+            ptr::null(),
+            &mut verify_result_ptr,
+            &mut is_valid,
+            &mut reason_ptr,
+            &mut at_applied,
+            &mut err_out,
+        );
+        assert_eq!(status, IgStatus::VerificationFailed, "{expected}");
+        assert!(!is_valid, "{expected}");
+        assert_eq!(take_owned_c_string(reason_ptr), expected);
+        take_owned_c_string(err_out);
+        err_out = ptr::null_mut();
+    }
+
+    // A legacy credential checked at a time is accepted, and says `at` was not
+    // applied: the legacy verifier judges dates only now.
+    let legacy_c = cstring(include_str!("../../../fixtures/legacy-vc/ed25519.json"));
+    let long_ago = cstring("2000-01-01T00:00:00Z");
+    reason_ptr = stale_reason;
+    let status = vc::ig_vc_verify_at(
+        runtime_handle,
+        legacy_c.as_ptr(),
+        ptr::null(),
+        long_ago.as_ptr(),
+        &mut verify_result_ptr,
+        &mut is_valid,
+        &mut reason_ptr,
+        &mut at_applied,
+        &mut err_out,
+    );
+    assert_ok(status, err_out);
+    assert!(is_valid);
+    assert!(reason_ptr.is_null(), "a success leaves out_reason NULL");
+    assert!(!at_applied);
+    assert!(take_owned_c_string(verify_result_ptr).contains("`at` was not applied"));
+
+    let bad_at = cstring("yesterday");
+    reason_ptr = stale_reason;
+    at_applied = true;
+    let status = vc::ig_vc_verify_at(
+        runtime_handle,
+        vc_json_c.as_ptr(),
+        ptr::null(),
+        bad_at.as_ptr(),
+        &mut verify_result_ptr,
+        &mut is_valid,
+        &mut reason_ptr,
+        &mut at_applied,
+        &mut err_out,
+    );
+    assert_eq!(status, IgStatus::InvalidInput);
+    assert!(reason_ptr.is_null());
+    assert!(
+        !at_applied,
+        "nothing was judged at a time that did not parse"
+    );
+    take_owned_c_string(err_out);
+    drop(unsafe { CString::from_raw(stale_reason) });
+
     signer::ig_signer_free(signer_handle);
     runtime::ig_runtime_free(runtime_handle);
 }
@@ -506,7 +669,7 @@ fn ffi_lineage_statement_create_did_regular_smoke() {
 #[test]
 fn ffi_versions_smoke() {
     assert_eq!(super::version::ig_abi_version_major(), 0);
-    assert_eq!(super::version::ig_abi_version_minor(), 4);
+    assert_eq!(super::version::ig_abi_version_minor(), 5);
 
     let mut err_out = ptr::null_mut();
     let mut version_ptr = ptr::null_mut();
@@ -514,5 +677,5 @@ fn ffi_versions_smoke() {
     assert_ok(status, err_out);
 
     let version = take_owned_c_string(version_ptr);
-    assert_eq!(version, "0.4.0");
+    assert_eq!(version, "0.5.0");
 }

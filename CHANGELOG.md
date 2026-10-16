@@ -16,16 +16,53 @@ not always match the Git tags; section versions follow the tags.
 
 ## [Unreleased]
 
-### Security
+### Added
 
-- Clears the open Trivy findings on `aws-smithy-json` (CVE-2026-18140, now 0.62.7)
-  and `hickory-resolver` (GHSA-5j98-2g5x-46v6, GHSA-6w6g-hm98-mhgm). `integrity-cid`
-  no longer depends on `iroh-blobs`, which brought in iroh's networking stack and
-  its pinned `hickory-resolver` beta; the aws crates move to releases that include
-  the fix.
+- `integrity-vc`: `verify_vc_at`, which verifies a credential as of a given time
+  instead of now. `verify_vc` validates `validFrom` / `validUntil` before the proof,
+  so a credential that has since expired fails without its signature being checked;
+  `verify_vc_at` at a time inside its validity period checks the signature for real.
+  `verify_vc` is unchanged. A legacy (pre-ssi-0.16) credential is judged at the
+  current time, because the legacy verifier takes no other; its result, accepted or
+  not, says that `at` was not applied, and `is_legacy_vc` (now public) tells a
+  caller beforehand. `at_applied` says, for a result, whether the dates were judged
+  at `at`. `verify_vc_with_date_time` takes an optional time for callers
+  that may have none.
+  ([#50](https://github.com/eqtylab/integrity/pull/50))
+- `integrity-vc`: `VcVerificationError`, the reason `verify_vc` or `verify_vc_at`
+  did not accept a credential: `Expired`, `NotYetValid`, `InvalidClaims`,
+  `InvalidSignature`, `MissingProof`, `InvalidProof`, `Malformed` (the input is
+  not a well-formed credential, or its JSON-LD does not expand), `UnsupportedSuite`,
+  `UnresolvedContext`, `UnresolvedKey` (the proof could not be completed: its suite
+  is not supported, a context did not load, or its key did not resolve),
+  `Unverifiable` (could not be completed, for another reason) or `Legacy`, with a
+  stable `code()`. Every reason is a rejection, `Malformed` included: a credential
+  altered in its suite, contexts, key or shape reads the same as one that could not
+  be checked, so none of them means "not checked". It is `#[non_exhaustive]`,
+  carried inside the returned `anyhow::Error` and recovered with `downcast_ref`.
+  ([#50](https://github.com/eqtylab/integrity/pull/50))
+- FFI: `ig_vc_verify_at`: like `ig_vc_verify`, with a check time (`at_rfc3339`),
+  a failure reason code (`out_reason`) and `out_at_applied`, which is `false` when a
+  legacy credential could only be judged at the current time, or when the call fails
+  before the credential is checked. Advance the FFI ABI from `0.4.0` to `0.5.0`.
+  ([#50](https://github.com/eqtylab/integrity/pull/50))
 
 ### Changed
 
+- `integrity-vc`: a claim or proof failure's error message keeps its prefix, but
+  what follows is no longer ssi's Debug output: `invalid VC proof: Claims(Expired
+  { .. })` now reads `invalid VC proof: expired: valid until …, judged at …`.
+  Match on `VcVerificationError` rather than the message.
+  ([#50](https://github.com/eqtylab/integrity/pull/50))
+- FFI: `ig_vc_verify`'s status for a credential that does not verify comes from
+  its `VcVerificationError`: `IG_STATUS_VERIFICATION_FAILED` for every reason,
+  including a proof that could not be completed (before, a bad signature or an
+  expired credential could read `IG_STATUS_INVALID_INPUT`, and an unsupported
+  suite `IG_STATUS_NOT_SUPPORTED`). Input that is not a well-formed credential
+  keeps reading `IG_STATUS_JSON_ERROR`, now with the reason `malformed`.
+  `*out_valid` is now `false` whenever the call fails; before, a failure left it
+  unchanged.
+  ([#50](https://github.com/eqtylab/integrity/pull/50))
 - **Breaking:** the `blob-s3` feature (and `blob-all`, which includes it) now needs
   Rust 1.94.1, because the fixed aws crates require it. Without `blob-s3` the crates
   still build on Rust 1.89.
@@ -62,6 +99,14 @@ not always match the Git tags; section versions follow the tags.
 - Exporting a manifest no longer panics on a hash-sequence blob shorter than 32
   bytes. Before, one truncated or corrupt collection blob failed the whole export;
   now it is exported as is, with an error logged and its file blobs left out.
+
+### Security
+
+- Clears the open Trivy findings on `aws-smithy-json` (CVE-2026-18140, now 0.62.7)
+  and `hickory-resolver` (GHSA-5j98-2g5x-46v6, GHSA-6w6g-hm98-mhgm). `integrity-cid`
+  no longer depends on `iroh-blobs`, which brought in iroh's networking stack and
+  its pinned `hickory-resolver` beta; the aws crates move to releases that include
+  the fix.
 
 ## [0.0.18] - 2026-09-22
 

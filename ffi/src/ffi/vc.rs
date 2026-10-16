@@ -132,12 +132,91 @@ pub extern "C" fn ig_vc_verify(
     out_valid: *mut bool,
     err_out: *mut *mut c_char,
 ) -> IgStatus {
+    if !out_valid.is_null() {
+        unsafe { *out_valid = false };
+    }
     run_ffi(err_out, || {
         let runtime = as_ref(runtime, "runtime")?;
         let credential_json = cstr_to_string(credential_json, "credential_json")?;
         let contexts = parse_contexts(contexts_json)?;
 
         let result = map_anyhow(runtime.block_on(vc::verify_vc(&credential_json, contexts)))?;
+        write_c_string(out_verify_result_json, result, "out_verify_result_json")?;
+        write_bool(out_valid, true, "out_valid")?;
+        Ok(())
+    })
+}
+
+/// Like `ig_vc_verify`, but judges the credential's `validFrom` / `validUntil`
+/// at `at_rfc3339` (an RFC 3339 time; `NULL` means now), and reports why a
+/// credential was not accepted. On failure `*out_reason`, when `out_reason` is
+/// not `NULL`, is set to a reason code (`expired`, `not_yet_valid`,
+/// `invalid_claims`, `invalid_signature`, `missing_proof`, `invalid_proof`,
+/// `malformed`, `unsupported_suite`, `unresolved_context`, `unresolved_key`,
+/// `unverifiable`, `legacy_rejected`) for the caller to free, or to `NULL` when
+/// the failure is not about the credential (a bad `at_rfc3339`, for example).
+/// On success it is set to `NULL`. `*out_valid` is `false` unless the call
+/// succeeds. `*out_at_applied`, when `out_at_applied` is not `NULL`, says
+/// whether the dates were judged at `at_rfc3339` (or now, when it is `NULL`):
+/// it is `false` when a time was given but the credential is a legacy
+/// (pre-ssi-0.16) one, which is judged at the current time, and `false` when
+/// the call failed before the credential was checked; otherwise `true`.
+#[no_mangle]
+#[allow(clippy::too_many_arguments)]
+pub extern "C" fn ig_vc_verify_at(
+    runtime: *const IgRuntimeHandle,
+    credential_json: *const c_char,
+    contexts_json: *const c_char,
+    at_rfc3339: *const c_char,
+    out_verify_result_json: *mut *mut c_char,
+    out_valid: *mut bool,
+    out_reason: *mut *mut c_char,
+    out_at_applied: *mut bool,
+    err_out: *mut *mut c_char,
+) -> IgStatus {
+    if !out_reason.is_null() {
+        unsafe { *out_reason = std::ptr::null_mut() };
+    }
+    if !out_at_applied.is_null() {
+        unsafe { *out_at_applied = false };
+    }
+    if !out_valid.is_null() {
+        unsafe { *out_valid = false };
+    }
+    run_ffi(err_out, || {
+        let runtime = as_ref(runtime, "runtime")?;
+        let credential_json = cstr_to_string(credential_json, "credential_json")?;
+        let contexts = parse_contexts(contexts_json)?;
+        let at = optional_cstr_to_string(at_rfc3339)?
+            .map(|t| {
+                chrono::DateTime::parse_from_rfc3339(&t)
+                    .map(|d| d.with_timezone(&chrono::Utc))
+                    .map_err(|e| {
+                        FfiError::new(
+                            IgStatus::InvalidInput,
+                            format!("at_rfc3339 is not an RFC 3339 time: {e}"),
+                        )
+                    })
+            })
+            .transpose()?;
+
+        let outcome =
+            runtime.block_on(vc::verify_vc_with_date_time(&credential_json, contexts, at));
+        // `at_applied` parses the credential again, so only when the caller asks.
+        if !out_at_applied.is_null() {
+            let applied = vc::at_applied(&credential_json, at, &outcome);
+            write_bool(out_at_applied, applied, "out_at_applied")?;
+        }
+        if !out_reason.is_null() {
+            let reason = outcome
+                .as_ref()
+                .err()
+                .and_then(|e| e.downcast_ref::<vc::VcVerificationError>());
+            if let Some(reason) = reason {
+                write_c_string(out_reason, reason.code().to_string(), "out_reason")?;
+            }
+        }
+        let result = map_anyhow(outcome)?;
         write_c_string(out_verify_result_json, result, "out_verify_result_json")?;
         write_bool(out_valid, true, "out_valid")?;
         Ok(())
