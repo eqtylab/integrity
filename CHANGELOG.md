@@ -16,6 +16,8 @@ not always match the Git tags; section versions follow the tags.
 
 ## [Unreleased]
 
+## [0.0.19] - 2026-10-16
+
 ### Added
 
 - `integrity-vc`: `verify_vc_at`, which verifies a credential as of a given time
@@ -366,7 +368,8 @@ not always match the Git tags; section versions follow the tags.
 - Correct shell commands used to stage native release artifacts.
   ([#4](https://github.com/eqtylab/integrity/pull/4))
 
-[Unreleased]: https://github.com/eqtylab/integrity/compare/v0.0.18...main
+[Unreleased]: https://github.com/eqtylab/integrity/compare/v0.0.19...main
+[0.0.19]: https://github.com/eqtylab/integrity/compare/v0.0.18...v0.0.19
 [0.0.18]: https://github.com/eqtylab/integrity/compare/v0.0.17...v0.0.18
 [0.0.17]: https://github.com/eqtylab/integrity/compare/v0.0.16...v0.0.17
 [0.0.16]: https://github.com/eqtylab/integrity/compare/v0.0.15...v0.0.16
