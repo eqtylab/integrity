@@ -37,17 +37,21 @@ jobs:
           token: ${{ secrets.VBUILD_ACTION_READ_PAT }}
           path: .vbuild-actions/vbuild-scan-action
 
+      - name: Prepare local VBuild dependency
+        id: prepare-vbuild
+        run: |
+          action=.vbuild-actions/vbuild-scan-action/action.yaml
+          dependency=$(grep -oE "eqtylab/vbuild-action@[^[:space:]\"']+" "$action")
+          echo "ref=${dependency#*@}" >> "$GITHUB_OUTPUT"
+          sed -i -E "s|eqtylab/vbuild-action@[^[:space:]\"']+|./.vbuild-actions/vbuild-action|" "$action"
+
       - name: Checkout vbuild action
         uses: actions/checkout@v4
         with:
           repository: eqtylab/vbuild-action
-          ref: v0.12.0
+          ref: ${{ steps.prepare-vbuild.outputs.ref }}
           token: ${{ secrets.VBUILD_ACTION_READ_PAT }}
           path: .vbuild-actions/vbuild-action
-
-      - name: Patch scan action to use local vbuild-action
-        run: |
-          sed -i 's|uses: eqtylab/vbuild-action@v[0-9.]*|uses: ./.vbuild-actions/vbuild-action|' .vbuild-actions/vbuild-scan-action/action.yaml
 
       - name: Code & Security Scan
         uses: ./.vbuild-actions/vbuild-scan-action
@@ -84,17 +88,21 @@ jobs:
           token: ${{ secrets.VBUILD_ACTION_READ_PAT }}
           path: .vbuild-actions/vbuild-scan-action
 
+      - name: Prepare local VBuild dependency
+        id: prepare-vbuild
+        run: |
+          action=.vbuild-actions/vbuild-scan-action/action.yaml
+          dependency=$(grep -oE "eqtylab/vbuild-action@[^[:space:]\"']+" "$action")
+          echo "ref=${dependency#*@}" >> "$GITHUB_OUTPUT"
+          sed -i -E "s|eqtylab/vbuild-action@[^[:space:]\"']+|./.vbuild-actions/vbuild-action|" "$action"
+
       - name: Checkout vbuild action
         uses: actions/checkout@v4
         with:
           repository: eqtylab/vbuild-action
-          ref: v0.12.0
+          ref: ${{ steps.prepare-vbuild.outputs.ref }}
           token: ${{ secrets.VBUILD_ACTION_READ_PAT }}
           path: .vbuild-actions/vbuild-action
-
-      - name: Patch scan action to use local vbuild-action
-        run: |
-          sed -i 's|uses: eqtylab/vbuild-action@v[0-9.]*|uses: ./.vbuild-actions/vbuild-action|' .vbuild-actions/vbuild-scan-action/action.yaml
 
       - name: Install Rust toolchain
         run: |
