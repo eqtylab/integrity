@@ -1,0 +1,28 @@
+{
+    "@context": [
+        "urn:cid:bafkr4icploa577ziqnb57jlpoj7l2hi5kgt3knxpdtunlttjd3q33zeqpy",
+        {
+            "@protected": true,
+
+            "startTime": {
+                "@id": "https://eqtylab.io/terms/startTime",
+                "@type": "http://www.w3.org/2001/XMLSchema#dateTime"
+            },
+
+            "endTime": {
+                "@id": "https://eqtylab.io/terms/endTime",
+                "@type": "http://www.w3.org/2001/XMLSchema#dateTime"
+            },
+
+            "span": {
+                "@id": "https://eqtylab.io/terms/span",
+                "@type": "@id"
+            },
+
+            "parentSpan": {
+                "@id": "https://eqtylab.io/terms/parentSpan",
+                "@type": "@id"
+            }
+        }
+    ]
+}
