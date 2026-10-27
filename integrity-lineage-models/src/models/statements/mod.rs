@@ -8,7 +8,9 @@ pub mod association_statement;
 pub use association_statement::{AssociationStatement, AssociationType};
 /// Computation statement for recording computational processes
 pub mod computation_statement;
-pub use computation_statement::ComputationStatement;
+pub use computation_statement::{
+    otel_span_urn, ComputationSpan, ComputationStatement, OTEL_SPAN_NAMESPACE,
+};
 pub mod common;
 /// Data statement for recording data artifacts
 pub mod data_statement;

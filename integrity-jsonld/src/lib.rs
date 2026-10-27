@@ -25,6 +25,20 @@ pub fn ig_common_context_link() -> String {
     format!("urn:cid:{cid}").trim_end().to_owned()
 }
 
+/// Returns the computation context link as a CID URN.
+///
+/// This context extends the IG common context with the `startTime`, `endTime`,
+/// `span` and `parentSpan` terms of a `ComputationRegistration`. Statements that
+/// use none of those terms keep the common context, so their CIDs are unchanged.
+///
+/// # Returns
+/// URN string in format `urn:cid:{cid}` for the computation context.
+pub fn ig_computation_context_link() -> String {
+    let cid: &'static str = "bafkr4iduavib2lgjcmx5n4ydefbbc62ngyannzi566zv5fsozgbwwfw27u";
+
+    format!("urn:cid:{cid}")
+}
+
 /// Computes RDFC CID for JSON-LD data.
 ///
 /// Converts JSON-LD to N-Quads, canonicalizes using URDNA2015, and computes a CID.

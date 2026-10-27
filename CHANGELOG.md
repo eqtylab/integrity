@@ -16,6 +16,23 @@ not always match the Git tags; section versions follow the tags.
 
 ## [Unreleased]
 
+### Added
+
+- `integrity-lineage-models`: a `ComputationRegistration` can record when it ran
+  and which OpenTelemetry span it was, through `ComputationStatement::create_with_span`
+  and `ComputationSpan`. `startTime` and `endTime` are when the work began and ended,
+  separate from the registration `timestamp`. `span` and `parentSpan` identify the
+  computation's span and the span it ran inside, as `urn:uuid` version 5 UUIDs of
+  `"{traceId}/{spanId}"` in `OTEL_SPAN_NAMESPACE` (`otel_span_urn`,
+  `ComputationSpan::from_otel`). A computation names its parent rather than its
+  children, so each one can be registered as soon as its own span ends, on any node;
+  the nesting is read back by matching each `parentSpan` to a `span`.
+- `integrity-jsonld`: the computation context
+  (`urn:cid:bafkr4iduavib2lgjcmx5n4ydefbbc62ngyannzi566zv5fsozgbwwfw27u`,
+  `ig_computation_context_link`), which extends the common context with those
+  four terms. Only statements that use them reference it; every other
+  `ComputationRegistration` keeps the common context and its CID.
+
 ## [0.0.19] - 2026-10-16
 
 ### Added

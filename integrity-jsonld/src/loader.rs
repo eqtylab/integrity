@@ -136,8 +136,8 @@ mod tests {
                 .keys()
                 .filter(|k| k.starts_with("urn:cid:"))
                 .count(),
-            25,
-            "expected all 25 urn:cid: contexts to be embedded"
+            26,
+            "expected all 26 urn:cid: contexts to be embedded"
         );
 
         // A representative CID context (also returned by `ig_common_context_link`).
