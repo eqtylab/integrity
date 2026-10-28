@@ -16,6 +16,26 @@ not always match the Git tags; section versions follow the tags.
 
 ## [Unreleased]
 
+### Changed
+
+- `integrity-blob`: the `blob-azure` backend uses `object_store` (Apache Arrow)
+  instead of the legacy `azure_storage` / `azure_storage_blobs` 0.21 crates.
+  `AzureBlob::new` and the FFI's `ig_blob_store_azure_blob_new` keep the same
+  arguments and still authenticate with the storage account key. A missing blob
+  still reads as `None`, and puts still store a block blob with content type
+  `text/plain`. Requests are now retried on server errors and timeouts, connecting
+  times out after 5 seconds, and a key that isn't valid base64 fails at `init`
+  rather than on the first request.
+
+### Security
+
+- `blob-azure` no longer depends on `azure_core` 0.21, which logs each request's
+  `authorization` header (the Shared Key signature) at debug and trace level
+  (RUSTSEC-2026-0275). The legacy Azure SDK is unsupported and won't be fixed
+  upstream. If you ran the Azure backend with debug or trace logging enabled for the
+  Azure crates, treat those logs as holding credentials and rotate the storage
+  account key. `signer-akv` still depends on `azure_core` 0.21.
+
 ## [0.0.19] - 2026-10-16
 
 ### Added
