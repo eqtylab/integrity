@@ -1,8 +1,11 @@
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
-use azure_storage::{prelude::*, ErrorKind};
-use azure_storage_blobs::prelude::*;
 use log::{debug, trace, warn};
+use object_store::{
+    azure::{MicrosoftAzure, MicrosoftAzureBuilder},
+    path::Path,
+    Attribute, Attributes, ClientOptions, Error, ObjectStore, ObjectStoreExt,
+};
 
 use crate::blob_store::{calc_and_validate_cid, BlobStore};
 
@@ -14,7 +17,7 @@ pub struct AzureBlob {
     key: String,
     container: String,
 
-    client: Option<ClientBuilder>,
+    client: Option<MicrosoftAzure>,
 }
 
 impl AzureBlob {
@@ -37,64 +40,52 @@ impl AzureBlob {
 #[async_trait]
 impl BlobStore for AzureBlob {
     async fn init(&mut self) -> Result<()> {
-        let storage_credentials = StorageCredentials::access_key(&self.account, self.key.clone());
+        // object_store limits a whole request to 30s by default, which a large blob
+        // can exceed. Keep its connect timeout and retries, but not that limit.
+        let client_options = ClientOptions::new().with_timeout_disabled();
 
-        let blob_client = ClientBuilder::new(&self.account, storage_credentials);
+        let client = MicrosoftAzureBuilder::new()
+            .with_account(&self.account)
+            .with_access_key(&self.key)
+            .with_container_name(&self.container)
+            .with_client_options(client_options)
+            .build()?;
 
-        self.client = blob_client.into();
+        self.client = Some(client);
         Ok(())
     }
 
     /// Check if a CID exists in the store
     async fn exists(&self, cid: &str) -> Result<bool> {
-        let client = self.client.clone().ok_or(anyhow!("client not init"))?;
+        let client = self.client.as_ref().ok_or(anyhow!("client not init"))?;
 
-        let exists = client
-            .blob_client(self.container.as_str(), cid)
-            .exists()
-            .await?;
-
-        Ok(exists)
+        match client.head(&Path::from(cid)).await {
+            Ok(_) => Ok(true),
+            Err(Error::NotFound { .. }) => Ok(false),
+            Err(e) => Err(e.into()),
+        }
     }
 
     /// Get a blob from the store
     async fn get(&self, cid: &str) -> Result<Option<Vec<u8>>> {
         let client = self
             .client
-            .clone()
+            .as_ref()
             .ok_or(anyhow!("client not initialized"))?;
 
-        match client
-            .blob_client(self.container.as_str(), cid)
-            .get_content()
-            .await
-        {
-            Ok(content) => Ok(Some(content)),
-            Err(e) => match e.kind() {
-                ErrorKind::HttpResponse { status, error_code } if u16::from(*status) == 404 => {
-                    debug!(
-                        "Blob '{cid}' not found in Azure Blob Storage. status=404 error_code={}",
-                        error_code.as_deref().unwrap_or("unknown")
-                    );
-                    Ok(None)
-                }
-                ErrorKind::HttpResponse { status, error_code } => {
-                    let status_code = u16::from(*status);
-                    warn!(
-                            "Azure Blob Storage returned an HTTP error downloading blob '{cid}'. status={} error_code={} error={e}",
-                            status_code,
-                            error_code.as_deref().unwrap_or("unknown")
-                        );
-                    Err(e.into())
-                }
-                kind => {
-                    warn!(
-                            "Azure Blob Storage returned a non-HTTP error downloading blob '{cid}'. kind={} error={e}",
-                            kind
-                        );
-                    Err(e.into())
-                }
-            },
+        let location = Path::from(cid);
+        let content = async { client.get(&location).await?.bytes().await };
+
+        match content.await {
+            Ok(content) => Ok(Some(content.to_vec())),
+            Err(Error::NotFound { .. }) => {
+                debug!("Blob '{cid}' not found in Azure Blob Storage. status=404");
+                Ok(None)
+            }
+            Err(e) => {
+                warn!("Azure Blob Storage returned an error downloading blob '{cid}'. error={e}");
+                Err(e.into())
+            }
         }
     }
 
@@ -103,12 +94,13 @@ impl BlobStore for AzureBlob {
         let cid = calc_and_validate_cid(&blob, multicodec_code, cid)?;
 
         trace!("put {cid}. blob size: {}", blob.len());
-        let client = self.client.clone().ok_or(anyhow!("client not init"))?;
+        let client = self.client.as_ref().ok_or(anyhow!("client not init"))?;
+
+        let mut attributes = Attributes::new();
+        attributes.insert(Attribute::ContentType, "text/plain".into());
 
         client
-            .blob_client(self.container.as_str(), &cid)
-            .put_block_blob(blob)
-            .content_type("text/plain")
+            .put_opts(&Path::from(cid.as_str()), blob.into(), attributes.into())
             .await?;
 
         Ok(cid)

@@ -9,7 +9,7 @@ blob-local = []
 blob-memory = []
 blob-s3 = ["dep:aws-config", "dep:aws-sdk-s3"]
 blob-gcs = ["dep:bytes", "dep:google-cloud-storage"]
-blob-azure = ["dep:azure_storage", "dep:azure_storage_blobs"]
+blob-azure = ["dep:object_store"]
 blob-all = ["blob-local", "blob-memory", "blob-s3", "blob-gcs", "blob-azure"]
 
 [dependencies]
@@ -39,20 +39,18 @@ default-features = false
 features = ["behavior-version-latest", "default-https-client", "rt-tokio", "sigv4a"]
 optional = true
 
-[target.'cfg(not(target_arch = "wasm32"))'.dependencies.azure_storage]
-version = "0.21"
-optional = true
-
-[target.'cfg(not(target_arch = "wasm32"))'.dependencies.azure_storage_blobs]
-version = "0.21"
-optional = true
-
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies.bytes]
 version = "1.5"
 optional = true
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies.google-cloud-storage]
 version = "1.7"
+optional = true
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies.object_store]
+version = "0.14"
+default-features = false
+features = ["azure"]
 optional = true
 
 [dev-dependencies]
