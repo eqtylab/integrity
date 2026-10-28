@@ -16,6 +16,8 @@ not always match the Git tags; section versions follow the tags.
 
 ## [Unreleased]
 
+## [0.0.20] - 2026-10-28
+
 ### Changed
 
 - `integrity-blob`: the `blob-azure` backend moves from the legacy `azure_storage` /
@@ -390,7 +392,8 @@ not always match the Git tags; section versions follow the tags.
 - Correct shell commands used to stage native release artifacts.
   ([#4](https://github.com/eqtylab/integrity/pull/4))
 
-[Unreleased]: https://github.com/eqtylab/integrity/compare/v0.0.19...main
+[Unreleased]: https://github.com/eqtylab/integrity/compare/v0.0.20...main
+[0.0.20]: https://github.com/eqtylab/integrity/compare/v0.0.19...v0.0.20
 [0.0.19]: https://github.com/eqtylab/integrity/compare/v0.0.18...v0.0.19
 [0.0.18]: https://github.com/eqtylab/integrity/compare/v0.0.17...v0.0.18
 [0.0.17]: https://github.com/eqtylab/integrity/compare/v0.0.16...v0.0.17
