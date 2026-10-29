@@ -25,6 +25,7 @@ not always match the Git tags; section versions follow the tags.
   `type` includes `"null"`, references carry their doc comments, and maps declare
   string keys. The internally tagged `anchor::Location` enum no longer has a
   `discriminator`; each variant still requires its `type` value.
+  ([#57](https://github.com/eqtylab/integrity/pull/57))
 
 ## [0.0.20] - 2026-10-28
 
