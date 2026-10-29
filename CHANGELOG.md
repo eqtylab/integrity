@@ -16,6 +16,16 @@ not always match the Git tags; section versions follow the tags.
 
 ## [Unreleased]
 
+### Changed
+
+- `integrity-lineage-models`: `utoipa` from 3.5.0 to 6.0.0. **Breaking:** the models'
+  `ToSchema` implementations are now utoipa 6's, so an OpenAPI document that embeds
+  them has to be built with utoipa 6. Serialization and the Rust API are unchanged.
+  The schemas describe the same JSON, now in OpenAPI 3.1 form: a nullable field's
+  `type` includes `"null"`, references carry their doc comments, and maps declare
+  string keys. The internally tagged `anchor::Location` enum no longer has a
+  `discriminator`; each variant still requires its `type` value.
+
 ## [0.0.20] - 2026-10-28
 
 ### Changed

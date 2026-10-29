@@ -15,6 +15,7 @@ pub struct UrnCidWithSha256 {
     #[serde(rename = "@id")]
     pub cid: String,
     /// SHA-256 hash of the content
+    #[schema(value_type = String, format = Binary)]
     #[serde(
         serialize_with = "serialize_u8_arr_as_hex",
         deserialize_with = "deserialize_u8_arr_32_from_hex"
@@ -30,6 +31,7 @@ pub struct UrnCidWithSha384 {
     #[serde(rename = "@id")]
     pub cid: String,
     /// SHA-384 hash of the content
+    #[schema(value_type = String, format = Binary)]
     #[serde(
         serialize_with = "serialize_u8_arr_as_hex",
         deserialize_with = "deserialize_u8_arr_48_from_hex"
