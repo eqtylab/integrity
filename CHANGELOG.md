@@ -26,6 +26,12 @@ not always match the Git tags; section versions follow the tags.
   string keys. The internally tagged `anchor::Location` enum no longer has a
   `discriminator`; each variant still requires its `type` value.
   ([#57](https://github.com/eqtylab/integrity/pull/57))
+- `integrity-jsonld`: `loader::loader()` parses the embedded static contexts once per
+  process instead of on every call, so building a loader takes microseconds instead
+  of about 1.5 ms. This speeds up VC signing and verification and statement CID
+  computation. Canonicalized output is unchanged. **Breaking:** `loader()` returns a
+  new `IntegrityLoader` instead of `ssi_json_ld::ContextLoader`. It can be used
+  anywhere ssi accepts a JSON-LD loader.
 
 ## [0.0.20] - 2026-10-28
 
