@@ -30,8 +30,8 @@ not always match the Git tags; section versions follow the tags.
   process instead of on every call, so building a loader takes microseconds instead
   of about 1.5 ms. This speeds up VC signing and verification and statement CID
   computation. Canonicalized output is unchanged. **Breaking:** `loader()` returns a
-  new `IntegrityLoader` instead of `ssi_json_ld::ContextLoader`. It can be used
-  anywhere ssi accepts a JSON-LD loader.
+  new `IntegrityLoader` instead of `ssi_json_ld::ContextLoader`. It implements
+  `Clone` and `Debug`, and can be used anywhere ssi accepts a JSON-LD loader.
 
 ## [0.0.20] - 2026-10-28
 

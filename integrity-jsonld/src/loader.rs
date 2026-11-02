@@ -46,6 +46,12 @@ pub struct IntegrityLoader {
     statics: Arc<ParsedContextMap>,
 }
 
+impl std::fmt::Debug for IntegrityLoader {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("IntegrityLoader").finish_non_exhaustive()
+    }
+}
+
 impl Loader for IntegrityLoader {
     async fn load(&self, url: &Iri) -> json_ld::LoadingResult {
         if let Ok(doc) = StaticLoader.load(url).await {
@@ -63,8 +69,9 @@ impl Loader for IntegrityLoader {
 /// Get JSON-LD context loader, pre-loaded with our static contexts plus the
 /// W3C contexts ssi already ships with.
 ///
-/// Optionally provide additional runtime contexts that take precedence over
-/// static contexts.
+/// Optionally provide additional runtime contexts. These take precedence over
+/// our embedded static contexts, but not over ssi's built-in W3C contexts: a
+/// W3C context URL passed here is ignored.
 pub fn loader(additional_contexts: Option<HashMap<String, String>>) -> Result<IntegrityLoader> {
     let additional = match additional_contexts {
         Some(contexts) => parse_context_map(contexts)?,
