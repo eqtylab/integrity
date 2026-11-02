@@ -2,7 +2,7 @@
 
 The `static_contexts/` directory contains JSON-LD context documents that define the vocabulary and semantics for the Integrity Fabric. These contexts enable interoperable, machine-readable metadata using linked data standards.
 
-The schema is defined in <https://github.com/eqtylab/integrity-schema>
+The Integrity Graph schema sources live in `schema/` (see [Schema](#schema)).
 
 ### Structure
 
@@ -46,7 +46,7 @@ use integrity::json_ld::ig_common_context_link;
 
 #[cfg(feature = "jsonld")]
 let context_urn = ig_common_context_link();
-// Returns: "urn:cid:bafkr4ic7ydwk3rtoltyzx4zn3vvu3r7hpzxtmbzmnksotx7k5nbnwclf6m"
+// Returns: "urn:cid:bafkr4icploa577ziqnb57jlpoj7l2hi5kgt3knxpdtunlttjd3q33zeqpy"
 ```
 
 These contexts are embedded at compile time and used by the JSON-LD processor to:
@@ -68,3 +68,23 @@ file in the right place — **no Rust changes are needed**:
 Embed a context here only when it is genuinely immutable — a content-addressed document is,
 by construction. For anything served at a URL that may still gain terms, prefer passing it to
 `loader()` at call time so the two never drift.
+
+### Schema
+
+`schema/` holds the sources for the Integrity Graph common context:
+
+- `common-context.jsonld.template` — the common context, with a `{{VCOMP_JSONLD_CID}}`
+  placeholder where it imports the vcomp context by CID.
+- `vcomp.jsonld` — the vcomp context.
+
+The generated contexts are embedded under `static_contexts/cid/` by their raw BLAKE3 CIDs.
+`tests/schema.rs` fills in the template and checks that both contexts are embedded and that
+`ig_common_context_link()` returns the common context's CID. After editing the schema,
+regenerate with:
+
+```sh
+INTEGRITY_SCHEMA_REGENERATE=1 cargo test -p integrity-jsonld --test schema
+```
+
+then update the CID in `ig_common_context_link()` (the test reports the new one). Previous
+versions stay in `static_contexts/cid/` so documents referencing them keep resolving.
