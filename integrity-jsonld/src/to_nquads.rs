@@ -28,7 +28,8 @@ impl Input for serde_json::Value {
 
 /// Convert JSON-LD to N-Quads (non-canonical).
 ///
-/// Optionally provide additional runtime contexts that take precedence over static contexts.
+/// Optionally provide additional runtime contexts. These take precedence over our embedded
+/// static contexts, but not over ssi's built-in W3C contexts; see [`crate::loader::loader`].
 pub async fn jsonld_to_nquads<I>(
     input: I,
     additional_contexts: Option<HashMap<String, String>>,

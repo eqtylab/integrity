@@ -1,11 +1,15 @@
-use std::{collections::HashMap, path::Path};
+use std::{collections::HashMap, path::Path, sync::Arc};
 
 use anyhow::Result;
 use include_dir::{include_dir, Dir, DirEntry};
+use iref::{Iri, IriBuf};
+use json_ld::{LoadError, Loader, RemoteDocument};
+use json_syntax::Parse;
 use once_cell::sync::OnceCell;
-use ssi_json_ld::ContextLoader;
+use ssi_json_ld::{StaticLoader, UnknownContext};
 
 type ContextMap = HashMap<String, &'static str>;
+type ParsedContextMap = HashMap<IriBuf, RemoteDocument>;
 
 /// All static JSON-LD context documents, embedded at compile time.
 ///
@@ -31,28 +35,89 @@ type ContextMap = HashMap<String, &'static str>;
 /// up on incremental builds.
 static STATIC_CONTEXTS_DIR: Dir<'static> = include_dir!("$CARGO_MANIFEST_DIR/static_contexts");
 
+/// JSON-LD context loader returned by [`loader`].
+///
+/// Lookup order: the W3C contexts ssi ships with, then caller-supplied
+/// contexts, then our static contexts. The static contexts are parsed once per
+/// process and shared, so constructing a loader is cheap.
+#[derive(Clone)]
+pub struct IntegrityLoader {
+    additional: Arc<ParsedContextMap>,
+    statics: Arc<ParsedContextMap>,
+}
+
+impl std::fmt::Debug for IntegrityLoader {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("IntegrityLoader").finish_non_exhaustive()
+    }
+}
+
+impl Loader for IntegrityLoader {
+    async fn load(&self, url: &Iri) -> json_ld::LoadingResult {
+        if let Ok(doc) = StaticLoader.load(url).await {
+            return Ok(doc);
+        }
+
+        self.additional
+            .get(url)
+            .or_else(|| self.statics.get(url))
+            .cloned()
+            .ok_or_else(|| LoadError::new(url.to_owned(), UnknownContext))
+    }
+}
+
 /// Get JSON-LD context loader, pre-loaded with our static contexts plus the
 /// W3C contexts ssi already ships with.
 ///
-/// Optionally provide additional runtime contexts that take precedence over
-/// static contexts.
-pub fn loader(additional_contexts: Option<HashMap<String, String>>) -> Result<ContextLoader> {
-    let static_context_map = static_contexts()?;
+/// Optionally provide additional runtime contexts. These take precedence over
+/// our embedded static contexts, but not over ssi's built-in W3C contexts: a
+/// W3C context URL passed here is ignored.
+pub fn loader(additional_contexts: Option<HashMap<String, String>>) -> Result<IntegrityLoader> {
+    let additional = match additional_contexts {
+        Some(contexts) => parse_context_map(contexts)?,
+        None => ParsedContextMap::new(),
+    };
 
-    let mut combined: HashMap<String, String> = static_context_map
-        .iter()
-        .map(|(k, v)| (k.clone(), (*v).to_string()))
-        .collect();
-    if let Some(additional) = additional_contexts {
-        combined.extend(additional);
-    }
+    Ok(IntegrityLoader {
+        additional: Arc::new(additional),
+        statics: Arc::clone(parsed_static_contexts()?),
+    })
+}
 
-    let loader = ContextLoader::default()
-        .with_static_loader()
-        .with_context_map_from(combined)
-        .map_err(|e| anyhow::anyhow!("failed to build context loader: {e}"))?;
+/// Get the static contexts, parsed into JSON-LD documents.
+fn parsed_static_contexts() -> Result<&'static Arc<ParsedContextMap>> {
+    static PARSED_STATIC_CONTEXTS: OnceCell<Arc<ParsedContextMap>> = OnceCell::new();
 
-    Ok(loader)
+    PARSED_STATIC_CONTEXTS.get_or_try_init(|| {
+        let contexts = static_contexts()?
+            .iter()
+            .map(|(k, v)| (k.clone(), (*v).to_string()));
+
+        Ok(Arc::new(parse_context_map(contexts)?))
+    })
+}
+
+/// Parse a map of context URL to JSON content, the same way
+/// `ssi_json_ld::ContextLoader::with_context_map_from` does.
+fn parse_context_map(
+    contexts: impl IntoIterator<Item = (String, String)>,
+) -> Result<ParsedContextMap> {
+    contexts
+        .into_iter()
+        .map(|(url, json)| {
+            let (doc, _) = json_syntax::Value::parse_str(&json)
+                .map_err(|e| anyhow::anyhow!("failed to parse context {url}: {e}"))?;
+            let iri = IriBuf::new(url)
+                .map_err(|e| anyhow::anyhow!("invalid context IRI {}: {e}", e.0))?;
+            let remote_doc = RemoteDocument::new(
+                Some(iri.clone()),
+                Some("application/ld+json".parse().unwrap()),
+                doc,
+            );
+
+            Ok((iri, remote_doc))
+        })
+        .collect()
 }
 
 /// Get static contexts map.
@@ -124,6 +189,8 @@ fn validate_json_string(s: &str) -> Result<()> {
 
 #[cfg(test)]
 mod tests {
+    use futures::executor::block_on;
+
     use super::*;
 
     #[test]
@@ -156,6 +223,34 @@ mod tests {
             2,
             "only the two legacy eqtylab.io contexts should be embedded by URL"
         );
+    }
+
+    #[test]
+    fn static_contexts_are_parsed_once() {
+        let a = loader(None).expect("loader builds");
+        let b = loader(None).expect("loader builds");
+
+        assert!(Arc::ptr_eq(&a.statics, &b.statics));
+    }
+
+    #[test]
+    fn additional_contexts_take_precedence_over_static() {
+        let url = "https://eqtylab.io/contexts/component-attestation.jsonld";
+        let override_json = r#"{"@context": {"overridden": "https://example.com/overridden"}}"#;
+        let loader = loader(Some(HashMap::from([(
+            url.to_string(),
+            override_json.to_string(),
+        )])))
+        .expect("loader builds");
+
+        let iri = Iri::new(url).unwrap();
+        let doc = block_on(loader.load(iri)).expect("context loads");
+        let (expected, _) = json_syntax::Value::parse_str(override_json).unwrap();
+        assert_eq!(doc.document(), &expected);
+
+        // Static contexts not shadowed by the caller still resolve.
+        let other = Iri::new("https://eqtylab.io/contexts/identity-attestation.jsonld").unwrap();
+        assert!(block_on(loader.load(other)).is_ok());
     }
 
     #[test]
