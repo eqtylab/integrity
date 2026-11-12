@@ -448,10 +448,14 @@ fn walked_files_for_dir_cid(
         })
         .map(|d| {
             let path = d.path().to_path_buf();
+            // Join the components with `/` rather than the platform separator, so the
+            // same directory gets the same names, order and CID on Windows as elsewhere.
             let name = path
                 .strip_prefix(&dir_base_path)?
-                .to_string_lossy()
-                .to_string();
+                .components()
+                .map(|c| c.as_os_str().to_string_lossy())
+                .collect::<Vec<_>>()
+                .join("/");
             Ok(DataSource::with_name(path, name))
         })
         .collect::<Result<Vec<_>>>()?;
@@ -512,6 +516,29 @@ mod tests {
         assert_eq!(
             dir_result.collection.cid,
             "bagaachraifnmn56rqtgbdxx5x2zvasw4slukuq2t7w3iefcmsqldn7axmrpq"
+        );
+    }
+
+    #[tokio::test]
+    async fn dir_cid_names_use_forward_slashes() {
+        let dir = std::env::temp_dir().join(format!("integrity-cid-nested-{}", std::process::id()));
+        std::fs::create_dir_all(dir.join("sub")).unwrap();
+        std::fs::write(dir.join("top.txt"), b"top").unwrap();
+        std::fs::write(dir.join("sub").join("inner.txt"), b"inner").unwrap();
+
+        let dir_result =
+            compute_dir_cid(&dir, HashingConfig::default(), CidIgnoreConfig::default())
+                .await
+                .expect("should compute dir cid");
+        std::fs::remove_dir_all(&dir).ok();
+
+        assert_eq!(
+            dir_result
+                .file_hashes
+                .iter()
+                .map(|(name, _)| name.as_str())
+                .collect::<Vec<_>>(),
+            vec!["sub/inner.txt", "top.txt"]
         );
     }
 
