@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use anyhow::Result;
-use json_ld::{JsonLdProcessor, RemoteDocument};
+use json_ld::rdf::RdfQuads;
 use json_syntax::Parse;
 use rdf_types::generator;
 
@@ -42,16 +42,17 @@ where
 
     let (json, _) = json_syntax::Value::parse_str(&input)
         .map_err(|e| anyhow::anyhow!("failed to parse input JSON-LD: {e}"))?;
-    let doc = RemoteDocument::new(None, None, json);
 
-    let mut generator = generator::Blank::new();
-    let mut rdf = doc
-        .to_rdf(&mut generator, &loader)
+    let mut expanded = crate::top_level_context::expand(json, &loader)
         .await
         .map_err(|e| anyhow::anyhow!("failed to convert JSON-LD to RDF: {e}"))?;
 
-    let nquads = rdf
-        .cloned_quads()
+    // The rest of `JsonLdProcessor::to_rdf`.
+    let mut generator = generator::Blank::new();
+    expanded.relabel_and_canonicalize_with(&mut (), &mut generator);
+    let nquads = expanded
+        .rdf_quads_full(&mut (), &mut generator, None, false)
+        .cloned()
         .map(|q| format!("{q} ."))
         .collect::<Vec<_>>()
         .join("\n");
