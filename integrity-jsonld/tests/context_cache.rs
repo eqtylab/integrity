@@ -1,13 +1,17 @@
-//! Checks that reusing processed top-level contexts never changes results.
+//! Checks that reusing processed contexts never changes results.
 //!
-//! The reference here expands documents with plain `to_rdf`, which processes
-//! every context itself.
+//! Two caches are involved: `integrity-jsonld`'s cache of processed top-level
+//! contexts, and the memoization in the vendored `json-ld-context-processing`
+//! (see `vendor/README.md`). The reference here expands with the `&mut ()`
+//! vocabulary, which behaves like `()` but is cached by neither.
 
 use std::collections::HashMap;
 
 use futures::executor::block_on;
 use integrity_jsonld::{ig_common_context_link, loader::loader, to_nquads::jsonld_to_nquads};
-use json_ld::JsonLdProcessor;
+use json_ld::{
+    context_processing::Warning, syntax::TryFromJson, Context, JsonLdProcessor, Process,
+};
 use json_syntax::Parse;
 use serde_json::{json, Value};
 
@@ -20,8 +24,15 @@ fn reference(document: &Value, contexts: Contexts) -> String {
     let (json, _) = json_syntax::Value::parse_str(&document.to_string()).unwrap();
     let document = json_ld::RemoteDocument::new(None, None, json);
 
+    let mut vocabulary = ();
     let mut generator = rdf_types::generator::Blank::new();
-    let mut rdf = block_on(document.to_rdf(&mut generator, &loader)).unwrap();
+    let mut rdf = block_on(document.to_rdf_with_using(
+        &mut vocabulary,
+        &mut generator,
+        &loader,
+        json_ld::Options::default(),
+    ))
+    .unwrap();
 
     rdf.cloned_quads()
         .map(|q| format!("{q} ."))
@@ -131,6 +142,31 @@ fn top_level_context_that_does_not_propagate() {
 }
 
 #[test]
+fn same_context_against_different_active_contexts() {
+    let url = "https://example.com/shared-context";
+    let contexts = Some(HashMap::from([(
+        url.to_string(),
+        json!({"@context": {"name": "https://example.com/name"}}).to_string(),
+    )]));
+
+    let top_level = json!({"@context": url, "@id": "urn:test:a", "name": "a"});
+    // Here `url` is processed on top of an active context that also defines
+    // `nickname`, which must stay defined inside `inner`.
+    let nested = json!({
+        "@context": {
+            "nickname": "https://example.com/nickname",
+            "inner": "https://example.com/inner",
+        },
+        "@id": "urn:test:b",
+        "inner": {"@context": url, "@id": "urn:test:c", "name": "c", "nickname": "c"},
+    });
+
+    assert_matches_reference(&top_level, contexts.clone());
+    let nquads = assert_matches_reference(&nested, contexts);
+    assert!(nquads.contains(r#"<urn:test:c> <https://example.com/nickname> "c""#));
+}
+
+#[test]
 fn invalid_contexts_fail_like_uncached_expansion() {
     let documents = [
         json!({"@context": "https://example.com/unknown", "@id": "urn:test:subject"}),
@@ -158,5 +194,66 @@ fn invalid_contexts_fail_like_uncached_expansion() {
                 "{document}"
             );
         }
+    }
+}
+
+#[derive(Default)]
+struct Collect(Vec<String>);
+
+impl json_ld::warning::Handler<(), Warning> for Collect {
+    fn handle(&mut self, _vocabulary: &(), warning: Warning) {
+        self.0.push(warning.to_string())
+    }
+}
+
+#[test]
+fn warnings_are_replayed() {
+    let url = "https://example.com/keyword-like-context";
+    let loader = loader(Some(HashMap::from([(
+        url.to_string(),
+        json!({"@context": {"term": {"@id": "@keywordLike"}}}).to_string(),
+    )])))
+    .unwrap();
+    let (local, _) = json_syntax::Value::parse_str(&json!([url]).to_string()).unwrap();
+    let local = json_ld::syntax::context::Context::try_from_json(local).unwrap();
+
+    let mut runs = Vec::new();
+    for _ in 0..2 {
+        let mut warnings = Collect::default();
+        block_on(local.process_full(
+            &mut (),
+            &Context::new(None),
+            &loader,
+            None,
+            Default::default(),
+            &mut warnings,
+        ))
+        .unwrap();
+        runs.push(warnings.0);
+    }
+
+    assert!(!runs[0].is_empty());
+    assert_eq!(runs[0], runs[1]);
+}
+
+#[test]
+fn caches_keep_working_once_full() {
+    let url = "https://example.com/shared-context";
+    let contexts = Some(HashMap::from([(
+        url.to_string(),
+        json!({"@context": {"name": "https://example.com/name"}}).to_string(),
+    )]));
+
+    // Each document's top-level context is distinct and loads `url`, so it is
+    // stored by both caches. 300 is more than either holds.
+    for i in 0..300 {
+        let term = format!("term{i}");
+        let document = json!({
+            "@context": [url, {&term: format!("https://example.com/{term}")}],
+            "@id": "urn:test:subject",
+            "name": "a",
+            &term: "b",
+        });
+        assert_matches_reference(&document, contexts.clone());
     }
 }
