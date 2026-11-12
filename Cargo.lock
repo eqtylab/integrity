@@ -4323,8 +4323,6 @@ dependencies = [
 [[package]]
 name = "json-ld-context-processing"
 version = "0.21.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "794733ae1552eb7252972da511dfe1c65ec793e21fd025f732534e994d0abe93"
 dependencies = [
  "contextual",
  "futures",
