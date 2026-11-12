@@ -34,6 +34,31 @@ impl Process for syntax::context::Context {
 		L: Loader,
 		W: WarningHandler<N>,
 	{
+		if crate::cache::applies::<N>() {
+			// SAFETY: `applies` established that `N` is `()`, whose IRI and
+			// blank node types are `IriBuf` and `BlankIdBuf`.
+			let (processed, emitted) = unsafe {
+				crate::cache::process(
+					crate::cache::same_type(&mut *vocabulary),
+					crate::cache::same_type(active_context),
+					self,
+					loader,
+					crate::cache::same_type(base_url),
+					options,
+				)
+				.await?
+			};
+
+			for warning in emitted {
+				warnings.handle(vocabulary, warning);
+			}
+
+			// SAFETY: as above.
+			return Ok(Processed::new(self, unsafe {
+				crate::cache::same_type(processed)
+			}));
+		}
+
 		process_context(
 			Environment {
 				vocabulary,
@@ -70,7 +95,7 @@ fn resolve_iri<I>(
 //
 // The recommended default value for `remote_contexts` is the empty set,
 // `false` for `override_protected`, and `true` for `propagate`.
-async fn process_context<'l: 'a, 'a, N, L, W>(
+pub(crate) async fn process_context<'l: 'a, 'a, N, L, W>(
 	mut env: Environment<'a, N, L, W>,
 	active_context: &'a Context<N::Iri, N::BlankId>,
 	local_context: &'l syntax::context::Context,

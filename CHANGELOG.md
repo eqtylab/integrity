@@ -37,6 +37,12 @@ not always match the Git tags; section versions follow the tags.
   `CredentialRegistration` CID. Contexts are reused only when every document they load
   is a built-in W3C context or one of the static contexts, not overridden by the
   caller. Canonicalized output is unchanged.
+- JSON-LD context processing results are reused across calls through a locally modified
+  `json-ld-context-processing` (see `vendor/README.md`), which covers ssi's expansions
+  when signing as well as integrity's own. With the change above, signing a credential
+  and computing its `CredentialRegistration` CID takes about 1.4 ms instead of 3.6 ms.
+  Canonicalized output is unchanged. Cargo only applies the modified crate to
+  dependents that declare the same `[patch.crates-io]` entry.
 
 ## [0.0.20] - 2026-10-28
 

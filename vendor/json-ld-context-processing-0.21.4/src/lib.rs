@@ -7,6 +7,7 @@ use rdf_types::VocabularyMut;
 use std::{fmt, hash::Hash};
 
 pub mod algorithm;
+mod cache;
 mod processed;
 mod stack;
 
@@ -14,6 +15,7 @@ pub use processed::*;
 pub use stack::ProcessingStack;
 
 /// Warnings that can be raised during context processing.
+#[derive(Clone)]
 pub enum Warning {
 	KeywordLikeTerm(String),
 	KeywordLikeValue(String),
