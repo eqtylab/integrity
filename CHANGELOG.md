@@ -32,6 +32,11 @@ not always match the Git tags; section versions follow the tags.
   computation. Canonicalized output is unchanged. **Breaking:** `loader()` returns a
   new `IntegrityLoader` instead of `ssi_json_ld::ContextLoader`. It implements
   `Clone` and `Debug`, and can be used anywhere ssi accepts a JSON-LD loader.
+- `integrity-jsonld`: `jsonld_to_nquads` reuses the processed top-level `@context` of
+  a document across calls, which saves about 0.7 ms per statement or
+  `CredentialRegistration` CID. Contexts are reused only when every document they load
+  is a built-in W3C context or one of the static contexts, not overridden by the
+  caller. Canonicalized output is unchanged.
 
 ## [0.0.20] - 2026-10-28
 
