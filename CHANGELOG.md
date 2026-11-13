@@ -33,6 +33,14 @@ not always match the Git tags; section versions follow the tags.
   new `IntegrityLoader` instead of `ssi_json_ld::ContextLoader`. It implements
   `Clone` and `Debug`, and can be used anywhere ssi accepts a JSON-LD loader.
 
+### Fixed
+
+- `integrity-cid`: `compute_dir_cid` names the files in a directory with `/`-separated
+  relative paths on every platform. Before, on Windows the names used `\`, so a
+  directory with subdirectories got a different CID and file order there than on
+  Linux and macOS. Directory CIDs computed on Windows for such directories change;
+  CIDs computed on Linux and macOS are unchanged.
+
 ## [0.0.20] - 2026-10-28
 
 ### Changed
