@@ -66,6 +66,20 @@ impl Loader for IntegrityLoader {
     }
 }
 
+impl IntegrityLoader {
+    /// Whether `url` resolves to one of ssi's built-in W3C contexts. These
+    /// take precedence over everything else, so are the same for every loader.
+    pub(crate) async fn is_builtin(url: &Iri) -> bool {
+        StaticLoader.load(url).await.is_ok()
+    }
+
+    /// Whether `url` resolves to one of our static contexts, rather than to a
+    /// caller-supplied context of the same URL.
+    pub(crate) fn is_bundled(&self, url: &Iri) -> bool {
+        !self.additional.contains_key(url) && self.statics.contains_key(url)
+    }
+}
+
 /// Get JSON-LD context loader, pre-loaded with our static contexts plus the
 /// W3C contexts ssi already ships with.
 ///

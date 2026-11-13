@@ -4,6 +4,7 @@ pub mod loader;
 pub mod nquads;
 /// JSON-LD to N-Quads conversion.
 pub mod to_nquads;
+mod top_level_context;
 
 use anyhow::Result;
 use cid::{multihash::Multihash as MultihashGeneric, Cid};

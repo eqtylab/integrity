@@ -1,10 +1,16 @@
 # Vendored Rust crates
 
-This directory contains a self-contained island of crates.io releases required
-by the legacy Verifiable Credential (VC) verification path. Every edge that
-could otherwise reach one of the locally modified crates is a relative `path`
-dependency. The root manifest therefore needs no `[patch.crates-io]` entries,
-and a Git or local-path consumer receives the same sources automatically.
+This directory holds two independent sets of locally modified crates.io
+releases:
+
+- A self-contained island required by the legacy Verifiable Credential (VC)
+  verification path. Every edge that could otherwise reach one of these crates
+  is a relative `path` dependency, so they need no `[patch.crates-io]` entries,
+  and a Git or local-path consumer receives the same sources automatically.
+- [`json-ld-context-processing`](#json-ld-context-processing-0214), vendored
+  for local performance changes. It sits deep inside the current `ssi` graph,
+  so it is applied with `[patch.crates-io]`; see that section for what
+  consumers need to do.
 
 The legacy dependency chain starts at `integrity-vc`, which keeps `ssi` 0.7
 under the `ssi-legacy` alias solely to verify VCs created before the migration
@@ -164,6 +170,58 @@ The vendored island can be removed when support for VCs produced by the `ssi`
 accepted VC behavior. At that point, remove the `ssi-legacy` dependency, delete
 these directories, remove their workspace exclusions, and regenerate
 `Cargo.lock`.
+
+## `json-ld-context-processing` 0.21.4
+
+Upstream release:
+[0.21.4](https://crates.io/crates/json-ld-context-processing/0.21.4).
+
+JSON-LD expansion spends most of its time processing `@context` documents, and
+`ssi` and `integrity-jsonld` process the same few contexts against the same
+active contexts over and over: signing a credential expands it twice, and the
+`CredentialRegistration` that records it expands it again. The local copy adds
+a process-wide memoization of context processing, which brings signing a
+credential and computing its registration's CID from about 3.6 ms to about
+1.4 ms. Results are unchanged; `integrity-jsonld/tests/context_cache.rs`
+compares them against processing that bypasses the cache.
+
+The rules an entry follows are documented in `src/cache.rs`. In short, a result
+is reused only for the unit vocabulary `()`, when the options, base URL, local
+context, and the active context (including its term definitions) are equal, and
+when every document that processing loaded still loads, through the caller's
+loader, to the same JSON. Warnings are recorded and replayed. When the cache is
+full, storing a new result clears it first.
+
+The local copy differs from crates.io as follows:
+
+- `Cargo.toml`: adds `json-syntax` 0.12 (to keep the loaded documents) and
+  `typeid` 1 (to recognize the unit vocabulary in generic code without a
+  `'static` bound).
+- `src/cache.rs`: new; the cache.
+- `src/lib.rs`: declares the `cache` module, and derives `Clone` for `Warning`
+  so recorded warnings can be replayed.
+- `src/algorithm/mod.rs`: `Process::process_full` for
+  `json_ld_syntax::context::Context` goes through the cache for the unit
+  vocabulary; `process_context` becomes `pub(crate)` for it.
+
+The root manifest applies it with `[patch.crates-io]`, and lists it in
+`workspace.exclude` like the other vendored crates. Cargo ignores `[patch]`
+tables in dependencies, so a Git or local-path consumer gets the upstream
+crate unless it declares the same patch itself, for example:
+
+```toml
+[patch.crates-io]
+json-ld-context-processing = { git = "https://github.com/eqtylab/integrity", tag = "vX.Y.Z" }
+```
+
+Without it everything still works, only slower. `integrity-jsonld` separately
+reuses processed top-level contexts in `jsonld_to_nquads`, which does not
+depend on this patch.
+
+Remove this copy, its `[patch.crates-io]` entry and its workspace exclusion
+once the `json-ld` that `ssi` depends on caches processed contexts itself (as
+of `json-ld` 0.22.0 it does not, and `ssi` 0.16 requires 0.21), or once nothing
+processes the same contexts repeatedly.
 
 ## Verification
 
