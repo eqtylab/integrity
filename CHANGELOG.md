@@ -16,6 +16,20 @@ not always match the Git tags; section versions follow the tags.
 
 ## [Unreleased]
 
+### Added
+
+- `integrity-signer`: `VCompNotarySigner` signs over one kept-alive connection
+  when the notary announces `x-argus-connection-attribution: per-connection`,
+  instead of opening a connection per request. A notary that does not announce
+  it keeps the old behaviour: one connection per request, closed after its
+  response. New API: `NotaryConnection` (shared by signer clones and reusable
+  across `create_with_connection` calls), `create_with_headers` /
+  `create_with_connection` constructors, `keep_alive()` to touch the idle
+  connection, and an `extra_headers` per-request header generator. A refused
+  attribution (403) is retried up to three times on the same connection.
+  **Breaking:** the signer no longer follows redirects (the previous default
+  client followed up to 10), so extra headers never replay to another URL.
+
 ### Changed
 
 - `integrity-lineage-models`: `utoipa` from 3.5.0 to 6.0.0. **Breaking:** the models'
