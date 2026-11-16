@@ -15,6 +15,7 @@ members = [
 exclude = [
   "vendor/cacaos-0.5.1",
   "vendor/cid-0.8.6",
+  "vendor/json-ld-context-processing-0.21.4",
   "vendor/libipld-0.14.0",
   "vendor/libipld-cbor-0.14.0",
   "vendor/libipld-core-0.14.0",
@@ -133,3 +134,8 @@ integrity-intoto-attestation = { path = "integrity-intoto-attestation", default-
 integrity-dsse = { path = "integrity-dsse", default-features = false, optional = true }
 integrity-lineage-models = { path = "integrity-lineage-models", default-features = false, optional = true }
 integrity-model-signing = { path = "integrity-model-signing", default-features = false, optional = true }
+
+# Locally modified JSON-LD context processing; see vendor/README.md. Cargo
+# ignores this table in dependents, which must declare the same patch to get it.
+[patch.crates-io]
+json-ld-context-processing = { path = "vendor/json-ld-context-processing-0.21.4" }
