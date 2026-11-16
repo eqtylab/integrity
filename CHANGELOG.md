@@ -36,8 +36,10 @@ not always match the Git tags; section versions follow the tags.
   registration (`credentials` and `did_blobs`) behind an `Arc`, so cloning the
   signer no longer copies it. VC signing clones the signer for each credential;
   on an Azure SEV-SNP notary the registration is 63 KB and each copy took about
-  6 µs. **Breaking:** the two fields are now `Option<Arc<HashMap<…>>>`. Their
-  serialized form is unchanged.
+  6 µs. **Breaking:** the two fields are now `Option<Arc<HashMap<…>>>`. Code
+  that iterates them by value needs `.iter()`, or `Arc::unwrap_or_clone` for owned
+  entries. Their serialized form is unchanged.
+  ([#63](https://github.com/eqtylab/integrity/pull/63))
 
 ### Fixed
 
