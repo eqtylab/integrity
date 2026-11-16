@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fs, path::PathBuf};
+use std::{collections::HashMap, fs, path::PathBuf, sync::Arc};
 
 use anyhow::{anyhow, bail, Context, Result};
 use async_trait::async_trait;
@@ -31,9 +31,9 @@ pub struct VCompNotarySigner {
     /// DID of the execution environment
     pub executed_on: Option<String>,
     /// DID registration statements from the notary
-    pub credentials: Option<HashMap<String, serde_json::Value>>,
+    pub credentials: Option<Arc<HashMap<String, serde_json::Value>>>,
     /// Binary blobs associated with DID registration
-    pub did_blobs: Option<HashMap<String, Vec<u8>>>,
+    pub did_blobs: Option<Arc<HashMap<String, Vec<u8>>>>,
 }
 
 fn strip_urn_cid(cid: &str) -> &str {
@@ -118,6 +118,7 @@ impl VCompNotarySigner {
                 obj.iter()
                     .map(|(k, v)| (k.clone(), v.clone()))
                     .collect::<HashMap<String, serde_json::Value>>()
+                    .into()
             }),
 
             did_blobs: manifest["blobs"]
@@ -129,7 +130,8 @@ impl VCompNotarySigner {
                             let decoded = BASE64.decode(inner)?;
                             Ok((k.clone(), decoded))
                         })
-                        .collect::<Result<_>>()
+                        .collect::<Result<HashMap<_, _>>>()
+                        .map(Arc::new)
                 })
                 .transpose()?,
         };
@@ -148,20 +150,20 @@ impl VCompNotarySigner {
     ///
     /// `Ok(())` on success, or an error if writing fails.
     pub fn copy_data(&self, statement_dir: PathBuf, blob_dir: PathBuf) -> Result<()> {
-        if let Some(statements) = self.credentials.clone() {
+        if let Some(statements) = &self.credentials {
             fs::create_dir_all(&statement_dir).ok();
-            for (cid, content) in statements {
-                let cid = strip_urn_cid(&cid);
+            for (cid, content) in statements.iter() {
+                let cid = strip_urn_cid(cid);
                 let path = statement_dir.join(format!("{}.jsonld", cid));
                 fs::write(&path, serde_json::to_vec(&content)?)?;
                 log::debug!("Wrote VComp DID statement to: {:?}", path);
             }
         }
 
-        if let Some(blobs) = self.did_blobs.clone() {
+        if let Some(blobs) = &self.did_blobs {
             fs::create_dir_all(&blob_dir).ok();
-            for (cid, content) in blobs {
-                let path = blob_dir.join(&cid);
+            for (cid, content) in blobs.iter() {
+                let path = blob_dir.join(cid);
                 fs::write(&path, content)?;
                 log::debug!("Wrote VComp DID blob to: {:?}", path);
             }
@@ -273,6 +275,35 @@ mod tests {
     use p256::ecdsa::SigningKey;
 
     use super::*;
+
+    #[test]
+    fn clone_shares_cached_manifest() {
+        let signing_key = SigningKey::from_bytes((&[7u8; 32]).into()).unwrap();
+        let pub_key = signing_key.verifying_key().to_encoded_point(true);
+        let signer = VCompNotarySigner {
+            version: "1".to_owned(),
+            url: "http://notary".to_owned(),
+            did_doc: VCompNotarySigner::did_doc_from_public_key(pub_key.as_bytes()).unwrap(),
+            operated_by: None,
+            executed_on: None,
+            credentials: Some(Arc::new(HashMap::from([(
+                "urn:cid:a".to_owned(),
+                json!({"k": "v"}),
+            )]))),
+            did_blobs: Some(Arc::new(HashMap::from([("b".to_owned(), vec![1, 2, 3])]))),
+        };
+
+        let copy = signer.clone();
+
+        assert!(Arc::ptr_eq(
+            signer.credentials.as_ref().unwrap(),
+            copy.credentials.as_ref().unwrap()
+        ));
+        assert!(Arc::ptr_eq(
+            signer.did_blobs.as_ref().unwrap(),
+            copy.did_blobs.as_ref().unwrap()
+        ));
+    }
 
     #[test]
     fn compressed_vcomp_public_key_repairs_verification_method_jwk() {

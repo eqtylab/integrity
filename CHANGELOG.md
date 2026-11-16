@@ -32,6 +32,12 @@ not always match the Git tags; section versions follow the tags.
   computation. Canonicalized output is unchanged. **Breaking:** `loader()` returns a
   new `IntegrityLoader` instead of `ssi_json_ld::ContextLoader`. It implements
   `Clone` and `Debug`, and can be used anywhere ssi accepts a JSON-LD loader.
+- `integrity-signer`: `VCompNotarySigner` keeps the notary's cached DID
+  registration (`credentials` and `did_blobs`) behind an `Arc`, so cloning the
+  signer no longer copies it. VC signing clones the signer for each credential;
+  on an Azure SEV-SNP notary the registration is 63 KB and each copy took about
+  6 µs. **Breaking:** the two fields are now `Option<Arc<HashMap<…>>>`. Their
+  serialized form is unchanged.
 
 ### Fixed
 
