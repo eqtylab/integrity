@@ -2,8 +2,7 @@ mod signer_adapter;
 
 use std::collections::HashMap;
 
-use anyhow::Result;
-use anyhow::{anyhow, bail};
+use anyhow::{anyhow, bail, Result};
 use chrono::{DateTime, Utc};
 use integrity_signer::SignerType;
 use serde_json::Value;
