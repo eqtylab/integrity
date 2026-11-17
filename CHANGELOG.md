@@ -22,6 +22,7 @@ not always match the Git tags; section versions follow the tags.
   `verify_vc_at` and `VcVerificationError` are available on wasm. Before, the whole crate
   was compiled out there. The `vcomp-notary`, `auth-service`, `akv` and `yubikey`
   signers still need a native target.
+  ([#65](https://github.com/eqtylab/integrity/pull/65))
 - `integrity-lineage-models`: `utoipa` from 3.5.0 to 6.0.0. **Breaking:** the models'
   `ToSchema` implementations are now utoipa 6's, so an OpenAPI document that embeds
   them has to be built with utoipa 6. Serialization and the Rust API are unchanged.
