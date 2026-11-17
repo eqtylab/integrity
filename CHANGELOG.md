@@ -18,6 +18,10 @@ not always match the Git tags; section versions follow the tags.
 
 ### Changed
 
+- `integrity-vc`: the crate builds for `wasm32` with all of its API, so `verify_vc`,
+  `verify_vc_at` and `VcVerificationError` are available on wasm. Before, the whole crate
+  was compiled out there. The `vcomp-notary`, `auth-service`, `akv` and `yubikey`
+  signers still need a native target.
 - `integrity-lineage-models`: `utoipa` from 3.5.0 to 6.0.0. **Breaking:** the models'
   `ToSchema` implementations are now utoipa 6's, so an OpenAPI document that embeds
   them has to be built with utoipa 6. Serialization and the Rust API are unchanged.
