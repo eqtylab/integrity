@@ -43,7 +43,8 @@ build:
 build-wasm:
     wasm-pack build \
         --mode no-install \
-        --no-default-features
+        --no-default-features \
+        --features vc
 
 # Auto-fix clippy warnings where possible
 fix:

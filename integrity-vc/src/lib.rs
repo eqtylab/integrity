@@ -1,23 +1,14 @@
-#[cfg(not(target_arch = "wasm32"))]
 mod signer_adapter;
 
-#[cfg(not(target_arch = "wasm32"))]
 use std::collections::HashMap;
 
-use anyhow::Result;
-#[cfg(not(target_arch = "wasm32"))]
-use anyhow::{anyhow, bail};
-#[cfg(not(target_arch = "wasm32"))]
+use anyhow::{anyhow, bail, Result};
 use chrono::{DateTime, Utc};
-#[cfg(not(target_arch = "wasm32"))]
 use integrity_signer::SignerType;
-#[cfg(not(target_arch = "wasm32"))]
 use serde_json::Value;
 /// Re-export so callers (FFI, lineage-models, examples) don't depend on ssi
 /// crate paths directly.
-#[cfg(not(target_arch = "wasm32"))]
 pub use ssi::claims::vc::v2::syntax::JsonCredential as Credential;
-#[cfg(not(target_arch = "wasm32"))]
 use ssi::{
     claims::{
         data_integrity::{AnySuite, CryptographicSuite, DataIntegrity, ProofOptions},
@@ -29,12 +20,10 @@ use ssi::{
     verification_methods::{AnyMethod, ProofPurpose},
 };
 
-#[cfg(not(target_arch = "wasm32"))]
 use crate::signer_adapter::IntegritySigner;
 
 /// A signed VC: a `JsonCredential` (W3C VC 2.0 syntax) bundled with one or
 /// more Data-Integrity proofs from any supported cryptosuite.
-#[cfg(not(target_arch = "wasm32"))]
 pub type SignedVc = DataIntegrity<JsonCredential, AnySuite>;
 
 /// Build an unsigned `JsonCredential` with the EQTY-flavored `@context`
@@ -64,7 +53,6 @@ pub type SignedVc = DataIntegrity<JsonCredential, AnySuite>;
 /// `MaybeIdentifiedTypedObject` evidence type, which keeps `type` typed
 /// and routes any extra keys (`report`, `certificateChain`, …) into
 /// `extra_properties`.
-#[cfg(not(target_arch = "wasm32"))]
 pub fn build_unsigned_with_eqty_contexts(
     id: &str,
     issuer_did: &str,
@@ -155,7 +143,6 @@ pub fn build_unsigned_with_eqty_contexts(
 ///   directly; otherwise wrapped as `{"id": subject}`.
 /// * `signer` - Signer for the credential. The issuer DID is derived from
 ///   `signer.get_did_doc().id`.
-#[cfg(not(target_arch = "wasm32"))]
 pub async fn issue_vc(subject: &str, signer: SignerType) -> Result<SignedVc> {
     log::debug!("Issuing VC for '{subject}'");
     let adapter = IntegritySigner::new(signer);
@@ -179,7 +166,6 @@ pub async fn issue_vc(subject: &str, signer: SignerType) -> Result<SignedVc> {
 /// This is a thin wrapper over [`allocate_credential_status`] (the
 /// allocate-and-augment step) followed by signing; callers holding a
 /// pre-built unsigned credential should reach for that helper directly.
-#[cfg(not(target_arch = "wasm32"))]
 pub async fn issue_revocable_vc(
     subject: &str,
     signer: SignerType,
@@ -221,7 +207,6 @@ pub async fn issue_revocable_vc(
 /// request fails, the server responds non-2xx (its response body is
 /// surfaced verbatim), or the response body doesn't parse back as a
 /// `JsonCredential`.
-#[cfg(not(target_arch = "wasm32"))]
 pub async fn allocate_credential_status(
     unsigned: JsonCredential,
     status_server_url: &str,
@@ -261,7 +246,6 @@ pub async fn allocate_credential_status(
 /// Signing canonicalizes the credential, so every context it references
 /// has to resolve — an unknown one is a hard error, never a silent skip.
 /// A credential using only the W3C base contexts can pass `None`.
-#[cfg(not(target_arch = "wasm32"))]
 pub async fn sign_vc(
     unsigned: JsonCredential,
     signer: SignerType,
@@ -297,7 +281,6 @@ pub async fn sign_vc(
 /// accepted, the error carries a [`VcVerificationError`] saying why; recover it
 /// with `err.downcast_ref::<VcVerificationError>()` rather than matching on the
 /// message.
-#[cfg(not(target_arch = "wasm32"))]
 pub async fn verify_vc(vc_json: &str, contexts: Option<HashMap<String, String>>) -> Result<String> {
     verify_vc_with_date_time(vc_json, contexts, None).await
 }
@@ -324,7 +307,6 @@ pub async fn verify_vc(vc_json: &str, contexts: Option<HashMap<String, String>>)
 /// `proof.verificationMethod`) is part of the credential, so a credential that
 /// was altered there reads the same way. Treat them as a rejection, never as
 /// "not checked".
-#[cfg(not(target_arch = "wasm32"))]
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum VcVerificationError {
@@ -377,7 +359,6 @@ pub enum VcVerificationError {
     Legacy(Vec<String>),
 }
 
-#[cfg(not(target_arch = "wasm32"))]
 impl VcVerificationError {
     /// A stable reason code: `expired`, `not_yet_valid`, `invalid_claims`,
     /// `invalid_signature`, `missing_proof`, `invalid_proof`, `malformed`,
@@ -401,7 +382,6 @@ impl VcVerificationError {
     }
 }
 
-#[cfg(not(target_arch = "wasm32"))]
 impl std::fmt::Display for VcVerificationError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -431,10 +411,8 @@ impl std::fmt::Display for VcVerificationError {
     }
 }
 
-#[cfg(not(target_arch = "wasm32"))]
 impl std::error::Error for VcVerificationError {}
 
-#[cfg(not(target_arch = "wasm32"))]
 impl From<Invalid> for VcVerificationError {
     fn from(e: Invalid) -> Self {
         match e {
@@ -460,7 +438,6 @@ impl From<Invalid> for VcVerificationError {
 /// (`UnsupportedSuite`, `UnresolvedContext`, `UnresolvedKey`), or
 /// `Unverifiable` when ssi's message is not recognised; each is still a
 /// rejection.
-#[cfg(not(target_arch = "wasm32"))]
 impl From<ProofValidationError> for VcVerificationError {
     fn from(e: ProofValidationError) -> Self {
         use ProofValidationError as P;
@@ -487,7 +464,6 @@ impl From<ProofValidationError> for VcVerificationError {
     }
 }
 
-#[cfg(not(target_arch = "wasm32"))]
 impl VcVerificationError {
     /// Names why ssi stopped the check before a verdict, from its message.
     fn from_unchecked_reason(message: String) -> Self {
@@ -547,7 +523,6 @@ impl VcVerificationError {
 /// one; the result says so too: on success it reads
 /// ``VC verification result: ok (legacy path; `at` was not applied: …)``, and a
 /// [`VcVerificationError::Legacy`] rejection's last error is the same note.
-#[cfg(not(target_arch = "wasm32"))]
 pub async fn verify_vc_at(
     vc_json: &str,
     contexts: Option<HashMap<String, String>>,
@@ -558,7 +533,6 @@ pub async fn verify_vc_at(
 
 /// Added to a legacy result, success or rejection, when the caller asked for a
 /// check time.
-#[cfg(not(target_arch = "wasm32"))]
 const LEGACY_AT_NOT_APPLIED: &str =
     "`at` was not applied: the legacy verifier judges dates at the current time";
 
@@ -572,7 +546,6 @@ const LEGACY_AT_NOT_APPLIED: &str =
 /// `false` when `at` was given but the credential is a legacy one
 /// ([`is_legacy_vc`]), which is judged at the current time. Otherwise it is
 /// `true`, whether the credential was accepted or rejected.
-#[cfg(not(target_arch = "wasm32"))]
 pub fn at_applied(vc_json: &str, at: Option<DateTime<Utc>>, outcome: &Result<String>) -> bool {
     let checked = match outcome {
         Ok(_) => true,
@@ -586,7 +559,6 @@ pub fn at_applied(vc_json: &str, at: Option<DateTime<Utc>>, outcome: &Result<Str
 
 /// [`verify_vc`] when `at` is `None`, [`verify_vc_at`] otherwise, for callers
 /// whose check time is optional.
-#[cfg(not(target_arch = "wasm32"))]
 pub async fn verify_vc_with_date_time(
     vc_json: &str,
     contexts: Option<HashMap<String, String>>,
@@ -633,7 +605,6 @@ pub async fn verify_vc_with_date_time(
 /// `Some(true)` when set. If a credential has multiple entries for the
 /// same purpose (uncommon but spec-legal), their bits are OR'd — any one
 /// set marks the credential as revoked/suspended.
-#[cfg(not(target_arch = "wasm32"))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CredentialStatus {
     pub revoked: Option<bool>,
@@ -680,7 +651,6 @@ pub struct CredentialStatus {
 ///   a post-VC-2.0 feature and legacy VCs by construction don't carry
 ///   `credentialStatus`.
 /// - `"message"`-purpose entries are skipped (out of scope here).
-#[cfg(not(target_arch = "wasm32"))]
 pub async fn check_credential_status(
     vc_json: &str,
     status_list_signer: &str,
@@ -695,14 +665,12 @@ pub async fn check_credential_status(
 /// `Message` variant that has no meaning for a revoke/suspend write), so
 /// the crate's public surface stays free of `ssi` crate paths — matching
 /// the policy behind the local [`CredentialStatus`].
-#[cfg(not(target_arch = "wasm32"))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StatusPurpose {
     Revocation,
     Suspension,
 }
 
-#[cfg(not(target_arch = "wasm32"))]
 impl StatusPurpose {
     /// The wire string the vc-status-server expects in `statusPurpose`,
     /// and the value `credentialStatus` entries are matched against.
@@ -755,7 +723,6 @@ impl StatusPurpose {
 /// `id`, is a legacy VC, has zero or multiple matching entries, the HTTP
 /// request fails, or the server responds non-2xx (its response body is
 /// surfaced verbatim, including the `{"error","message"}` payload).
-#[cfg(not(target_arch = "wasm32"))]
 pub async fn update_credential_status(
     vc_json: &str,
     purpose: StatusPurpose,
@@ -836,7 +803,6 @@ pub async fn update_credential_status(
 ///
 /// Convenience wrapper over [`update_credential_status`]. See it for
 /// entry-selection rules and errors.
-#[cfg(not(target_arch = "wasm32"))]
 pub async fn revoke_vc(
     vc_json: &str,
     status_server_url: &str,
@@ -857,7 +823,6 @@ pub async fn revoke_vc(
 ///
 /// Convenience wrapper over [`update_credential_status`]. See it for
 /// entry-selection rules and errors.
-#[cfg(not(target_arch = "wasm32"))]
 pub async fn suspend_vc(
     vc_json: &str,
     status_server_url: &str,
@@ -878,7 +843,6 @@ pub async fn suspend_vc(
 ///
 /// Convenience wrapper over [`update_credential_status`]. See it for
 /// entry-selection rules and errors.
-#[cfg(not(target_arch = "wasm32"))]
 pub async fn unsuspend_vc(
     vc_json: &str,
     status_server_url: &str,
@@ -906,7 +870,6 @@ pub async fn unsuspend_vc(
 ///   carry no proof at all (used so wiremock tests don't have to sign
 ///   their fixtures). Implies trusting the transport; do not set in
 ///   production.
-#[cfg(not(target_arch = "wasm32"))]
 async fn check_credential_status_inner(
     vc_json: &str,
     status_list_signer: Option<&str>,
@@ -1057,7 +1020,6 @@ async fn check_credential_status_inner(
 ///
 /// Such a credential is verified by the legacy verifier, which judges dates
 /// only at the current time: [`verify_vc_at`] does not apply its `at` to it.
-#[cfg(not(target_arch = "wasm32"))]
 pub fn is_legacy_vc(vc_json: &str) -> bool {
     let v: Value = match serde_json::from_str(vc_json) {
         Ok(v) => v,
@@ -1097,7 +1059,6 @@ pub fn is_legacy_vc(vc_json: &str) -> bool {
 /// could change the canonicalized output and break a credential already in the
 /// wild, and no legacy credential references a vocabulary a caller would need
 /// to supply.
-#[cfg(not(target_arch = "wasm32"))]
 async fn verify_legacy_vc(vc_json: &str) -> Result<String> {
     use did_method_key_legacy::DIDKey;
     use ssi_legacy::vc::Credential;
@@ -1129,7 +1090,6 @@ async fn verify_legacy_vc(vc_json: &str) -> Result<String> {
 /// loader would resolve so that legacy verification sees the older context
 /// shape (notably `credentials/v2` with its `@vocab` fallback that lets
 /// custom evidence terms expand to predictable `issuer-dependent#` IRIs).
-#[cfg(not(target_arch = "wasm32"))]
 fn legacy_context_overrides() -> std::collections::HashMap<String, String> {
     let mut map = std::collections::HashMap::new();
     map.insert(
@@ -1147,7 +1107,6 @@ fn legacy_context_overrides() -> std::collections::HashMap<String, String> {
     map
 }
 
-#[cfg(not(target_arch = "wasm32"))]
 fn build_unsigned(subject: &str, adapter: &IntegritySigner) -> Result<JsonCredential> {
     use iref::UriBuf;
     use ssi::claims::vc::syntax::{IdOr, NonEmptyVec};
@@ -1201,7 +1160,6 @@ fn build_unsigned(subject: &str, adapter: &IntegritySigner) -> Result<JsonCreden
     Ok(credential)
 }
 
-#[cfg(not(target_arch = "wasm32"))]
 async fn sign(
     unsigned: JsonCredential,
     adapter: IntegritySigner,
@@ -1242,7 +1200,6 @@ async fn sign(
 }
 
 #[cfg(test)]
-#[cfg(not(target_arch = "wasm32"))]
 mod tests {
     use integrity_signer::{Ed25519Signer, SignerType};
 
