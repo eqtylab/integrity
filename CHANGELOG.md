@@ -16,6 +16,8 @@ not always match the Git tags; section versions follow the tags.
 
 ## [Unreleased]
 
+## [0.0.21] - 2026-11-18
+
 ### Changed
 
 - `integrity-vc`: the crate builds for `wasm32` with all of its API, so `verify_vc`,
@@ -37,6 +39,7 @@ not always match the Git tags; section versions follow the tags.
   computation. Canonicalized output is unchanged. **Breaking:** `loader()` returns a
   new `IntegrityLoader` instead of `ssi_json_ld::ContextLoader`. It implements
   `Clone` and `Debug`, and can be used anywhere ssi accepts a JSON-LD loader.
+  ([#59](https://github.com/eqtylab/integrity/pull/59))
 
 ### Fixed
 
@@ -422,7 +425,8 @@ not always match the Git tags; section versions follow the tags.
 - Correct shell commands used to stage native release artifacts.
   ([#4](https://github.com/eqtylab/integrity/pull/4))
 
-[Unreleased]: https://github.com/eqtylab/integrity/compare/v0.0.20...main
+[Unreleased]: https://github.com/eqtylab/integrity/compare/v0.0.21...main
+[0.0.21]: https://github.com/eqtylab/integrity/compare/v0.0.20...v0.0.21
 [0.0.20]: https://github.com/eqtylab/integrity/compare/v0.0.19...v0.0.20
 [0.0.19]: https://github.com/eqtylab/integrity/compare/v0.0.18...v0.0.19
 [0.0.18]: https://github.com/eqtylab/integrity/compare/v0.0.17...v0.0.18
