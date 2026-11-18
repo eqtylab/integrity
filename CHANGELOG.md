@@ -52,6 +52,7 @@ not always match the Git tags; section versions follow the tags.
   `validUntil` / `expirationDate` checked, judged at `at` like any other credential.
   Before, the legacy verifier ignored those dates. `at_applied` and the FFI's
   `out_at_applied` are no longer `false` for legacy credentials.
+  ([#67](https://github.com/eqtylab/integrity/pull/67))
 
 ## [0.0.20] - 2026-10-28
 
