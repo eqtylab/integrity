@@ -158,9 +158,8 @@ pub extern "C" fn ig_vc_verify(
 /// On success it is set to `NULL`. `*out_valid` is `false` unless the call
 /// succeeds. `*out_at_applied`, when `out_at_applied` is not `NULL`, says
 /// whether the dates were judged at `at_rfc3339` (or now, when it is `NULL`):
-/// it is `false` when a time was given but the credential is a legacy
-/// (pre-ssi-0.16) one, which is judged at the current time, and `false` when
-/// the call failed before the credential was checked; otherwise `true`.
+/// it is `false` when the call failed before the credential was checked;
+/// otherwise `true`.
 #[no_mangle]
 #[allow(clippy::too_many_arguments)]
 pub extern "C" fn ig_vc_verify_at(
