@@ -54,6 +54,11 @@ not always match the Git tags; section versions follow the tags.
   `out_at_applied` are no longer `false` for legacy credentials.
   ([#67](https://github.com/eqtylab/integrity/pull/67))
 
+### Removed
+
+- FFI releases: the `macos-14-aarch64` bundle, since GitHub no longer runs
+  `macos-14`. Use `macos-15-aarch64`.
+
 ## [0.0.20] - 2026-10-28
 
 ### Changed
