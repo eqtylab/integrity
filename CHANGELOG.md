@@ -16,6 +16,21 @@ not always match the Git tags; section versions follow the tags.
 
 ## [Unreleased]
 
+### Fixed
+
+- `integrity-vc`: legacy (pre-ssi-0.16) credentials now have their `validFrom` and
+  `validUntil` / `expirationDate` checked, judged at `at` like any other credential.
+  Before, the legacy verifier ignored those dates. `at_applied` and the FFI's
+  `out_at_applied` are no longer `false` for legacy credentials.
+
+### Fixed
+
+- `integrity-vc`: legacy (pre-ssi-0.16) credentials now have their `validFrom` and
+  `validUntil` / `expirationDate` checked, and are judged at `at` like any other.
+  Before, the legacy verifier ignored those dates, and ignored `at`. An expired
+  legacy credential is now rejected with `Expired`, and `at_applied` and the FFI's
+  `out_at_applied` are no longer `false` for legacy credentials.
+
 ## [0.0.21] - 2026-11-18
 
 ### Changed

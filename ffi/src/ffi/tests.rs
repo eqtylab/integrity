@@ -261,27 +261,40 @@ fn ffi_vc_issue_and_verify_smoke() {
         err_out = ptr::null_mut();
     }
 
-    // A legacy credential checked at a time is accepted, and says `at` was not
-    // applied: the legacy verifier judges dates only now.
+    // A legacy credential is judged at the time given too: accepted inside its
+    // validity period (from 2026-05-14), rejected before it.
     let legacy_c = cstring(include_str!("../../../fixtures/legacy-vc/ed25519.json"));
-    let long_ago = cstring("2000-01-01T00:00:00Z");
-    reason_ptr = stale_reason;
-    let status = vc::ig_vc_verify_at(
-        runtime_handle,
-        legacy_c.as_ptr(),
-        ptr::null(),
-        long_ago.as_ptr(),
-        &mut verify_result_ptr,
-        &mut is_valid,
-        &mut reason_ptr,
-        &mut at_applied,
-        &mut err_out,
-    );
-    assert_ok(status, err_out);
-    assert!(is_valid);
-    assert!(reason_ptr.is_null(), "a success leaves out_reason NULL");
-    assert!(!at_applied);
-    assert!(take_owned_c_string(verify_result_ptr).contains("`at` was not applied"));
+    for (at, valid) in [
+        ("2026-06-01T00:00:00Z", true),
+        ("2000-01-01T00:00:00Z", false),
+    ] {
+        let at_c = cstring(at);
+        reason_ptr = stale_reason;
+        at_applied = false;
+        let status = vc::ig_vc_verify_at(
+            runtime_handle,
+            legacy_c.as_ptr(),
+            ptr::null(),
+            at_c.as_ptr(),
+            &mut verify_result_ptr,
+            &mut is_valid,
+            &mut reason_ptr,
+            &mut at_applied,
+            &mut err_out,
+        );
+        assert!(at_applied, "{at}");
+        assert_eq!(is_valid, valid, "{at}");
+        if valid {
+            assert_ok(status, err_out);
+            assert!(reason_ptr.is_null(), "a success leaves out_reason NULL");
+            take_owned_c_string(verify_result_ptr);
+        } else {
+            assert_eq!(status, IgStatus::VerificationFailed);
+            assert_eq!(take_owned_c_string(reason_ptr), "not_yet_valid");
+            take_owned_c_string(err_out);
+            err_out = ptr::null_mut();
+        }
+    }
 
     let bad_at = cstring("yesterday");
     reason_ptr = stale_reason;

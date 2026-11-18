@@ -494,8 +494,8 @@ impl VcVerificationError {
 /// instead of the current time.
 ///
 /// Behaves like [`verify_vc`], except that the credential's `validFrom` /
-/// `validUntil` are checked against `at` rather than now. Legacy credentials
-/// are the exception: see below.
+/// `validUntil` are checked against `at` rather than now. For legacy
+/// credentials, see below.
 ///
 /// # Why use this
 ///
@@ -517,12 +517,11 @@ impl VcVerificationError {
 ///
 /// # Legacy credentials
 ///
-/// Credentials created before ssi 0.16 are verified by a separate legacy
-/// verifier, which judges dates only at the current time, so `at` is not
-/// applied to them. [`is_legacy_vc`] says beforehand whether a credential is
-/// one; the result says so too: on success it reads
-/// ``VC verification result: ok (legacy path; `at` was not applied: …)``, and a
-/// [`VcVerificationError::Legacy`] rejection's last error is the same note.
+/// Credentials created before ssi 0.16 ([`is_legacy_vc`]) are verified by a
+/// separate legacy verifier, with their dates judged at `at` too: `validFrom`,
+/// and `validUntil` or `expirationDate`, give [`VcVerificationError::Expired`]
+/// and [`VcVerificationError::NotYetValid`] as on the current path. The legacy
+/// verifier also requires the proof's `created` to be no later than `at`.
 pub async fn verify_vc_at(
     vc_json: &str,
     contexts: Option<HashMap<String, String>>,
@@ -531,30 +530,23 @@ pub async fn verify_vc_at(
     verify_vc_with_date_time(vc_json, contexts, Some(at)).await
 }
 
-/// Added to a legacy result, success or rejection, when the caller asked for a
-/// check time.
-const LEGACY_AT_NOT_APPLIED: &str =
-    "`at` was not applied: the legacy verifier judges dates at the current time";
-
 /// Whether the credential's dates were judged at `at` (or now, when `at` is
 /// `None`), given `outcome`, the result of [`verify_vc_with_date_time`] for the
 /// same `vc_json` and `at`.
 ///
 /// It is `false` when the credential was never checked: the call failed before
 /// a verdict, or with [`VcVerificationError::Malformed`] (input that is not a
-/// well-formed credential, including JSON-LD that does not expand). It is also
-/// `false` when `at` was given but the credential is a legacy one
-/// ([`is_legacy_vc`]), which is judged at the current time. Otherwise it is
-/// `true`, whether the credential was accepted or rejected.
-pub fn at_applied(vc_json: &str, at: Option<DateTime<Utc>>, outcome: &Result<String>) -> bool {
-    let checked = match outcome {
+/// well-formed credential, including JSON-LD that does not expand). Otherwise
+/// it is `true`, whether the credential was accepted or rejected. Legacy
+/// credentials ([`is_legacy_vc`]) are judged at `at` like any other.
+pub fn at_applied(_vc_json: &str, _at: Option<DateTime<Utc>>, outcome: &Result<String>) -> bool {
+    match outcome {
         Ok(_) => true,
         Err(e) => matches!(
             e.downcast_ref::<VcVerificationError>(),
             Some(reason) if !matches!(reason, VcVerificationError::Malformed(_))
         ),
-    };
-    checked && !(at.is_some() && is_legacy_vc(vc_json))
+    }
 }
 
 /// [`verify_vc`] when `at` is `None`, [`verify_vc_at`] otherwise, for callers
@@ -566,22 +558,8 @@ pub async fn verify_vc_with_date_time(
 ) -> Result<String> {
     if is_legacy_vc(vc_json) {
         // `contexts` deliberately does not reach the legacy path; see
-        // `verify_legacy_vc`. Nor does `at`: the legacy verifier judges dates
-        // now, and the result, accepted or not, says so.
-        return match (verify_legacy_vc(vc_json).await, at) {
-            (Ok(_), Some(_)) => Ok(format!(
-                "VC verification result: ok (legacy path; {LEGACY_AT_NOT_APPLIED})"
-            )),
-            (Err(e), Some(_)) => match e.downcast::<VcVerificationError>() {
-                Ok(VcVerificationError::Legacy(mut errors)) => {
-                    errors.push(LEGACY_AT_NOT_APPLIED.to_string());
-                    Err(VcVerificationError::Legacy(errors).into())
-                }
-                Ok(other) => Err(other.into()),
-                Err(e) => Err(e),
-            },
-            (result, _) => result,
-        };
+        // `verify_legacy_vc`.
+        return verify_legacy_vc(vc_json, at).await;
     }
 
     let vc: SignedVc = serde_json::from_str(vc_json).map_err(|e| {
@@ -1018,8 +996,8 @@ async fn check_credential_status_inner(
 /// hybrid v1/v2 shape that ssi 0.16's strict JSON-LD pipeline can't
 /// reproduce the canonical bytes for.
 ///
-/// Such a credential is verified by the legacy verifier, which judges dates
-/// only at the current time: [`verify_vc_at`] does not apply its `at` to it.
+/// Such a credential is verified by a separate legacy verifier; see
+/// [`verify_vc_at`].
 pub fn is_legacy_vc(vc_json: &str) -> bool {
     let v: Value = match serde_json::from_str(vc_json) {
         Ok(v) => v,
@@ -1059,20 +1037,30 @@ pub fn is_legacy_vc(vc_json: &str) -> bool {
 /// could change the canonicalized output and break a credential already in the
 /// wild, and no legacy credential references a vocabulary a caller would need
 /// to supply.
-async fn verify_legacy_vc(vc_json: &str) -> Result<String> {
+///
+/// ssi 0.7 checks no validity dates itself, only that the proof was not created
+/// after the time it is judged at, so the dates are checked here first, as the
+/// current path checks claims before the proof.
+async fn verify_legacy_vc(vc_json: &str, at: Option<DateTime<Utc>>) -> Result<String> {
     use did_method_key_legacy::DIDKey;
-    use ssi_legacy::vc::Credential;
+    use ssi_legacy::vc::{Credential, LinkedDataProofOptions};
 
     // A credential that does not parse is malformed, as on the current path; a
     // loader built from the bundled contexts failing is ours, and stays untyped.
     let vc = Credential::from_json_unsigned(vc_json).map_err(|e| {
         VcVerificationError::Malformed(format!("not a well-formed legacy credential: {e}"))
     })?;
+    let at_or_now = at.unwrap_or_else(Utc::now);
+    check_legacy_validity(vc_json, at_or_now)?;
+    let options = at.map(|at| LinkedDataProofOptions {
+        created: Some(at),
+        ..Default::default()
+    });
 
     let mut loader = ssi_legacy::jsonld::ContextLoader::empty()
         .with_context_map_from(legacy_context_overrides())
         .map_err(|e| anyhow!("failed to build legacy context loader: {e}"))?;
-    let result = vc.verify(None, &DIDKey, &mut loader).await;
+    let result = vc.verify(options, &DIDKey, &mut loader).await;
     log::debug!(
         "legacy verify errors={:?} warnings={:?} checks={:?}",
         result.errors,
@@ -1083,6 +1071,38 @@ async fn verify_legacy_vc(vc_json: &str) -> Result<String> {
         return Err(VcVerificationError::Legacy(result.errors).into());
     }
     Ok("VC verification result: ok (legacy path)".to_string())
+}
+
+/// A legacy credential's `validFrom`, and its `validUntil` or `expirationDate`
+/// (the v1 name its issuer may have used), judged at `at`.
+fn check_legacy_validity(vc_json: &str, at: DateTime<Utc>) -> Result<(), VcVerificationError> {
+    let v: Value = serde_json::from_str(vc_json)
+        .map_err(|e| VcVerificationError::Malformed(format!("not JSON: {e}")))?;
+    let date = |key: &str| -> Result<Option<DateTime<Utc>>, VcVerificationError> {
+        v.get(key)
+            .map(|d| {
+                d.as_str()
+                    .and_then(|d| DateTime::parse_from_rfc3339(d).ok())
+                    .map(|d| d.with_timezone(&Utc))
+                    .ok_or_else(|| {
+                        VcVerificationError::Malformed(format!("`{key}` is not an RFC 3339 date"))
+                    })
+            })
+            .transpose()
+    };
+    if let Some(valid_from) = date("validFrom")? {
+        if at < valid_from {
+            return Err(VcVerificationError::NotYetValid { valid_from, at });
+        }
+    }
+    for key in ["validUntil", "expirationDate"] {
+        if let Some(valid_until) = date(key)? {
+            if at >= valid_until {
+                return Err(VcVerificationError::Expired { valid_until, at });
+            }
+        }
+    }
+    Ok(())
 }
 
 /// Bundled W3C contexts at the ssi-contexts 0.1.5 revision — the version
@@ -1206,6 +1226,8 @@ mod tests {
     use super::*;
 
     const CAPTURED_LEGACY_ED25519_VC: &str = include_str!("../../fixtures/legacy-vc/ed25519.json");
+    /// Signed by the pre-ssi-0.16 issuer, valid 2025-01-01 to 2025-06-01.
+    const LEGACY_EXPIRED_VC: &str = include_str!("../../fixtures/legacy-vc/expired.json");
 
     const CAPTURED_LEGACY_SECP256K1_VC: &str =
         include_str!("../../fixtures/legacy-vc/secp256k1.json");
@@ -2001,16 +2023,14 @@ mod tests {
             VcVerificationError::Malformed(_)
         ));
 
-        // A legacy credential that verifies now is accepted at `at` too, but the
-        // result says `at` was not applied, and `is_legacy_vc` says so beforehand.
         assert!(is_legacy_vc(CAPTURED_LEGACY_ED25519_VC));
         assert!(!is_legacy_vc(&vc.to_string()));
 
-        // `at_applied`: judged at `at` unless legacy (with `at`) or never checked.
+        // `at_applied`: judged at `at` unless never checked.
         let legacy_vc = CAPTURED_LEGACY_ED25519_VC;
         let current_vc = vc.to_string();
         for (vc_json, at, expected) in [
-            (legacy_vc, Some(now), false),
+            (legacy_vc, Some(now), true),
             (legacy_vc, None, true),
             (current_vc.as_str(), Some(now), true),
             (
@@ -2027,25 +2047,43 @@ mod tests {
                 "{vc_json:.40} at {at:?}"
             );
         }
-        assert_eq!(
-            verify_vc_at(CAPTURED_LEGACY_ED25519_VC, None, now)
-                .await
-                .unwrap(),
-            format!("VC verification result: ok (legacy path; {LEGACY_AT_NOT_APPLIED})")
-        );
-
-        // A rejected legacy credential says when `at` was not applied.
-        let mut legacy: Value = serde_json::from_str(CAPTURED_LEGACY_ED25519_VC).unwrap();
-        legacy["credentialSubject"]["id"] = Value::String("urn:cid:tampered".into());
-        match reason(verify_vc_at(&legacy.to_string(), None, now).await) {
-            VcVerificationError::Legacy(errors) => {
-                assert_eq!(
-                    errors.last().map(String::as_str),
-                    Some(LEGACY_AT_NOT_APPLIED)
-                )
-            }
-            other => panic!("expected Legacy, got {other:?}"),
-        }
+        // A legacy credential's dates are judged at `at` too: an expired one
+        // (valid 2025-01-01 to 2025-06-01) verifies inside its validity period.
+        let at = |t: &str| t.parse::<DateTime<Utc>>().unwrap();
+        assert!(matches!(
+            reason(verify_vc(LEGACY_EXPIRED_VC, None).await),
+            VcVerificationError::Expired { .. }
+        ));
+        verify_vc_at(LEGACY_EXPIRED_VC, None, at("2025-03-01T00:00:00Z"))
+            .await
+            .unwrap();
+        assert!(matches!(
+            reason(verify_vc_at(LEGACY_EXPIRED_VC, None, at("2024-06-01T00:00:00Z")).await),
+            VcVerificationError::NotYetValid { .. }
+        ));
+        assert!(matches!(
+            reason(verify_vc_at(LEGACY_EXPIRED_VC, None, at("2025-06-01T00:00:00Z")).await),
+            VcVerificationError::Expired { .. }
+        ));
+        // A legacy `expirationDate` counts like `validUntil`.
+        let mut v1_expiry: Value = serde_json::from_str(LEGACY_EXPIRED_VC).unwrap();
+        let until = v1_expiry
+            .as_object_mut()
+            .unwrap()
+            .remove("validUntil")
+            .unwrap();
+        v1_expiry["expirationDate"] = until;
+        assert!(matches!(
+            check_legacy_validity(&v1_expiry.to_string(), at("2025-07-01T00:00:00Z")),
+            Err(VcVerificationError::Expired { .. })
+        ));
+        // A date that does not parse is malformed.
+        let mut bad_date: Value = serde_json::from_str(LEGACY_EXPIRED_VC).unwrap();
+        bad_date["validUntil"] = Value::String("soon".into());
+        assert!(matches!(
+            reason(verify_vc(&bad_date.to_string(), None).await),
+            VcVerificationError::Malformed(_)
+        ));
         assert_eq!(
             VcVerificationError::InvalidSignature.code(),
             "invalid_signature"

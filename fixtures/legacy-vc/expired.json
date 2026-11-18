@@ -1,0 +1,24 @@
+{
+  "@context": [
+    "https://www.w3.org/ns/credentials/v2",
+    "https://w3id.org/security/v2"
+  ],
+  "id": "urn:uuid:02eff7cb-66b4-4756-b04b-843d0747ddea",
+  "type": [
+    "VerifiableCredential"
+  ],
+  "credentialSubject": {
+    "id": "urn:cid:bafkr4ibthuzk3zug7ghmx63yjqaiu6rx4hhfdv3453j5bodskgw57bx2ya"
+  },
+  "issuer": "did:key:z6MkkbgazeuCV59RaLnTRiJrvAB243tV7qJj1RWmco2MYt1g",
+  "issuanceDate": "2025-01-01T00:00:00Z",
+  "proof": {
+    "type": "Ed25519Signature2018",
+    "proofPurpose": "assertionMethod",
+    "verificationMethod": "did:key:z6MkkbgazeuCV59RaLnTRiJrvAB243tV7qJj1RWmco2MYt1g#z6MkkbgazeuCV59RaLnTRiJrvAB243tV7qJj1RWmco2MYt1g",
+    "created": "2025-01-01T00:00:00Z",
+    "jws": "eyJhbGciOiJFZERTQSIsImNyaXQiOlsiYjY0Il0sImI2NCI6ZmFsc2V9..BkvlkBFgLBPGWq8tAORBGXkDFiX1FXgnBsTJ2lC4UADBQ4tGXnJ9f0mBgHql-JECslEdv2_lxQHzDnp8DB3QDA"
+  },
+  "validUntil": "2025-06-01T00:00:00Z",
+  "validFrom": "2025-01-01T00:00:00Z"
+}
