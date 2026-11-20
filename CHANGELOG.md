@@ -24,6 +24,7 @@ not always match the Git tags; section versions follow the tags.
   context to the auth service. `create` is unchanged. **Breaking:** `AuthServiceSigner` has
   two new public fields, `client` and `headers`, which serde skips; code that builds the
   struct with a literal must set them, for example to `None` and `HeaderMap::new()`.
+  ([#69](https://github.com/eqtylab/integrity/pull/69))
 
 ## [0.0.21] - 2026-11-18
 
