@@ -51,7 +51,7 @@ pub struct VCompNotarySigner {
 
 /// Response header a notary sends when a caller it attributed on a connection
 /// stays attributed for the rest of that connection.
-pub const CONNECTION_ATTRIBUTION_HEADER: &str = "x-argus-connection-attribution";
+pub const CONNECTION_ATTRIBUTION_HEADER: &str = "x-connection-attribution";
 
 const MODE_UNKNOWN: u8 = 0;
 const MODE_REUSE: u8 = 1;
@@ -590,7 +590,7 @@ mod connection_tests {
                 "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\n{}{}\r\n{body}",
                 body.len(),
                 if announce {
-                    "x-argus-connection-attribution: per-connection\r\n"
+                    "x-connection-attribution: per-connection\r\n"
                 } else {
                     ""
                 },

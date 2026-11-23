@@ -19,7 +19,7 @@ not always match the Git tags; section versions follow the tags.
 ### Added
 
 - `integrity-signer`: `VCompNotarySigner` signs over one kept-alive connection
-  when the notary announces `x-argus-connection-attribution: per-connection`,
+  when the notary announces `x-connection-attribution: per-connection`,
   instead of opening a connection per request. A notary that does not announce
   it keeps the old behaviour: one connection per request, closed after its
   response. New API: `NotaryConnection` (shared by signer clones and reusable
