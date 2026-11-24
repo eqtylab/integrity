@@ -177,13 +177,15 @@ Upstream release:
 [0.21.4](https://crates.io/crates/json-ld-context-processing/0.21.4).
 
 JSON-LD expansion spends most of its time processing `@context` documents, and
-`ssi` and `integrity-jsonld` process the same few contexts against the same
-active contexts over and over: signing a credential expands it twice, and the
-`CredentialRegistration` that records it expands it again. The local copy adds
-a process-wide memoization of context processing, which brings signing a
-credential and computing its registration's CID from about 4.45 ms to about
-1.55 ms. Results are unchanged; `integrity-jsonld/tests/context_cache.rs`
-compares them against processing that bypasses the cache.
+the same few contexts are processed against the same active contexts over and
+over. `integrity-jsonld` already reuses processed top-level contexts, and
+`integrity-vc` signs through it. The local copy adds a process-wide memoization
+of all context processing, which also covers contexts nested in a document, such
+as the credential embedded in a `CredentialRegistration`, and everything `ssi`
+processes when verifying. With it, a `CredentialRegistration` CID takes about
+0.75 ms instead of 1.5 ms. Results are unchanged;
+`integrity-jsonld/tests/context_cache.rs` compares them against processing that
+bypasses the cache.
 
 The rules an entry follows are documented in `src/cache.rs`. In short, a result
 is reused only for the unit vocabulary `()`, when the options, base URL, local
@@ -215,8 +217,8 @@ json-ld-context-processing = { git = "https://github.com/eqtylab/integrity", tag
 ```
 
 Without it everything still works, only slower. `integrity-jsonld` separately
-reuses processed top-level contexts in `jsonld_to_nquads`, which does not
-depend on this patch.
+reuses processed top-level contexts, for statement CIDs and for signing, which
+does not depend on this patch.
 
 Remove this copy, its `[patch.crates-io]` entry and its workspace exclusion
 once the `json-ld` that `ssi` depends on caches processed contexts itself (as

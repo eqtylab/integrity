@@ -1,9 +1,11 @@
 use std::collections::HashMap;
 
 use anyhow::Result;
-use json_ld::rdf::RdfQuads;
+use json_ld::{expansion::Policy, rdf::RdfQuads, ExpandedDocument};
 use json_syntax::Parse;
 use rdf_types::generator;
+
+use crate::loader::IntegrityLoader;
 
 /// Trait for types that can be converted to JSON-LD input strings.
 ///
@@ -37,15 +39,8 @@ pub async fn jsonld_to_nquads<I>(
 where
     I: Input,
 {
-    let input = input.convert_input()?;
     let loader = crate::loader::loader(additional_contexts)?;
-
-    let (json, _) = json_syntax::Value::parse_str(&input)
-        .map_err(|e| anyhow::anyhow!("failed to parse input JSON-LD: {e}"))?;
-
-    let mut expanded = crate::top_level_context::expand(json, &loader)
-        .await
-        .map_err(|e| anyhow::anyhow!("failed to convert JSON-LD to RDF: {e}"))?;
+    let mut expanded = expand_jsonld(input, &loader, Policy::default()).await?;
 
     // The rest of `JsonLdProcessor::to_rdf`.
     let mut generator = generator::Blank::new();
@@ -58,6 +53,25 @@ where
         .join("\n");
 
     Ok(nquads)
+}
+
+/// Expands JSON-LD the way [`jsonld_to_nquads`] does, with a loader the caller
+/// already built and the given expansion `policy`.
+pub async fn expand_jsonld<I>(
+    input: I,
+    loader: &IntegrityLoader,
+    policy: Policy,
+) -> Result<ExpandedDocument>
+where
+    I: Input,
+{
+    let input = input.convert_input()?;
+    let (json, _) = json_syntax::Value::parse_str(&input)
+        .map_err(|e| anyhow::anyhow!("failed to parse input JSON-LD: {e}"))?;
+
+    crate::top_level_context::expand(json, loader, policy)
+        .await
+        .map_err(|e| anyhow::anyhow!("failed to convert JSON-LD to RDF: {e}"))
 }
 
 #[cfg(test)]

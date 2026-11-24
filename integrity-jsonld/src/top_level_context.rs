@@ -36,12 +36,14 @@ static ENTRIES: Lazy<Mutex<HashMap<json_syntax::Value, Arc<CachedContext>>>> =
     Lazy::new(Default::default);
 
 /// Expands `document` the way [`JsonLdProcessor::to_rdf`] does: default
-/// options, unordered, and no base URL.
+/// options, unordered, and no base URL, except for the expansion `policy`.
 pub(crate) async fn expand(
     mut document: json_syntax::Value,
     loader: &IntegrityLoader,
+    policy: expansion::Policy,
 ) -> Result<ExpandedDocument, ToRdfError> {
-    let options = json_ld::Options::<IriBuf>::default().unordered();
+    let mut options = json_ld::Options::<IriBuf>::default().unordered();
+    options.expansion_policy = policy;
 
     match SplitDocument::new(document) {
         Ok(split) => {

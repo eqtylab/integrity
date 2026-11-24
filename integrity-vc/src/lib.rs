@@ -1,5 +1,7 @@
 #[cfg(not(target_arch = "wasm32"))]
 mod signer_adapter;
+#[cfg(not(target_arch = "wasm32"))]
+mod suites;
 
 #[cfg(not(target_arch = "wasm32"))]
 use std::collections::HashMap;
@@ -1210,35 +1212,51 @@ async fn sign(
     log::debug!("Signing VC");
     let suite = adapter.suite()?;
     let vm_iri = adapter.verification_method_iri()?;
-    let resolver = VerificationMethodDIDResolver::<_, AnyMethod>::new(AnyDidMethod::default());
 
     // Match the same backdate-by-1-hour the credential uses for valid_from.
     let created: DateTime<Utc> = Utc::now() - chrono::Duration::hours(1);
     let created_xsd = xsd_types::DateTimeStamp::from(created);
-
-    let proof_options = ProofOptions::new(
-        created_xsd.into(),
-        ssi::verification_methods::ReferenceOrOwned::Reference(vm_iri),
-        ProofPurpose::Assertion,
-        Default::default(),
-    );
 
     let environment = SignatureEnvironment {
         json_ld_loader: integrity_jsonld::loader::loader(contexts)?,
         eip712_loader: (),
     };
 
-    suite
-        .sign_with(
-            environment,
-            unsigned,
-            &resolver,
-            &adapter,
-            proof_options,
-            Default::default(),
-        )
-        .await
-        .map_err(|e| anyhow!("signature failed: {e}"))
+    // Sign with the matching suite from `suites`, which canonicalizes through
+    // integrity-jsonld, then convert the proof back to `AnySuite`.
+    macro_rules! sign_as {
+        ($suite:ty) => {{
+            let resolver = VerificationMethodDIDResolver::<
+                _,
+                <$suite as ssi::claims::data_integrity::StandardCryptographicSuite>::VerificationMethod,
+            >::new(AnyDidMethod::default());
+            let proof_options = ProofOptions::new(
+                created_xsd.into(),
+                ssi::verification_methods::ReferenceOrOwned::Reference(vm_iri),
+                ProofPurpose::Assertion,
+                Default::default(),
+            );
+            let signed = <$suite>::default()
+                .sign_with(
+                    environment,
+                    unsigned,
+                    &resolver,
+                    &adapter,
+                    proof_options,
+                    Default::default(),
+                )
+                .await
+                .map_err(|e| anyhow!("signature failed: {e}"))?;
+            serde_json::from_value(serde_json::to_value(&signed)?)?
+        }};
+    }
+
+    Ok(match suite {
+        AnySuite::Ed25519Signature2018 => sign_as!(suites::Ed25519Signature2018),
+        AnySuite::EcdsaSecp256r1Signature2019 => sign_as!(suites::EcdsaSecp256r1Signature2019),
+        AnySuite::EcdsaSecp256k1Signature2019 => sign_as!(suites::EcdsaSecp256k1Signature2019),
+        other => bail!("no VC cryptosuite for {other:?}"),
+    })
 }
 
 #[cfg(test)]
@@ -2641,5 +2659,110 @@ mod tests {
         .unwrap();
         let vc_json = serde_json::to_string(&signed).unwrap();
         (server, vc_json)
+    }
+
+    /// The suites in `suites` must produce the same proofs as ssi's. Ed25519
+    /// signatures are deterministic, so identical proofs mean identical
+    /// canonical forms.
+    #[tokio::test]
+    async fn test_suites_sign_like_ssi() {
+        let signer = Ed25519Signer::create().unwrap();
+        let issuer_did = signer.did_doc.id.clone();
+        let adapter = IntegritySigner::new(SignerType::ED25519(signer));
+        let created = xsd_types::DateTimeStamp::from(Utc::now());
+
+        let plain = build_unsigned("urn:cid:subject", &adapter).unwrap();
+        let vcomp = build_unsigned_with_eqty_contexts(
+            "urn:uuid:11111111-1111-1111-1111-111111111111",
+            &issuer_did,
+            serde_json::json!({ "id": "urn:cid:subject" }),
+            Some("EqtyVCompCredential"),
+            None,
+            None,
+            vec![serde_json::json!({
+                "type": ["EqtyVCompNvidiaCcV0Evidence"],
+                "report": "the report",
+            })],
+        )
+        .unwrap();
+
+        macro_rules! proofs {
+            ($suite:expr, $method:ty, $unsigned:expr) => {{
+                let resolver =
+                    VerificationMethodDIDResolver::<_, $method>::new(AnyDidMethod::default());
+                let options = ProofOptions::new(
+                    created.clone().into(),
+                    ssi::verification_methods::ReferenceOrOwned::Reference(
+                        adapter.verification_method_iri().unwrap(),
+                    ),
+                    ProofPurpose::Assertion,
+                    Default::default(),
+                );
+                let environment = SignatureEnvironment {
+                    json_ld_loader: integrity_jsonld::loader::loader(None).unwrap(),
+                    eip712_loader: (),
+                };
+                let signed = $suite
+                    .sign_with(
+                        environment,
+                        $unsigned.clone(),
+                        &resolver,
+                        &adapter,
+                        options,
+                        Default::default(),
+                    )
+                    .await
+                    .unwrap();
+                serde_json::to_value(&signed.proofs).unwrap()
+            }};
+        }
+
+        // `report` is an `@id`-typed term here, and "the report" is not an
+        // IRI: ssi's RDF conversion turns it into a blank node, json-ld's
+        // drops it.
+        let mut invalid_iri: Value = serde_json::json!({
+            "@context": [
+                "https://www.w3.org/ns/credentials/v2",
+                "https://w3id.org/security/v2",
+                "urn:cid:bafkr4ic7ydwk3rtoltyzx4zn3vvu3r7hpzxtmbzmnksotx7k5nbnwclf6m"
+            ],
+            "type": ["VerifiableCredential"],
+            "id": "urn:uuid:11111111-1111-1111-1111-111111111111",
+            "credentialSubject": { "id": "urn:cid:subject" },
+            "evidence": [{
+                "type": ["EqtyVCompNvidiaCcV0Evidence"],
+                "report": "the report",
+            }],
+        });
+        invalid_iri["issuer"] = Value::String(issuer_did.clone());
+        let invalid_iri: JsonCredential = serde_json::from_value(invalid_iri).unwrap();
+
+        for unsigned in [&plain, &vcomp, &invalid_iri] {
+            // Twice, so the second time reuses cached contexts.
+            for _ in 0..2 {
+                assert_eq!(
+                    proofs!(
+                        suites::Ed25519Signature2018,
+                        ssi::verification_methods::Ed25519VerificationKey2018,
+                        unsigned
+                    ),
+                    proofs!(AnySuite::Ed25519Signature2018, AnyMethod, unsigned),
+                );
+            }
+        }
+    }
+
+    /// ECDSA signatures are not deterministic; ssi's own verification checks
+    /// the canonical forms instead.
+    #[tokio::test]
+    async fn test_issue_and_verify_ecdsa_vcs() {
+        for signer in [
+            SignerType::P256(integrity_signer::P256Signer::create().unwrap()),
+            SignerType::SECP256K1(integrity_signer::Secp256k1Signer::create().unwrap()),
+        ] {
+            let signed = issue_vc("urn:cid:subject", signer).await.unwrap();
+            let vc_json = serde_json::to_string(&signed).unwrap();
+            verify_vc(&vc_json, None).await.unwrap();
+        }
     }
 }
